@@ -1,7 +1,8 @@
-[gd_scene load_steps=3 format=3]
+[gd_scene load_steps=4 format=3]
 
 [ext_resource type="Script" path="res://scripts/ui/bootstrap.gd" id="1"]
 [ext_resource type="Script" path="res://scripts/ui/world_map_panel.gd" id="2"]
+[ext_resource type="Theme" path="res://assets/fonts/ui_theme.tres" id="3"]
 
 [node name="Bootstrap" type="Control"]
 layout_mode = 3
@@ -11,6 +12,7 @@ anchor_bottom = 1.0
 grow_horizontal = 2
 grow_vertical = 2
 script = ExtResource("1")
+theme = ExtResource("3")
 
 [node name="Background" type="ColorRect" parent="."]
 layout_mode = 1
