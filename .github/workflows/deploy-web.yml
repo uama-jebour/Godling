@@ -26,7 +26,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Configure Pages
         uses: actions/configure-pages@v5
@@ -44,7 +44,9 @@ jobs:
         run: |
           mkdir -p "$HOME/.local/share/godot/export_templates/${GODOT_TEMPLATE_DIR}"
           wget -q "https://github.com/godotengine/godot/releases/download/${GODOT_RELEASE}/Godot_v${GODOT_RELEASE}_export_templates.tpz" -O templates.tpz
-          unzip -q templates.tpz -d "$HOME/.local/share/godot/export_templates/${GODOT_TEMPLATE_DIR}"
+          mkdir -p /tmp/godot_templates_unpack
+          unzip -q templates.tpz -d /tmp/godot_templates_unpack
+          cp -R /tmp/godot_templates_unpack/templates/. "$HOME/.local/share/godot/export_templates/${GODOT_TEMPLATE_DIR}/"
 
       - name: Prepare export directory
         run: mkdir -p dist/web
