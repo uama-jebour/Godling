@@ -27,5 +27,5 @@ window/size/viewport_width=1600
 window/size/viewport_height=900
 window/stretch/mode="canvas_items"
 window/stretch/aspect="expand"
-window/stretch/scale=1.35
+window/stretch/scale=1.0
 window/dpi/allow_hidpi=true
