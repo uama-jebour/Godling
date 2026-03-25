@@ -1,0 +1,189 @@
+[gd_scene load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/ui/bootstrap.gd" id="1"]
+
+[node name="Bootstrap" type="Control"]
+layout_mode = 3
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+script = ExtResource("1")
+
+[node name="Background" type="ColorRect" parent="."]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+color = Color(0.0666667, 0.0509804, 0.117647, 1)
+
+[node name="Margin" type="MarginContainer" parent="."]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+theme_override_constants/margin_left = 26
+theme_override_constants/margin_top = 26
+theme_override_constants/margin_right = 26
+theme_override_constants/margin_bottom = 26
+
+[node name="MainRow" type="HBoxContainer" parent="Margin"]
+layout_mode = 2
+theme_override_constants/separation = 16
+
+[node name="MapPanel" type="PanelContainer" parent="Margin/MainRow"]
+custom_minimum_size = Vector2(700, 0)
+layout_mode = 2
+size_flags_horizontal = 3
+
+[node name="MapPadding" type="MarginContainer" parent="Margin/MainRow/MapPanel"]
+layout_mode = 2
+theme_override_constants/margin_left = 16
+theme_override_constants/margin_top = 16
+theme_override_constants/margin_right = 16
+theme_override_constants/margin_bottom = 16
+
+[node name="MapVBox" type="VBoxContainer" parent="Margin/MainRow/MapPanel/MapPadding"]
+layout_mode = 2
+size_flags_vertical = 3
+theme_override_constants/separation = 10
+
+[node name="TitleLabel" type="Label" parent="Margin/MainRow/MapPanel/MapPadding/MapVBox"]
+layout_mode = 2
+theme_override_font_sizes/font_size = 38
+text = "Godling - 宗教异界 事件地图"
+
+[node name="SummaryLabel" type="RichTextLabel" parent="Margin/MainRow/MapPanel/MapPadding/MapVBox"]
+unique_name_in_owner = true
+layout_mode = 2
+bbcode_enabled = true
+theme_override_font_sizes/normal_font_size = 26
+fit_content = true
+scroll_active = false
+
+[node name="LineA" type="HSeparator" parent="Margin/MainRow/MapPanel/MapPadding/MapVBox"]
+layout_mode = 2
+
+[node name="EventTitle" type="Label" parent="Margin/MainRow/MapPanel/MapPadding/MapVBox"]
+layout_mode = 2
+theme_override_font_sizes/font_size = 24
+text = "当前回合事件列表（点击后在右侧打开出击面板）"
+
+[node name="EventScroll" type="ScrollContainer" parent="Margin/MainRow/MapPanel/MapPadding/MapVBox"]
+custom_minimum_size = Vector2(0, 420)
+layout_mode = 2
+size_flags_vertical = 3
+
+[node name="EventList" type="VBoxContainer" parent="Margin/MainRow/MapPanel/MapPadding/MapVBox/EventScroll"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_constants/separation = 8
+
+[node name="LineB" type="HSeparator" parent="Margin/MainRow/MapPanel/MapPadding/MapVBox"]
+layout_mode = 2
+
+[node name="BottomRow" type="HBoxContainer" parent="Margin/MainRow/MapPanel/MapPadding/MapVBox"]
+layout_mode = 2
+theme_override_constants/separation = 8
+
+[node name="RefreshButton" type="Button" parent="Margin/MainRow/MapPanel/MapPadding/MapVBox/BottomRow"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(0, 56)
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_font_sizes/font_size = 22
+text = "刷新界面"
+
+[node name="DebugGiveItemButton" type="Button" parent="Margin/MainRow/MapPanel/MapPadding/MapVBox/BottomRow"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(0, 56)
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_font_sizes/font_size = 22
+text = "调试：获得静默祷词"
+
+[node name="DispatchPanel" type="PanelContainer" parent="Margin/MainRow"]
+custom_minimum_size = Vector2(530, 0)
+layout_mode = 2
+size_flags_horizontal = 3
+
+[node name="DispatchPadding" type="MarginContainer" parent="Margin/MainRow/DispatchPanel"]
+layout_mode = 2
+theme_override_constants/margin_left = 16
+theme_override_constants/margin_top = 16
+theme_override_constants/margin_right = 16
+theme_override_constants/margin_bottom = 16
+
+[node name="DispatchVBox" type="VBoxContainer" parent="Margin/MainRow/DispatchPanel/DispatchPadding"]
+layout_mode = 2
+size_flags_vertical = 3
+theme_override_constants/separation = 10
+
+[node name="DispatchTitle" type="Label" parent="Margin/MainRow/DispatchPanel/DispatchPadding/DispatchVBox"]
+layout_mode = 2
+theme_override_font_sizes/font_size = 34
+text = "事件出击面板"
+
+[node name="SelectedEventTitle" type="Label" parent="Margin/MainRow/DispatchPanel/DispatchPadding/DispatchVBox"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_font_sizes/font_size = 28
+text = "未选择事件"
+
+[node name="SelectedEventMeta" type="Label" parent="Margin/MainRow/DispatchPanel/DispatchPadding/DispatchVBox"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_font_sizes/font_size = 22
+autowrap_mode = 3
+text = "请选择左侧任意事件。"
+
+[node name="SelectedEventReward" type="RichTextLabel" parent="Margin/MainRow/DispatchPanel/DispatchPadding/DispatchVBox"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(0, 240)
+layout_mode = 2
+size_flags_vertical = 3
+bbcode_enabled = true
+theme_override_font_sizes/normal_font_size = 21
+scroll_active = true
+
+[node name="ActionRow" type="HBoxContainer" parent="Margin/MainRow/DispatchPanel/DispatchPadding/DispatchVBox"]
+layout_mode = 2
+theme_override_constants/separation = 8
+
+[node name="ActionButton" type="Button" parent="Margin/MainRow/DispatchPanel/DispatchPadding/DispatchVBox/ActionRow"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(0, 58)
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_font_sizes/font_size = 22
+text = "处理当前事件"
+
+[node name="ExtractButton" type="Button" parent="Margin/MainRow/DispatchPanel/DispatchPadding/DispatchVBox/ActionRow"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(0, 58)
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_font_sizes/font_size = 22
+text = "触发撤离"
+
+[node name="ResolveForcedButton" type="Button" parent="Margin/MainRow/DispatchPanel/DispatchPadding/DispatchVBox"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(0, 56)
+layout_mode = 2
+theme_override_font_sizes/font_size = 22
+text = "处理强制袭击事件"
+
+[node name="LogOutput" type="RichTextLabel" parent="Margin/MainRow/DispatchPanel/DispatchPadding/DispatchVBox"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(0, 220)
+layout_mode = 2
+size_flags_vertical = 3
+bbcode_enabled = true
+theme_override_font_sizes/normal_font_size = 20
+scroll_active = true

@@ -1,0 +1,23 @@
+[
+	{
+		"id": "loot_table_a02_basic_field",
+		"name_cn": "灰圣外环基础掉落",
+		"mode": "fixed_random",
+		"entries": [
+			{"kind": "item", "id": "resource_ash_herb", "count": 1, "weight": 10, "prob": 1.0},
+			{"kind": "item", "id": "currency_lumen_mark", "count": 30, "weight": 8, "prob": 1.0},
+			{"kind": "item", "id": "resource_sigil_shard", "count": 1, "weight": 5, "prob": 0.45},
+			{"kind": "item", "id": "consumable_field_balm", "count": 1, "weight": 4, "prob": 0.35}
+		]
+	},
+	{
+		"id": "loot_table_a02_mainline",
+		"name_cn": "灰圣主线掉落",
+		"mode": "fixed_random",
+		"entries": [
+			{"kind": "item", "id": "key_silent_litany", "count": 1, "weight": 1, "prob": 1.0},
+			{"kind": "item", "id": "currency_lumen_mark", "count": 80, "weight": 1, "prob": 1.0}
+		]
+	}
+]
+

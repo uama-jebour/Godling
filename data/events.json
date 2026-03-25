@@ -1,0 +1,201 @@
+[
+	{
+		"id": "event_a02_battle_patrol",
+		"title": "司祭巡逻队",
+		"spawn_mode": "random_slot",
+		"resolution_type": "battle",
+		"trigger_mode": "board",
+		"event_kind": "combat",
+		"map_ids": ["map_world_a_02_ashen_sanctum"],
+		"conditions": ["turn>=1"],
+		"weight": 10,
+		"battle_id": "battle_a02_patrol",
+		"reward_package": {
+			"currencies": [{"id": "currency_lumen_mark", "count": 40}],
+			"items": [{"id": "resource_ash_herb", "count": 1}],
+			"relics": [],
+			"story_flags": [],
+			"unlock_flags": [],
+			"loot_tables": [{"id": "loot_table_a02_basic_field", "rolls": 1}]
+		},
+		"complete_task_id": ""
+	},
+	{
+		"id": "event_a02_battle_husk_chapel",
+		"title": "空壳礼拜堂清剿",
+		"spawn_mode": "random_slot",
+		"resolution_type": "battle",
+		"trigger_mode": "board",
+		"event_kind": "combat",
+		"map_ids": ["map_world_a_02_ashen_sanctum"],
+		"conditions": ["turn>=1"],
+		"weight": 9,
+		"battle_id": "battle_a02_husk_chapel",
+		"reward_package": {
+			"currencies": [{"id": "currency_lumen_mark", "count": 35}],
+			"items": [{"id": "resource_sigil_shard", "count": 1}],
+			"relics": [],
+			"story_flags": [],
+			"unlock_flags": [],
+			"loot_tables": [{"id": "loot_table_a02_basic_field", "rolls": 1}]
+		},
+		"complete_task_id": ""
+	},
+	{
+		"id": "event_a02_battle_outer_gate",
+		"title": "圣坛外门阻击",
+		"spawn_mode": "random_slot",
+		"resolution_type": "battle",
+		"trigger_mode": "board",
+		"event_kind": "combat",
+		"map_ids": ["map_world_a_02_ashen_sanctum"],
+		"conditions": ["turn>=1"],
+		"weight": 8,
+		"battle_id": "battle_a02_patrol",
+		"reward_package": {
+			"currencies": [{"id": "currency_lumen_mark", "count": 28}],
+			"items": [{"id": "consumable_field_balm", "count": 1}],
+			"relics": [],
+			"story_flags": [],
+			"unlock_flags": [],
+			"loot_tables": [{"id": "loot_table_a02_basic_field", "rolls": 1}]
+		},
+		"complete_task_id": ""
+	},
+	{
+		"id": "event_a02_random_ruin_scavenge",
+		"title": "破损祭坛搜寻",
+		"spawn_mode": "random_slot",
+		"resolution_type": "random",
+		"trigger_mode": "board",
+		"event_kind": "random",
+		"map_ids": ["map_world_a_02_ashen_sanctum"],
+		"conditions": ["turn>=1"],
+		"weight": 7,
+		"battle_id": "",
+		"reward_package": {
+			"currencies": [{"id": "currency_lumen_mark", "count": 20}],
+			"items": [{"id": "resource_ash_herb", "count": 1}],
+			"relics": [],
+			"story_flags": [],
+			"unlock_flags": [],
+			"loot_tables": []
+		},
+		"complete_task_id": ""
+	},
+	{
+		"id": "event_a02_random_prayer_cache",
+		"title": "祷室补给点",
+		"spawn_mode": "random_slot",
+		"resolution_type": "random",
+		"trigger_mode": "board",
+		"event_kind": "random",
+		"map_ids": ["map_world_a_02_ashen_sanctum"],
+		"conditions": ["turn>=2"],
+		"weight": 6,
+		"battle_id": "",
+		"reward_package": {
+			"currencies": [{"id": "currency_lumen_mark", "count": 18}],
+			"items": [{"id": "consumable_field_balm", "count": 1}],
+			"relics": [],
+			"story_flags": [],
+			"unlock_flags": [],
+			"loot_tables": []
+		},
+		"complete_task_id": ""
+	},
+	{
+		"id": "event_a02_mainline_narrative",
+		"title": "主线：追索静默祷词",
+		"spawn_mode": "fixed_line",
+		"resolution_type": "narrative",
+		"trigger_mode": "board",
+		"event_kind": "mainline",
+		"line_id": "line_a02_mainline",
+		"map_ids": ["map_world_a_02_ashen_sanctum"],
+		"conditions": ["turn>=1"],
+		"weight": 100,
+		"battle_id": "",
+		"reward_package": {
+			"currencies": [],
+			"items": [],
+			"relics": [],
+			"story_flags": ["mainline_started"],
+			"unlock_flags": ["narrative_events_enabled"],
+			"loot_tables": []
+		},
+		"submission_requirement": {
+			"item_id": "key_silent_litany",
+			"grant_flag": "mainline_item_submitted"
+		},
+		"complete_task_id": "task_a02_mainline_narrative"
+	},
+	{
+		"id": "event_a02_forced_demon_ambush",
+		"title": "强制事件：裂隙袭击",
+		"spawn_mode": "fixed_line",
+		"resolution_type": "battle",
+		"trigger_mode": "forced_non_turn",
+		"event_kind": "forced_combat",
+		"map_ids": ["map_world_a_02_ashen_sanctum"],
+		"conditions": ["turn>=4"],
+		"chance": 0.35,
+		"weight": 100,
+		"battle_id": "battle_a02_forced_ambush",
+		"reward_package": {
+			"currencies": [{"id": "currency_lumen_mark", "count": 22}],
+			"items": [{"id": "resource_ash_herb", "count": 1}],
+			"relics": [],
+			"story_flags": [],
+			"unlock_flags": [],
+			"loot_tables": []
+		},
+		"complete_task_id": ""
+	},
+	{
+		"id": "event_a02_mainline_battle",
+		"title": "主线：圣坛镇压战",
+		"spawn_mode": "fixed_line",
+		"resolution_type": "battle",
+		"trigger_mode": "board",
+		"event_kind": "mainline_battle",
+		"line_id": "line_a02_mainline",
+		"map_ids": ["map_world_a_02_ashen_sanctum"],
+		"conditions": ["flag:mainline_item_submitted", "turn>=6"],
+		"weight": 100,
+		"battle_id": "battle_a02_mainline_sanctum",
+		"reward_package": {
+			"currencies": [{"id": "currency_lumen_mark", "count": 90}],
+			"items": [{"id": "resource_sigil_shard", "count": 2}],
+			"relics": [{"id": "relic_veil_censer", "count": 1}],
+			"story_flags": [],
+			"unlock_flags": ["special_item_event_enabled"],
+			"loot_tables": [{"id": "loot_table_a02_mainline", "rolls": 1}
+			]
+		},
+		"grant_story_flags": ["mainline_completed"],
+		"complete_task_id": "task_a02_mainline_battle"
+	},
+	{
+		"id": "event_a02_extraction_breakthrough",
+		"title": "撤离事件：断桥突围",
+		"spawn_mode": "fixed_line",
+		"resolution_type": "battle",
+		"trigger_mode": "forced_non_turn",
+		"event_kind": "extraction",
+		"map_ids": ["map_world_a_02_ashen_sanctum"],
+		"conditions": ["flag:mainline_completed"],
+		"weight": 100,
+		"battle_id": "battle_a02_extraction_breakthrough",
+		"reward_package": {
+			"currencies": [],
+			"items": [],
+			"relics": [],
+			"story_flags": [],
+			"unlock_flags": ["equipment_tab_enabled"],
+			"loot_tables": []
+		},
+		"complete_task_id": "task_a02_extract_success"
+	}
+]
+

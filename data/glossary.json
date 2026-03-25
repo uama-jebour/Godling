@@ -1,0 +1,46 @@
+{
+	"visual_theme": "宗教异界",
+	"core_loop_name_cn": "圣骸搜行",
+	"worlds": [
+		{
+			"id": "world_a",
+			"name_cn": "A世界：灰圣疆域",
+			"name_en": "World A: Ashen Sanctum Domain",
+			"description": "祭坛遗迹与异界裂隙交叠的边境战区。"
+		}
+	],
+	"world_terms": [
+		{
+			"id": "currency_lumen_mark",
+			"cn": "辉印",
+			"en": "Lumen Mark",
+			"description": "教团与流亡者都认可的交易货币。"
+		},
+		{
+			"id": "faction_hollow_clergy",
+			"cn": "空壳司祭团",
+			"en": "Hollow Clergy",
+			"description": "异界誓约失控后残存的敌对武装。"
+		},
+		{
+			"id": "artifact_relic",
+			"cn": "圣遗",
+			"en": "Relic",
+			"description": "可装备并带入战斗的特殊物品。"
+		},
+		{
+			"id": "mainline_keyword",
+			"cn": "主线圣谕",
+			"en": "Mainline Oracle",
+			"description": "贯穿地图回合推进的固定叙事任务线。"
+		}
+	],
+	"naming_rules": {
+		"world_prefix": "world_",
+		"map_prefix": "map_world_<x>_<yy>_",
+		"task_prefix": "task_",
+		"event_prefix": "event_",
+		"battle_prefix": "battle_"
+	}
+}
+

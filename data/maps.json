@@ -1,0 +1,63 @@
+[
+	{
+		"id": "map_world_a_01_ruined_crossing",
+		"world_id": "world_a",
+		"sequence": 1,
+		"name_cn": "残桥经行地",
+		"name_en": "Ruined Crossing",
+		"random_slot_count_range": [4, 6],
+		"random_slot_anchors": [
+			{"id": "slot_a", "position": [120, 130]},
+			{"id": "slot_b", "position": [340, 120]},
+			{"id": "slot_c", "position": [560, 150]},
+			{"id": "slot_d", "position": [210, 320]},
+			{"id": "slot_e", "position": [430, 350]},
+			{"id": "slot_f", "position": [700, 360]}
+		],
+		"base_stats": {
+			"development": 0,
+			"public_reputation": 0,
+			"church_reputation": 0,
+			"demon_activity": 0,
+			"fear": 0,
+			"population": 10
+		},
+		"turn_templates": {}
+	},
+	{
+		"id": "map_world_a_02_ashen_sanctum",
+		"world_id": "world_a",
+		"sequence": 2,
+		"name_cn": "灰烬圣坛外环",
+		"name_en": "Ashen Sanctum Outskirts",
+		"random_slot_count_range": [4, 6],
+		"random_slot_anchors": [
+			{"id": "slot_a", "position": [180, 140]},
+			{"id": "slot_b", "position": [420, 140]},
+			{"id": "slot_c", "position": [690, 180]},
+			{"id": "slot_d", "position": [250, 360]},
+			{"id": "slot_e", "position": [520, 380]},
+			{"id": "slot_f", "position": [760, 420]}
+		],
+		"base_stats": {
+			"development": 1,
+			"public_reputation": 0,
+			"church_reputation": 1,
+			"demon_activity": 1,
+			"fear": 1,
+			"population": 12
+		},
+		"turn_templates": {
+			"1": {
+				"random_count": 4,
+				"required_mix": {"battle": 3, "random": 1}
+			},
+			"2": {"random_count": 5},
+			"3": {"random_count": 5},
+			"4": {"random_count": 5},
+			"5": {"random_count": 5},
+			"6": {"random_count": 5}
+		}
+	}
+]
+

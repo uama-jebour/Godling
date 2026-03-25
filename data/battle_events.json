@@ -1,0 +1,23 @@
+[
+	{
+		"id": "battle_event_demon_reinforce",
+		"event_type": "summon",
+		"trigger": ["elapsed>=20"],
+		"frequency": 0,
+		"notify": {
+			"text": "裂隙躁动，恶魔正在逼近",
+			"countdown": 4
+		},
+		"response": {
+			"type": "none",
+			"keyword": "",
+			"level": 0,
+			"time_limit": 0
+		},
+		"payload": {
+			"unit_id": "enemy_demon_stalker",
+			"count": 1
+		}
+	}
+]
+

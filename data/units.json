@@ -1,0 +1,55 @@
+[
+	{
+		"id": "hero_pilgrim_a01",
+		"camp": "hero",
+		"name_cn": "誓约行者A01",
+		"move_speed": 10,
+		"move_type": "walk",
+		"size": 4,
+		"hp": 36,
+		"attack": {"type": "melee", "power": 4, "speed": 1.0, "range": 2},
+		"movement_ai": "chase",
+		"combat_ai": "melee_attack",
+		"tags": ["hero", "pilgrim"]
+	},
+	{
+		"id": "enemy_hollow_deacon",
+		"camp": "enemy",
+		"name_cn": "空壳辅祭",
+		"move_speed": 8,
+		"move_type": "walk",
+		"size": 3,
+		"hp": 18,
+		"attack": {"type": "melee", "power": 2, "speed": 1.0, "range": 1},
+		"movement_ai": "chase",
+		"combat_ai": "melee_attack",
+		"tags": ["enemy", "clergy"]
+	},
+	{
+		"id": "enemy_ashen_hunter",
+		"camp": "enemy",
+		"name_cn": "灰烬追猎者",
+		"move_speed": 10,
+		"move_type": "walk",
+		"size": 3,
+		"hp": 22,
+		"attack": {"type": "ranged_flat", "power": 3, "speed": 0.8, "range": 6},
+		"movement_ai": "chase",
+		"combat_ai": "ranged_attack",
+		"tags": ["enemy", "hunter"]
+	},
+	{
+		"id": "enemy_demon_stalker",
+		"camp": "enemy",
+		"name_cn": "裂隙潜袭魔",
+		"move_speed": 12,
+		"move_type": "walk",
+		"size": 4,
+		"hp": 30,
+		"attack": {"type": "melee", "power": 5, "speed": 1.2, "range": 2},
+		"movement_ai": "chase",
+		"combat_ai": "melee_attack",
+		"tags": ["enemy", "demon", "ambush"]
+	}
+]
+

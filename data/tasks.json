@@ -1,0 +1,30 @@
+[
+	{
+		"id": "task_a02_mainline_narrative",
+		"name_cn": "主线：追索静默祷词",
+		"task_type": "mainline_narrative",
+		"event_ref": "event_a02_mainline_narrative",
+		"pool_type": "fixed_line",
+		"entry_conditions": ["turn>=1"],
+		"reward_preview": [{"type": "story_flag", "id": "mainline_started"}]
+	},
+	{
+		"id": "task_a02_mainline_battle",
+		"name_cn": "主线：圣坛镇压战",
+		"task_type": "mainline_battle",
+		"event_ref": "event_a02_mainline_battle",
+		"pool_type": "fixed_line",
+		"entry_conditions": ["flag:mainline_item_submitted", "turn>=6"],
+		"reward_preview": [{"type": "loot_table", "id": "loot_table_a02_mainline"}]
+	},
+	{
+		"id": "task_a02_extract_success",
+		"name_cn": "撤离：断桥突围",
+		"task_type": "extraction",
+		"event_ref": "event_a02_extraction_breakthrough",
+		"pool_type": "forced",
+		"entry_conditions": ["flag:mainline_completed"],
+		"reward_preview": [{"type": "unlock_flag", "id": "equipment_tab_enabled"}]
+	}
+]
+

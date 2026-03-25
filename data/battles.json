@@ -1,0 +1,53 @@
+[
+	{
+		"id": "battle_a02_patrol",
+		"map_id": "map_world_a_02_ashen_sanctum",
+		"victory_type": "eliminate_all",
+		"enemy_groups": [
+			{"unit_id": "enemy_hollow_deacon", "count": 4, "spawn": [360, 220]},
+			{"unit_id": "enemy_ashen_hunter", "count": 1, "spawn": [540, 260]}
+		],
+		"battle_event_ids": []
+	},
+	{
+		"id": "battle_a02_husk_chapel",
+		"map_id": "map_world_a_02_ashen_sanctum",
+		"victory_type": "eliminate_all",
+		"enemy_groups": [
+			{"unit_id": "enemy_hollow_deacon", "count": 3, "spawn": [260, 220]},
+			{"unit_id": "enemy_ashen_hunter", "count": 2, "spawn": [580, 300]}
+		],
+		"battle_event_ids": []
+	},
+	{
+		"id": "battle_a02_forced_ambush",
+		"map_id": "map_world_a_02_ashen_sanctum",
+		"victory_type": "survive_and_clear",
+		"enemy_groups": [
+			{"unit_id": "enemy_demon_stalker", "count": 1, "spawn": [420, 240]},
+			{"unit_id": "enemy_hollow_deacon", "count": 3, "spawn": [500, 280]}
+		],
+		"battle_event_ids": ["battle_event_demon_reinforce"]
+	},
+	{
+		"id": "battle_a02_mainline_sanctum",
+		"map_id": "map_world_a_02_ashen_sanctum",
+		"victory_type": "kill_target",
+		"enemy_groups": [
+			{"unit_id": "enemy_ashen_hunter", "count": 3, "spawn": [510, 180]},
+			{"unit_id": "enemy_demon_stalker", "count": 1, "spawn": [620, 260]}
+		],
+		"battle_event_ids": ["battle_event_demon_reinforce"]
+	},
+	{
+		"id": "battle_a02_extraction_breakthrough",
+		"map_id": "map_world_a_02_ashen_sanctum",
+		"victory_type": "reach_exit",
+		"enemy_groups": [
+			{"unit_id": "enemy_hollow_deacon", "count": 5, "spawn": [520, 250]},
+			{"unit_id": "enemy_ashen_hunter", "count": 2, "spawn": [650, 260]}
+		],
+		"battle_event_ids": []
+	}
+]
+

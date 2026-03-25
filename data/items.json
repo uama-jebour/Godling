@@ -1,0 +1,67 @@
+[
+	{
+		"id": "currency_lumen_mark",
+		"name_cn": "辉印",
+		"type": 1,
+		"quality": 1,
+		"description": "教团铸币，可用于补给与赎罪交易。",
+		"tags": ["currency", "faith"]
+	},
+	{
+		"id": "resource_ash_herb",
+		"name_cn": "灰烬草束",
+		"type": 2,
+		"quality": 1,
+		"description": "低阶医疗与补给资源。",
+		"tags": ["resource", "healing"]
+	},
+	{
+		"id": "resource_sigil_shard",
+		"name_cn": "印纹碎片",
+		"type": 2,
+		"quality": 2,
+		"description": "用于主线调查的仪式线索。",
+		"tags": ["resource", "mainline"]
+	},
+	{
+		"id": "consumable_field_balm",
+		"name_cn": "行军敷膏",
+		"type": 6,
+		"quality": 2,
+		"description": "战后缓解伤势的消耗品。",
+		"tags": ["consumable"]
+	},
+	{
+		"id": "relic_burned_prayer_wheel",
+		"name_cn": "焦痕祷轮",
+		"type": 10,
+		"quality": 3,
+		"description": "圣遗，提升战斗稳定性。",
+		"tags": ["relic", "faith"]
+	},
+	{
+		"id": "relic_veil_censer",
+		"name_cn": "帷幕香炉",
+		"type": 10,
+		"quality": 3,
+		"description": "圣遗，提升叙事事件收益。",
+		"tags": ["relic", "ritual"]
+	},
+	{
+		"id": "key_silent_litany",
+		"name_cn": "静默祷词",
+		"type": 9,
+		"quality": 0,
+		"description": "可在第六回合提交以开启主线作战。",
+		"tags": ["key_item", "mainline"]
+	},
+	{
+		"id": "key_silent_litany_hint",
+		"name_cn": "祷词残页",
+		"type": 7,
+		"quality": 1,
+		"description": "提示静默祷词位置的碎页。",
+		"tags": ["story_hint"]
+	}
+]
+

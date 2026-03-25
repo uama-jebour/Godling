@@ -1,0 +1,29 @@
+{
+	"inventory_items": [
+		{"id": "resource_ash_herb", "count": 2}
+	],
+	"currencies": [
+		{"id": "currency_lumen_mark", "count": 120}
+	],
+	"relics": [
+		{"id": "relic_burned_prayer_wheel", "count": 1}
+	],
+	"story_flags": [],
+	"unlock_flags": [
+		"narrative_events_enabled"
+	],
+	"completed_tasks": [],
+	"hero_roster": [
+		"hero_pilgrim_a01"
+	],
+	"home_loadout": {
+		"hero_id": "hero_pilgrim_a01",
+		"carried_item_ids": [
+			"key_silent_litany_hint"
+		],
+		"equipped_relic_ids": [
+			"relic_burned_prayer_wheel"
+		]
+	}
+}
+

@@ -1,0 +1,86 @@
+# Godling 项目总纲
+
+## 1. 项目目标
+
+`Godling` 是一个使用 `Godot 4.6 + GDScript` 开发的 2D 单机游戏。
+
+项目的核心不是单独做厚战斗，而是做出一条由任务驱动叙事的单局搜打撤循环：
+
+`进入地图 -> 刷新随机事件与固定事件 -> 处理 1 个事件 -> 回合推进 -> 决定继续或撤离 -> 局终结算`
+
+其中：
+
+- 每回合约有 `4-6` 个随机事件
+- 同时存在不定数固定事件
+- 叙事事件大多数属于固定事件线，不会被随机刷新覆盖
+
+## 2. 技术栈与硬约束
+
+- 引擎固定为 `Godot 4.6`
+- 脚本语言固定为 `GDScript`
+- 运行时配置来源固定为 JSON，不直接读取 Excel
+- 顶层状态固定为 `ContentDB / ProgressionState / RunState`
+- 局内临时收益与局外永久收益必须分层
+- 新功能优先走配置，不优先写死在脚本里
+
+## 3. 统一规范
+
+### 代码与资源
+
+- 代码、资源、场景文件名使用 ASCII 和统一命名规则，不用中文命名代码资源
+- 文档文件使用中文命名，便于快速理解
+- UI 不直接穿透到底层战斗或存档数据，优先通过中间层读取
+- 不随意新增 AutoLoad；新增前必须确认是否能归入现有顶层状态
+
+### 目录
+
+- `docs/` 放长期稳定规则与摘要
+- `features/` 放功能级详细规格与任务拆分
+- `tasks/` 放当前阶段和当前任务
+- `项目记忆.md` 记录当前项目状态、决策与坑点
+
+## 4. 绝不能违反的原则
+
+- 不要把完整项目计划在每一步都原样塞给 AI
+- 不要把固定事件当成普通随机槽刷新掉
+- 不要把战斗系统当成整局唯一主轴
+- 不要混淆临时战利品和永久存档
+- 不要让 UI 直接写死剧情、解锁或奖励逻辑
+
+## 5. 文档读取规则
+
+开始任何实现前，先读：
+
+1. 本文件
+2. [项目记忆.md](/Users/zhangwei/Documents/Mycode/Godling/项目记忆.md)
+3. [tasks/当前任务卡.md](/Users/zhangwei/Documents/Mycode/Godling/tasks/当前任务卡.md)
+
+然后按任务补充最小上下文，不要默认加载所有文档：
+
+- 玩法规则： [docs/核心玩法摘要.md](/Users/zhangwei/Documents/Mycode/Godling/docs/核心玩法摘要.md)
+- 架构边界： [docs/技术架构摘要.md](/Users/zhangwei/Documents/Mycode/Godling/docs/技术架构摘要.md)
+- 内容流程： [docs/内容管线说明.md](/Users/zhangwei/Documents/Mycode/Godling/docs/内容管线说明.md)
+- 编码规范： [docs/代码规范.md](/Users/zhangwei/Documents/Mycode/Godling/docs/代码规范.md)
+- 美术约束： [docs/美术方向.md](/Users/zhangwei/Documents/Mycode/Godling/docs/美术方向.md)
+- 玩家样例流程： [docs/玩家流程样例.md](/Users/zhangwei/Documents/Mycode/Godling/docs/玩家流程样例.md)
+
+功能详细规格只按需读取：
+
+- 世界地图与事件板： [features/世界地图与事件板/规格说明.md](/Users/zhangwei/Documents/Mycode/Godling/features/世界地图与事件板/规格说明.md)
+- 任务与叙事： [features/任务与叙事/规格说明.md](/Users/zhangwei/Documents/Mycode/Godling/features/任务与叙事/规格说明.md)
+- 战斗执行器： [features/战斗执行器/规格说明.md](/Users/zhangwei/Documents/Mycode/Godling/features/战斗执行器/规格说明.md)
+- 背包与进度： [features/背包与进度/规格说明.md](/Users/zhangwei/Documents/Mycode/Godling/features/背包与进度/规格说明.md)
+
+## 6. 实施前固定动作
+
+在开始写代码前，先用 5 条输出以下内容，再动手：
+
+1. 你理解的目标是什么
+2. 本次只做什么，不做什么
+3. 相关文件和文档有哪些
+4. 需要遵守哪些限制
+5. 你准备如何验证验收标准
+
+如果这 5 条里仍然有高风险误解，应先修正理解，再实施。
+
+只要这条链还没稳定，就不应优先扩展复杂 AI、复杂掉落池或大型 UI。
