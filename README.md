@@ -29,7 +29,7 @@
 在 Godot 编辑器中打开项目后按 `F5`，或在终端运行：
 
 ```bash
-'/Applications/Godot.app/Contents/MacOS/Godot' --path '/Users/zhangwei/Documents/Mycode/Godling'
+godot --path .
 ```
 
 ## 可视化手动测试（简版）
@@ -47,13 +47,56 @@
 先确保已安装对应版本导出模板（`4.6.1.stable`），再执行：
 
 ```bash
-'/Applications/Godot.app/Contents/MacOS/Godot' --headless --path '/Users/zhangwei/Documents/Mycode/Godling' --export-release "Windows Desktop" 'build/windows/Godling.exe'
+godot --headless --path . --export-release "Windows Desktop" 'build/windows/Godling.exe'
 ```
 
 导出产物：
 
 - `build/windows/Godling.exe`
 - `build/windows/Godling.pck`
+
+## 导出 Web 可玩版本
+
+项目现已接入 `Web` 导出预设，可本地导出浏览器版本：
+
+```bash
+mkdir -p dist/web
+godot --headless --path . --export-release "Web" 'dist/web/index.html'
+```
+
+导出完成后，可直接用任意静态文件服务器预览，例如：
+
+```bash
+python3 -m http.server 8080 --directory dist/web
+```
+
+然后访问 `http://localhost:8080`。
+
+注意：
+
+- Web 版首屏已跳过桌面窗口控制逻辑
+- 存档仍走 `user://`，浏览器环境下会落到本地持久化存储
+- 若浏览器首次无声音，通常是浏览器自动播放策略所致
+
+## 发布到 GitHub Pages
+
+仓库已新增工作流：
+
+- [.github/workflows/deploy-web.yml](.github/workflows/deploy-web.yml)
+
+发布方式：
+
+1. 将代码推送到 `main` 或 `master`
+2. 在 GitHub 仓库设置中启用 `Pages`
+3. 选择 `GitHub Actions` 作为发布源
+4. 等待 `Deploy Web Build` 工作流完成
+
+工作流会自动：
+
+- 下载 `Godot 4.6.1`
+- 安装 Web 导出模板
+- 导出 `dist/web/index.html`
+- 上传并部署到 GitHub Pages
 
 ## 一键打包与发布
 

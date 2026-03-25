@@ -1,6 +1,7 @@
-[gd_scene load_steps=2 format=3]
+[gd_scene load_steps=3 format=3]
 
 [ext_resource type="Script" path="res://scripts/ui/bootstrap.gd" id="1"]
+[ext_resource type="Script" path="res://scripts/ui/world_map_panel.gd" id="2"]
 
 [node name="Bootstrap" type="Control"]
 layout_mode = 3
@@ -28,7 +29,7 @@ anchor_bottom = 1.0
 grow_horizontal = 2
 grow_vertical = 2
 theme_override_constants/margin_left = 26
-theme_override_constants/margin_top = 26
+theme_override_constants/margin_top = 60
 theme_override_constants/margin_right = 26
 theme_override_constants/margin_bottom = 26
 
@@ -41,149 +42,241 @@ custom_minimum_size = Vector2(700, 0)
 layout_mode = 2
 size_flags_horizontal = 3
 
-[node name="MapPadding" type="MarginContainer" parent="Margin/MainRow/MapPanel"]
+[node name="MapScroll" type="ScrollContainer" parent="Margin/MainRow/MapPanel"]
 layout_mode = 2
+size_flags_horizontal = 3
+size_flags_vertical = 3
+horizontal_scroll_mode = 0
+
+[node name="MapPadding" type="MarginContainer" parent="Margin/MainRow/MapPanel/MapScroll"]
+layout_mode = 2
+size_flags_horizontal = 3
+size_flags_vertical = 3
 theme_override_constants/margin_left = 16
 theme_override_constants/margin_top = 16
 theme_override_constants/margin_right = 16
 theme_override_constants/margin_bottom = 16
 
-[node name="MapVBox" type="VBoxContainer" parent="Margin/MainRow/MapPanel/MapPadding"]
+[node name="MapVBox" type="VBoxContainer" parent="Margin/MainRow/MapPanel/MapScroll/MapPadding"]
 layout_mode = 2
+size_flags_horizontal = 3
 size_flags_vertical = 3
-theme_override_constants/separation = 10
+theme_override_constants/separation = 8
 
-[node name="TitleLabel" type="Label" parent="Margin/MainRow/MapPanel/MapPadding/MapVBox"]
+[node name="TopSafeGap" type="Control" parent="Margin/MainRow/MapPanel/MapScroll/MapPadding/MapVBox"]
+custom_minimum_size = Vector2(0, 10)
 layout_mode = 2
-theme_override_font_sizes/font_size = 38
-text = "Godling - 宗教异界 事件地图"
 
-[node name="SummaryLabel" type="RichTextLabel" parent="Margin/MainRow/MapPanel/MapPadding/MapVBox"]
+[node name="TitleLabel" type="Label" parent="Margin/MainRow/MapPanel/MapScroll/MapPadding/MapVBox"]
+custom_minimum_size = Vector2(0, 38)
+layout_mode = 2
+theme_override_font_sizes/font_size = 26
+vertical_alignment = 1
+text = "Godling - 灰烬圣坛作战地图"
+
+[node name="SummaryLabel" type="RichTextLabel" parent="Margin/MainRow/MapPanel/MapScroll/MapPadding/MapVBox"]
 unique_name_in_owner = true
 layout_mode = 2
 bbcode_enabled = true
-theme_override_font_sizes/normal_font_size = 26
+theme_override_font_sizes/normal_font_size = 18
 fit_content = true
 scroll_active = false
 
-[node name="LineA" type="HSeparator" parent="Margin/MainRow/MapPanel/MapPadding/MapVBox"]
+[node name="LineA" type="HSeparator" parent="Margin/MainRow/MapPanel/MapScroll/MapPadding/MapVBox"]
 layout_mode = 2
 
-[node name="EventTitle" type="Label" parent="Margin/MainRow/MapPanel/MapPadding/MapVBox"]
+[node name="EventTitle" type="Label" parent="Margin/MainRow/MapPanel/MapScroll/MapPadding/MapVBox"]
+custom_minimum_size = Vector2(0, 30)
 layout_mode = 2
-theme_override_font_sizes/font_size = 24
-text = "当前回合事件列表（点击后在右侧打开出击面板）"
+theme_override_font_sizes/font_size = 18
+vertical_alignment = 1
+text = "当前回合作战地图（事件随机分布在地图上）"
 
-[node name="EventScroll" type="ScrollContainer" parent="Margin/MainRow/MapPanel/MapPadding/MapVBox"]
-custom_minimum_size = Vector2(0, 420)
+[node name="MapFrame" type="PanelContainer" parent="Margin/MainRow/MapPanel/MapScroll/MapPadding/MapVBox"]
+custom_minimum_size = Vector2(0, 460)
 layout_mode = 2
+size_flags_horizontal = 3
 size_flags_vertical = 3
+clip_contents = true
 
-[node name="EventList" type="VBoxContainer" parent="Margin/MainRow/MapPanel/MapPadding/MapVBox/EventScroll"]
-unique_name_in_owner = true
+[node name="MapFrameMargin" type="MarginContainer" parent="Margin/MainRow/MapPanel/MapScroll/MapPadding/MapVBox/MapFrame"]
 layout_mode = 2
 size_flags_horizontal = 3
-theme_override_constants/separation = 8
+size_flags_vertical = 3
+theme_override_constants/margin_left = 14
+theme_override_constants/margin_top = 14
+theme_override_constants/margin_right = 14
+theme_override_constants/margin_bottom = 14
 
-[node name="LineB" type="HSeparator" parent="Margin/MainRow/MapPanel/MapPadding/MapVBox"]
-layout_mode = 2
-
-[node name="BottomRow" type="HBoxContainer" parent="Margin/MainRow/MapPanel/MapPadding/MapVBox"]
-layout_mode = 2
-theme_override_constants/separation = 8
-
-[node name="RefreshButton" type="Button" parent="Margin/MainRow/MapPanel/MapPadding/MapVBox/BottomRow"]
+[node name="MapSurface" type="Control" parent="Margin/MainRow/MapPanel/MapScroll/MapPadding/MapVBox/MapFrame/MapFrameMargin"]
 unique_name_in_owner = true
-custom_minimum_size = Vector2(0, 56)
+custom_minimum_size = Vector2(0, 432)
 layout_mode = 2
 size_flags_horizontal = 3
-theme_override_font_sizes/font_size = 22
+size_flags_vertical = 3
+script = ExtResource("2")
+clip_contents = true
+
+[node name="MarkerLayer" type="Control" parent="Margin/MainRow/MapPanel/MapScroll/MapPadding/MapVBox/MapFrame/MapFrameMargin/MapSurface"]
+unique_name_in_owner = true
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+clip_contents = true
+
+[node name="MapHoverTooltip" type="PanelContainer" parent="Margin/MainRow/MapPanel/MapScroll/MapPadding/MapVBox/MapFrame/MapFrameMargin/MapSurface/MarkerLayer"]
+unique_name_in_owner = true
+visible = false
+layout_mode = 1
+offset_right = 220.0
+offset_bottom = 92.0
+
+[node name="MapHoverMargin" type="MarginContainer" parent="Margin/MainRow/MapPanel/MapScroll/MapPadding/MapVBox/MapFrame/MapFrameMargin/MapSurface/MarkerLayer/MapHoverTooltip"]
+layout_mode = 2
+theme_override_constants/margin_left = 10
+theme_override_constants/margin_top = 8
+theme_override_constants/margin_right = 10
+theme_override_constants/margin_bottom = 8
+
+[node name="MapHoverLabel" type="Label" parent="Margin/MainRow/MapPanel/MapScroll/MapPadding/MapVBox/MapFrame/MapFrameMargin/MapSurface/MarkerLayer/MapHoverTooltip/MapHoverMargin"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_font_sizes/font_size = 15
+autowrap_mode = 3
+text = ""
+
+[node name="MapHintLabel" type="Label" parent="Margin/MainRow/MapPanel/MapScroll/MapPadding/MapVBox"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_font_sizes/font_size = 15
+autowrap_mode = 3
+text = "点击地图上的事件点进入处理。"
+
+[node name="LineB" type="HSeparator" parent="Margin/MainRow/MapPanel/MapScroll/MapPadding/MapVBox"]
+layout_mode = 2
+
+[node name="BottomRow" type="HBoxContainer" parent="Margin/MainRow/MapPanel/MapScroll/MapPadding/MapVBox"]
+layout_mode = 2
+theme_override_constants/separation = 8
+
+[node name="RefreshButton" type="Button" parent="Margin/MainRow/MapPanel/MapScroll/MapPadding/MapVBox/BottomRow"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(0, 50)
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_font_sizes/font_size = 19
 text = "刷新界面"
 
-[node name="DebugGiveItemButton" type="Button" parent="Margin/MainRow/MapPanel/MapPadding/MapVBox/BottomRow"]
+[node name="DebugGiveItemButton" type="Button" parent="Margin/MainRow/MapPanel/MapScroll/MapPadding/MapVBox/BottomRow"]
 unique_name_in_owner = true
-custom_minimum_size = Vector2(0, 56)
+custom_minimum_size = Vector2(0, 50)
 layout_mode = 2
 size_flags_horizontal = 3
-theme_override_font_sizes/font_size = 22
+theme_override_font_sizes/font_size = 19
 text = "调试：获得静默祷词"
+
+[node name="PreviewBattleButton" type="Button" parent="Margin/MainRow/MapPanel/MapScroll/MapPadding/MapVBox/BottomRow"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(0, 50)
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_font_sizes/font_size = 19
+text = "预览战斗演出"
 
 [node name="DispatchPanel" type="PanelContainer" parent="Margin/MainRow"]
 custom_minimum_size = Vector2(530, 0)
 layout_mode = 2
 size_flags_horizontal = 3
 
-[node name="DispatchPadding" type="MarginContainer" parent="Margin/MainRow/DispatchPanel"]
+[node name="DispatchScroll" type="ScrollContainer" parent="Margin/MainRow/DispatchPanel"]
+layout_mode = 2
+size_flags_horizontal = 3
+size_flags_vertical = 3
+horizontal_scroll_mode = 0
+
+[node name="DispatchPadding" type="MarginContainer" parent="Margin/MainRow/DispatchPanel/DispatchScroll"]
 layout_mode = 2
 theme_override_constants/margin_left = 16
 theme_override_constants/margin_top = 16
 theme_override_constants/margin_right = 16
 theme_override_constants/margin_bottom = 16
 
-[node name="DispatchVBox" type="VBoxContainer" parent="Margin/MainRow/DispatchPanel/DispatchPadding"]
+[node name="DispatchVBox" type="VBoxContainer" parent="Margin/MainRow/DispatchPanel/DispatchScroll/DispatchPadding"]
 layout_mode = 2
 size_flags_vertical = 3
-theme_override_constants/separation = 10
+theme_override_constants/separation = 8
 
-[node name="DispatchTitle" type="Label" parent="Margin/MainRow/DispatchPanel/DispatchPadding/DispatchVBox"]
+[node name="TopSafeGap" type="Control" parent="Margin/MainRow/DispatchPanel/DispatchScroll/DispatchPadding/DispatchVBox"]
+custom_minimum_size = Vector2(0, 10)
 layout_mode = 2
-theme_override_font_sizes/font_size = 34
+
+[node name="DispatchTitle" type="Label" parent="Margin/MainRow/DispatchPanel/DispatchScroll/DispatchPadding/DispatchVBox"]
+custom_minimum_size = Vector2(0, 36)
+layout_mode = 2
+theme_override_font_sizes/font_size = 24
+vertical_alignment = 1
 text = "事件出击面板"
 
-[node name="SelectedEventTitle" type="Label" parent="Margin/MainRow/DispatchPanel/DispatchPadding/DispatchVBox"]
+[node name="SelectedEventTitle" type="Label" parent="Margin/MainRow/DispatchPanel/DispatchScroll/DispatchPadding/DispatchVBox"]
 unique_name_in_owner = true
+custom_minimum_size = Vector2(0, 30)
 layout_mode = 2
-theme_override_font_sizes/font_size = 28
+theme_override_font_sizes/font_size = 20
+autowrap_mode = 3
+vertical_alignment = 1
 text = "未选择事件"
 
-[node name="SelectedEventMeta" type="Label" parent="Margin/MainRow/DispatchPanel/DispatchPadding/DispatchVBox"]
+[node name="SelectedEventMeta" type="Label" parent="Margin/MainRow/DispatchPanel/DispatchScroll/DispatchPadding/DispatchVBox"]
 unique_name_in_owner = true
 layout_mode = 2
-theme_override_font_sizes/font_size = 22
+theme_override_font_sizes/font_size = 16
 autowrap_mode = 3
 text = "请选择左侧任意事件。"
 
-[node name="SelectedEventReward" type="RichTextLabel" parent="Margin/MainRow/DispatchPanel/DispatchPadding/DispatchVBox"]
+[node name="SelectedEventReward" type="RichTextLabel" parent="Margin/MainRow/DispatchPanel/DispatchScroll/DispatchPadding/DispatchVBox"]
 unique_name_in_owner = true
-custom_minimum_size = Vector2(0, 240)
+custom_minimum_size = Vector2(0, 180)
 layout_mode = 2
 size_flags_vertical = 3
 bbcode_enabled = true
-theme_override_font_sizes/normal_font_size = 21
+theme_override_font_sizes/normal_font_size = 16
 scroll_active = true
 
-[node name="ActionRow" type="HBoxContainer" parent="Margin/MainRow/DispatchPanel/DispatchPadding/DispatchVBox"]
+[node name="ActionRow" type="HBoxContainer" parent="Margin/MainRow/DispatchPanel/DispatchScroll/DispatchPadding/DispatchVBox"]
 layout_mode = 2
 theme_override_constants/separation = 8
 
-[node name="ActionButton" type="Button" parent="Margin/MainRow/DispatchPanel/DispatchPadding/DispatchVBox/ActionRow"]
+[node name="ActionButton" type="Button" parent="Margin/MainRow/DispatchPanel/DispatchScroll/DispatchPadding/DispatchVBox/ActionRow"]
 unique_name_in_owner = true
-custom_minimum_size = Vector2(0, 58)
+custom_minimum_size = Vector2(0, 50)
 layout_mode = 2
 size_flags_horizontal = 3
-theme_override_font_sizes/font_size = 22
+theme_override_font_sizes/font_size = 19
 text = "处理当前事件"
 
-[node name="ExtractButton" type="Button" parent="Margin/MainRow/DispatchPanel/DispatchPadding/DispatchVBox/ActionRow"]
+[node name="ExtractButton" type="Button" parent="Margin/MainRow/DispatchPanel/DispatchScroll/DispatchPadding/DispatchVBox/ActionRow"]
 unique_name_in_owner = true
-custom_minimum_size = Vector2(0, 58)
+custom_minimum_size = Vector2(0, 50)
 layout_mode = 2
 size_flags_horizontal = 3
-theme_override_font_sizes/font_size = 22
+theme_override_font_sizes/font_size = 19
 text = "触发撤离"
 
-[node name="ResolveForcedButton" type="Button" parent="Margin/MainRow/DispatchPanel/DispatchPadding/DispatchVBox"]
+[node name="ResolveForcedButton" type="Button" parent="Margin/MainRow/DispatchPanel/DispatchScroll/DispatchPadding/DispatchVBox"]
 unique_name_in_owner = true
-custom_minimum_size = Vector2(0, 56)
+custom_minimum_size = Vector2(0, 50)
 layout_mode = 2
-theme_override_font_sizes/font_size = 22
+theme_override_font_sizes/font_size = 19
 text = "处理强制袭击事件"
 
-[node name="LogOutput" type="RichTextLabel" parent="Margin/MainRow/DispatchPanel/DispatchPadding/DispatchVBox"]
+[node name="LogOutput" type="RichTextLabel" parent="Margin/MainRow/DispatchPanel/DispatchScroll/DispatchPadding/DispatchVBox"]
 unique_name_in_owner = true
-custom_minimum_size = Vector2(0, 220)
+custom_minimum_size = Vector2(0, 180)
 layout_mode = 2
 size_flags_vertical = 3
 bbcode_enabled = true
-theme_override_font_sizes/normal_font_size = 20
+theme_override_font_sizes/normal_font_size = 17
 scroll_active = true

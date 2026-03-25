@@ -1,3 +1,8 @@
 .godot/
 .import/
-export_presets.cfg
+build/
+dist/
+*.exe
+*.zip
+*.pck
+.DS_Store

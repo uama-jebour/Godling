@@ -4,8 +4,8 @@
 		"map_id": "map_world_a_02_ashen_sanctum",
 		"victory_type": "eliminate_all",
 		"enemy_groups": [
-			{"unit_id": "enemy_hollow_deacon", "count": 4, "spawn": [360, 220]},
-			{"unit_id": "enemy_ashen_hunter", "count": 1, "spawn": [540, 260]}
+			{"unit_id": "enemy_hollow_deacon", "count": 4, "count_range": [2, 4], "spawn": [360, 220]},
+			{"unit_id": "enemy_ashen_hunter", "count": 1, "count_range": [0, 2], "spawn": [540, 260]}
 		],
 		"battle_event_ids": []
 	},
@@ -14,8 +14,8 @@
 		"map_id": "map_world_a_02_ashen_sanctum",
 		"victory_type": "eliminate_all",
 		"enemy_groups": [
-			{"unit_id": "enemy_hollow_deacon", "count": 3, "spawn": [260, 220]},
-			{"unit_id": "enemy_ashen_hunter", "count": 2, "spawn": [580, 300]}
+			{"unit_id": "enemy_hollow_deacon", "count": 3, "count_range": [2, 4], "spawn": [260, 220]},
+			{"unit_id": "enemy_ashen_hunter", "count": 2, "count_range": [1, 2], "spawn": [580, 300]}
 		],
 		"battle_event_ids": []
 	},
@@ -50,4 +50,3 @@
 		"battle_event_ids": []
 	}
 ]
-

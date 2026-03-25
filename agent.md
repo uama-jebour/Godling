@@ -52,24 +52,25 @@
 开始任何实现前，先读：
 
 1. 本文件
-2. [项目记忆.md](/Users/zhangwei/Documents/Mycode/Godling/项目记忆.md)
-3. [tasks/当前任务卡.md](/Users/zhangwei/Documents/Mycode/Godling/tasks/当前任务卡.md)
+2. [项目记忆.md](项目记忆.md)
+3. [tasks/当前任务卡.md](tasks/当前任务卡.md)
 
 然后按任务补充最小上下文，不要默认加载所有文档：
 
-- 玩法规则： [docs/核心玩法摘要.md](/Users/zhangwei/Documents/Mycode/Godling/docs/核心玩法摘要.md)
-- 架构边界： [docs/技术架构摘要.md](/Users/zhangwei/Documents/Mycode/Godling/docs/技术架构摘要.md)
-- 内容流程： [docs/内容管线说明.md](/Users/zhangwei/Documents/Mycode/Godling/docs/内容管线说明.md)
-- 编码规范： [docs/代码规范.md](/Users/zhangwei/Documents/Mycode/Godling/docs/代码规范.md)
-- 美术约束： [docs/美术方向.md](/Users/zhangwei/Documents/Mycode/Godling/docs/美术方向.md)
-- 玩家样例流程： [docs/玩家流程样例.md](/Users/zhangwei/Documents/Mycode/Godling/docs/玩家流程样例.md)
+- 玩法规则： [docs/核心玩法摘要.md](docs/核心玩法摘要.md)
+- 架构边界： [docs/技术架构摘要.md](docs/技术架构摘要.md)
+- 内容流程： [docs/内容管线说明.md](docs/内容管线说明.md)
+- 编码规范： [docs/代码规范.md](docs/代码规范.md)
+- 美术约束： [docs/美术方向.md](docs/美术方向.md)
+- 玩家样例流程： [docs/玩家流程样例.md](docs/玩家流程样例.md)
+- Web 发布： [docs/Web发布说明.md](docs/Web发布说明.md)
 
 功能详细规格只按需读取：
 
-- 世界地图与事件板： [features/世界地图与事件板/规格说明.md](/Users/zhangwei/Documents/Mycode/Godling/features/世界地图与事件板/规格说明.md)
-- 任务与叙事： [features/任务与叙事/规格说明.md](/Users/zhangwei/Documents/Mycode/Godling/features/任务与叙事/规格说明.md)
-- 战斗执行器： [features/战斗执行器/规格说明.md](/Users/zhangwei/Documents/Mycode/Godling/features/战斗执行器/规格说明.md)
-- 背包与进度： [features/背包与进度/规格说明.md](/Users/zhangwei/Documents/Mycode/Godling/features/背包与进度/规格说明.md)
+- 世界地图与事件板： [features/世界地图与事件板/规格说明.md](features/世界地图与事件板/规格说明.md)
+- 任务与叙事： [features/任务与叙事/规格说明.md](features/任务与叙事/规格说明.md)
+- 战斗执行器： [features/战斗执行器/规格说明.md](features/战斗执行器/规格说明.md)
+- 背包与进度： [features/背包与进度/规格说明.md](features/背包与进度/规格说明.md)
 
 ## 6. 实施前固定动作
 

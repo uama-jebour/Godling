@@ -4,8 +4,10 @@ const DATA_FILES := {
 	"glossary": "res://data/glossary.json",
 	"maps": "res://data/maps.json",
 	"items": "res://data/items.json",
+	"item_visuals": "res://data/item_visuals.json",
 	"loot_tables": "res://data/loot_tables.json",
 	"units": "res://data/units.json",
+	"unit_visuals": "res://data/unit_visuals.json",
 	"battle_events": "res://data/battle_events.json",
 	"battles": "res://data/battles.json",
 	"events": "res://data/events.json",
@@ -13,9 +15,33 @@ const DATA_FILES := {
 	"progression_defaults": "res://data/progression_defaults.json"
 }
 
+const ARRAY_DATA_KEYS := ["maps", "items", "loot_tables", "units", "battle_events", "battles", "events", "tasks"]
+const DICT_DATA_KEYS := ["glossary", "progression_defaults", "unit_visuals", "item_visuals"]
 const VALID_SPAWN_MODES := {"random_slot": true, "fixed_line": true}
 const VALID_RESOLUTION_TYPES := {"battle": true, "random": true, "narrative": true}
 const VALID_TRIGGER_MODES := {"board": true, "forced_non_turn": true}
+const REQUIRED_FIELDS_BY_GROUP := {
+	"maps": ["id", "world_id", "name_cn", "random_slot_count_range", "random_slot_anchors", "base_stats"],
+	"items": ["id", "name_cn", "type"],
+	"loot_tables": ["id", "name_cn", "mode", "entries"],
+	"units": ["id", "camp", "name_cn", "hp", "attack"],
+	"battle_events": ["id", "event_type", "trigger", "payload"],
+	"battles": ["id", "map_id", "victory_type", "enemy_groups"],
+	"events": ["id", "spawn_mode", "resolution_type", "trigger_mode", "event_kind", "map_ids", "conditions", "reward_package"],
+	"tasks": ["id", "task_type", "event_ref", "pool_type", "entry_conditions"]
+}
+const REQUIRED_FIELDS_BY_OBJECT := {
+	"glossary": ["visual_theme", "worlds", "world_terms", "naming_rules"],
+	"progression_defaults": [
+		"inventory_items",
+		"currencies",
+		"relics",
+		"story_flags",
+		"unlock_flags",
+		"completed_tasks",
+		"home_loadout"
+	]
+}
 
 var data: Dictionary = {}
 var by_id: Dictionary = {}
@@ -38,7 +64,16 @@ func reload_all() -> int:
 			return ERR_FILE_CORRUPT
 		data[key] = parsed
 
-	for key: String in ["maps", "items", "loot_tables", "units", "battle_events", "battles", "events", "tasks"]:
+	for key: String in ARRAY_DATA_KEYS:
+		if typeof(data.get(key, [])) != TYPE_ARRAY:
+			push_error("%s must be an array in data contracts." % key)
+			return ERR_INVALID_DATA
+	for key: String in DICT_DATA_KEYS:
+		if typeof(data.get(key, {})) != TYPE_DICTIONARY:
+			push_error("%s must be an object in data contracts." % key)
+			return ERR_INVALID_DATA
+
+	for key: String in ARRAY_DATA_KEYS:
 		var index_result: Dictionary = _index_array_by_id(key, data.get(key, []))
 		if index_result.is_empty() and data.get(key, []).size() > 0:
 			return ERR_INVALID_DATA
@@ -72,6 +107,26 @@ func get_event(event_id: String) -> Dictionary:
 
 func get_item(item_id: String) -> Dictionary:
 	return _deep_copy_dict(by_id.get("items", {}).get(item_id, {}))
+
+
+func get_item_visual(item_id: String) -> Dictionary:
+	return _deep_copy_dict(data.get("item_visuals", {}).get(item_id, {}))
+
+
+func get_battle(battle_id: String) -> Dictionary:
+	return _deep_copy_dict(by_id.get("battles", {}).get(battle_id, {}))
+
+
+func get_unit(unit_id: String) -> Dictionary:
+	return _deep_copy_dict(by_id.get("units", {}).get(unit_id, {}))
+
+
+func get_unit_visual(unit_id: String) -> Dictionary:
+	return _deep_copy_dict(data.get("unit_visuals", {}).get(unit_id, {}))
+
+
+func get_battle_event(battle_event_id: String) -> Dictionary:
+	return _deep_copy_dict(by_id.get("battle_events", {}).get(battle_event_id, {}))
 
 
 func pick_random_events(map_id: String, context: Dictionary, count_range: Vector2i, required_mix: Dictionary = {}) -> Array:
@@ -172,6 +227,7 @@ func find_extraction_event(map_id: String, context: Dictionary) -> Dictionary:
 
 func _validate_data_contracts() -> Array:
 	var errors: Array = []
+	errors.append_array(_validate_required_fields())
 	var maps_index: Dictionary = by_id.get("maps", {})
 	var items_index: Dictionary = by_id.get("items", {})
 	var loot_index: Dictionary = by_id.get("loot_tables", {})
@@ -230,6 +286,29 @@ func _validate_data_contracts() -> Array:
 		var event_ref: String = String(task_def.get("event_ref", ""))
 		if not events_index.has(event_ref):
 			errors.append("Task %s references missing event %s." % [task_id, event_ref])
+
+	return errors
+
+
+func _validate_required_fields() -> Array:
+	var errors: Array = []
+	for group_name: String in REQUIRED_FIELDS_BY_GROUP.keys():
+		var entries: Array = data.get(group_name, [])
+		for entry_value: Variant in entries:
+			if typeof(entry_value) != TYPE_DICTIONARY:
+				errors.append("%s has a non-object entry." % group_name)
+				continue
+			var entry: Dictionary = entry_value
+			var entry_id: String = String(entry.get("id", "<missing_id>"))
+			for field_name: String in REQUIRED_FIELDS_BY_GROUP[group_name]:
+				if not entry.has(field_name):
+					errors.append("%s entry %s missing required field %s." % [group_name, entry_id, field_name])
+
+	for object_name: String in REQUIRED_FIELDS_BY_OBJECT.keys():
+		var payload: Dictionary = data.get(object_name, {})
+		for field_name: String in REQUIRED_FIELDS_BY_OBJECT[object_name]:
+			if not payload.has(field_name):
+				errors.append("%s missing required field %s." % [object_name, field_name])
 
 	return errors
 

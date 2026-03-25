@@ -29,7 +29,11 @@
 		"type": 6,
 		"quality": 2,
 		"description": "战后缓解伤势的消耗品。",
-		"tags": ["consumable"]
+		"tags": ["consumable"],
+		"combat_effect": {
+			"kind": "heal",
+			"value": 12
+		}
 	},
 	{
 		"id": "relic_burned_prayer_wheel",
@@ -64,4 +68,3 @@
 		"tags": ["story_hint"]
 	}
 ]
-

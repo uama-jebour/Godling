@@ -1,0 +1,38 @@
+{
+	"hero_pilgrim_a01": {
+		"portrait_path": "res://assets/battle/placeholders/hero_pilgrim_a01.svg",
+		"icon_path": "res://icon.svg",
+		"portrait_scale": 1.0,
+		"x_offset": 0.0,
+		"y_offset": 0.0,
+		"origin": "placeholder",
+		"notes": "Replace with final hero battle portrait when available."
+	},
+	"enemy_hollow_deacon": {
+		"portrait_path": "res://assets/battle/placeholders/enemy_hollow_deacon.svg",
+		"icon_path": "res://icon.svg",
+		"portrait_scale": 1.0,
+		"x_offset": 0.0,
+		"y_offset": 0.0,
+		"origin": "placeholder",
+		"notes": "Replace with final enemy portrait when available."
+	},
+	"enemy_ashen_hunter": {
+		"portrait_path": "res://assets/battle/placeholders/enemy_ashen_hunter.svg",
+		"icon_path": "res://icon.svg",
+		"portrait_scale": 1.0,
+		"x_offset": 0.0,
+		"y_offset": 0.0,
+		"origin": "placeholder",
+		"notes": "Replace with final enemy portrait when available."
+	},
+	"enemy_demon_stalker": {
+		"portrait_path": "res://assets/battle/placeholders/enemy_demon_stalker.svg",
+		"icon_path": "res://icon.svg",
+		"portrait_scale": 1.0,
+		"x_offset": 0.0,
+		"y_offset": 0.0,
+		"origin": "placeholder",
+		"notes": "Replace with final enemy portrait when available."
+	}
+}

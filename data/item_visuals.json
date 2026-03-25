@@ -1,0 +1,15 @@
+{
+	"consumable_field_balm": {
+		"icon_path": "res://icon.svg",
+		"origin": "placeholder",
+		"notes": "Replace with final balm icon when available."
+	},
+	"currency_lumen_mark": {
+		"icon_path": "res://icon.svg",
+		"origin": "placeholder"
+	},
+	"resource_ash_herb": {
+		"icon_path": "res://icon.svg",
+		"origin": "placeholder"
+	}
+}
