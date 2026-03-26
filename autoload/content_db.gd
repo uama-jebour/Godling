@@ -64,6 +64,8 @@ func reload_all() -> int:
 			return ERR_FILE_CORRUPT
 		data[key] = parsed
 
+	_merge_runtime_created_content()
+
 	for key: String in ARRAY_DATA_KEYS:
 		if typeof(data.get(key, [])) != TYPE_ARRAY:
 			push_error("%s must be an array in data contracts." % key)
@@ -98,7 +100,7 @@ func get_theme_name() -> String:
 
 
 func get_map(map_id: String) -> Dictionary:
-	return _deep_copy_dict(by_id.get("maps", {}).get(map_id, {}))
+	return _apply_balance_overrides("maps", map_id, _deep_copy_dict(by_id.get("maps", {}).get(map_id, {})))
 
 
 func list_maps() -> Array:
@@ -106,7 +108,8 @@ func list_maps() -> Array:
 	for map_value in data.get("maps", []):
 		if typeof(map_value) != TYPE_DICTIONARY:
 			continue
-		maps.append(_deep_copy_dict(map_value))
+		var map_def: Dictionary = map_value
+		maps.append(_apply_balance_overrides("maps", String(map_def.get("id", "")), _deep_copy_dict(map_def)))
 	return maps
 
 
@@ -152,7 +155,7 @@ func list_startable_maps(context: Dictionary = {}) -> Array:
 
 
 func get_event(event_id: String) -> Dictionary:
-	return _deep_copy_dict(by_id.get("events", {}).get(event_id, {}))
+	return _apply_balance_overrides("events", event_id, _deep_copy_dict(by_id.get("events", {}).get(event_id, {})))
 
 
 func get_task(task_id: String) -> Dictionary:
@@ -194,7 +197,7 @@ func get_tasks_for_map(map_id: String, context: Dictionary = {}) -> Array:
 
 
 func get_item(item_id: String) -> Dictionary:
-	return _deep_copy_dict(by_id.get("items", {}).get(item_id, {}))
+	return _apply_balance_overrides("items", item_id, _deep_copy_dict(by_id.get("items", {}).get(item_id, {})))
 
 
 func get_item_visual(item_id: String) -> Dictionary:
@@ -202,11 +205,15 @@ func get_item_visual(item_id: String) -> Dictionary:
 
 
 func get_battle(battle_id: String) -> Dictionary:
-	return _deep_copy_dict(by_id.get("battles", {}).get(battle_id, {}))
+	return _apply_balance_overrides("battles", battle_id, _deep_copy_dict(by_id.get("battles", {}).get(battle_id, {})))
 
 
 func get_unit(unit_id: String) -> Dictionary:
-	return _deep_copy_dict(by_id.get("units", {}).get(unit_id, {}))
+	return _apply_balance_overrides("units", unit_id, _deep_copy_dict(by_id.get("units", {}).get(unit_id, {})))
+
+
+func get_loot_table(loot_table_id: String) -> Dictionary:
+	return _apply_balance_overrides("loot_tables", loot_table_id, _deep_copy_dict(by_id.get("loot_tables", {}).get(loot_table_id, {})))
 
 
 func get_unit_visual(unit_id: String) -> Dictionary:
@@ -222,7 +229,7 @@ func pick_random_events(map_id: String, context: Dictionary, count_range: Vector
 	var all_events: Dictionary = by_id.get("events", {})
 
 	for event_id: String in all_events.keys():
-		var event_def: Dictionary = all_events[event_id]
+		var event_def: Dictionary = get_event(event_id)
 		if String(event_def.get("spawn_mode", "")) != "random_slot":
 			continue
 		if not _event_matches_map(event_def, map_id):
@@ -281,7 +288,7 @@ func get_fixed_events(map_id: String, context: Dictionary, board_only: bool = tr
 	var all_events: Dictionary = by_id.get("events", {})
 
 	for event_id: String in all_events.keys():
-		var event_def: Dictionary = all_events[event_id]
+		var event_def: Dictionary = get_event(event_id)
 		if String(event_def.get("spawn_mode", "")) != "fixed_line":
 			continue
 		if board_only and String(event_def.get("trigger_mode", "board")) != "board":
@@ -311,6 +318,31 @@ func find_extraction_event(map_id: String, context: Dictionary) -> Dictionary:
 		if String(event_def.get("event_kind", "")) == "extraction":
 			return event_def
 	return {}
+
+
+func roll_loot_table(loot_table_id: String, rolls: int = 1) -> Dictionary:
+	var loot_table: Dictionary = get_loot_table(loot_table_id)
+	if loot_table.is_empty() or rolls <= 0:
+		return {"items": [], "currencies": [], "relics": []}
+	var result := {
+		"items": [],
+		"currencies": [],
+		"relics": []
+	}
+	for _i in range(rolls):
+		var picked_entry: Dictionary = _pick_loot_entry(loot_table.get("entries", []))
+		if picked_entry.is_empty():
+			continue
+		var stack := {"id": String(picked_entry.get("id", "")), "count": int(picked_entry.get("count", 0))}
+		var item_def: Dictionary = get_item(String(picked_entry.get("id", "")))
+		var item_type: int = int(item_def.get("type", 0))
+		if item_type == 1:
+			result["currencies"].append(stack)
+		elif item_type == 10:
+			result["relics"].append(stack)
+		else:
+			result["items"].append(stack)
+	return result
 
 
 func _validate_data_contracts() -> Array:
@@ -467,6 +499,196 @@ func _read_json(path: String) -> Variant:
 		push_error("Data file is not valid JSON: %s" % path)
 		return null
 	return parsed
+
+
+func _balance_state() -> Node:
+	return get_node_or_null("/root/BalanceState")
+
+
+func _merge_runtime_created_content() -> void:
+	var balance := _balance_state()
+	if balance == null or not balance.has_method("get_created_content"):
+		return
+	var created: Dictionary = balance.call("get_created_content")
+	for item_value in created.get("items", []):
+		if typeof(item_value) != TYPE_DICTIONARY:
+			continue
+		var item_def: Dictionary = _deep_copy_dict(item_value)
+		var item_id: String = String(item_def.get("id", ""))
+		if item_id.is_empty():
+			continue
+		_upsert_data_array_entry("items", item_def)
+		var item_visuals: Dictionary = data.get("item_visuals", {})
+		if not item_visuals.has(item_id):
+			item_visuals[item_id] = _default_item_visual(item_id)
+			data["item_visuals"] = item_visuals
+	for unit_value in created.get("units", []):
+		if typeof(unit_value) != TYPE_DICTIONARY:
+			continue
+		var unit_def: Dictionary = _deep_copy_dict(unit_value)
+		var unit_id: String = String(unit_def.get("id", ""))
+		if unit_id.is_empty():
+			continue
+		_upsert_data_array_entry("units", unit_def)
+		var unit_visuals: Dictionary = data.get("unit_visuals", {})
+		if not unit_visuals.has(unit_id):
+			unit_visuals[unit_id] = _default_unit_visual(unit_def)
+			data["unit_visuals"] = unit_visuals
+
+
+func _default_item_visual(_item_id: String) -> Dictionary:
+	return {
+		"icon_path": "res://icon.svg",
+		"origin": "runtime_created",
+		"notes": "Runtime-created item uses fallback icon."
+	}
+
+
+func _default_unit_visual(unit_def: Dictionary) -> Dictionary:
+	var camp: String = String(unit_def.get("camp", "enemy"))
+	var portrait_path := "res://assets/battle/placeholders/enemy_hollow_deacon.svg"
+	if camp == "hero":
+		portrait_path = "res://assets/battle/placeholders/hero_pilgrim_a01.svg"
+	return {
+		"portrait_path": portrait_path,
+		"icon_path": "res://icon.svg",
+		"portrait_scale": 1.0,
+		"x_offset": 0.0,
+		"y_offset": 0.0,
+		"origin": "runtime_created",
+		"notes": "Runtime-created unit uses fallback portrait."
+	}
+
+
+func _data_array_has_id(group_name: String, entry_id: String) -> bool:
+	for entry_value in data.get(group_name, []):
+		if typeof(entry_value) != TYPE_DICTIONARY:
+			continue
+		if String((entry_value as Dictionary).get("id", "")) == entry_id:
+			return true
+	return false
+
+
+func _upsert_data_array_entry(group_name: String, entry: Dictionary) -> void:
+	var entry_id: String = String(entry.get("id", ""))
+	if entry_id.is_empty():
+		return
+	var entries: Array = data.get(group_name, [])
+	for index: int in range(entries.size()):
+		var existing_value: Variant = entries[index]
+		if typeof(existing_value) != TYPE_DICTIONARY:
+			continue
+		if String((existing_value as Dictionary).get("id", "")) == entry_id:
+			entries[index] = entry
+			data[group_name] = entries
+			return
+	entries.append(entry)
+	data[group_name] = entries
+
+
+func _apply_balance_overrides(group_name: String, entry_id: String, payload: Dictionary) -> Dictionary:
+	if payload.is_empty():
+		return payload
+	var balance := _balance_state()
+	if balance == null or not balance.has_method("get_value"):
+		return payload
+	match group_name:
+		"maps":
+			var range_values: Array = payload.get("random_slot_count_range", []).duplicate(true)
+			if range_values.size() >= 2:
+				range_values[0] = int(balance.call("get_value", "maps.%s.random_slot_min" % entry_id, int(range_values[0])))
+				range_values[1] = int(balance.call("get_value", "maps.%s.random_slot_max" % entry_id, int(range_values[1])))
+				payload["random_slot_count_range"] = range_values
+		"units":
+			payload["hp"] = int(balance.call("get_value", "units.%s.hp" % entry_id, int(payload.get("hp", 0))))
+			var attack: Dictionary = payload.get("attack", {}).duplicate(true)
+			attack["power"] = float(balance.call("get_value", "units.%s.attack_power" % entry_id, float(attack.get("power", 0.0))))
+			attack["speed"] = float(balance.call("get_value", "units.%s.attack_speed" % entry_id, float(attack.get("speed", 1.0))))
+			payload["attack"] = attack
+		"items":
+			var combat_effect: Dictionary = payload.get("combat_effect", {}).duplicate(true)
+			if not combat_effect.is_empty():
+				combat_effect["value"] = float(balance.call("get_value", "items.%s.combat_effect_value" % entry_id, float(combat_effect.get("value", 0.0))))
+				payload["combat_effect"] = combat_effect
+		"battles":
+			var groups: Array = payload.get("enemy_groups", []).duplicate(true)
+			for group_index: int in groups.size():
+				var group: Dictionary = groups[group_index]
+				group["count"] = int(balance.call("get_value", "battles.%s.group.%d.count" % [entry_id, group_index], int(group.get("count", 0))))
+				var count_range: Array = group.get("count_range", []).duplicate(true)
+				if count_range.size() >= 2:
+					count_range[0] = int(balance.call("get_value", "battles.%s.group.%d.min" % [entry_id, group_index], int(count_range[0])))
+					count_range[1] = int(balance.call("get_value", "battles.%s.group.%d.max" % [entry_id, group_index], int(count_range[1])))
+					group["count_range"] = count_range
+				groups[group_index] = group
+			payload["enemy_groups"] = groups
+		"events":
+			payload["weight"] = int(balance.call("get_value", "events.%s.weight" % entry_id, int(payload.get("weight", 0))))
+			payload["reward_package"] = _apply_reward_overrides(entry_id, payload.get("reward_package", {}).duplicate(true), balance)
+			var option_list: Array = payload.get("option_list", []).duplicate(true)
+			for option_index: int in option_list.size():
+				var option_def: Dictionary = option_list[option_index]
+				option_def["reward_package"] = _apply_reward_overrides("%s.option.%d" % [entry_id, option_index], option_def.get("reward_package", {}).duplicate(true), balance)
+				option_list[option_index] = option_def
+			payload["option_list"] = option_list
+		"loot_tables":
+			var entries: Array = payload.get("entries", []).duplicate(true)
+			for entry_index: int in entries.size():
+				var loot_entry: Dictionary = entries[entry_index]
+				loot_entry["count"] = int(balance.call("get_value", "loot_tables.%s.entry.%d.count" % [entry_id, entry_index], int(loot_entry.get("count", 0))))
+				loot_entry["weight"] = int(balance.call("get_value", "loot_tables.%s.entry.%d.weight" % [entry_id, entry_index], int(loot_entry.get("weight", 0))))
+				loot_entry["prob"] = float(balance.call("get_value", "loot_tables.%s.entry.%d.prob" % [entry_id, entry_index], float(loot_entry.get("prob", 1.0))))
+				entries[entry_index] = loot_entry
+			payload["entries"] = entries
+	return payload
+
+
+func _apply_reward_overrides(prefix: String, reward: Dictionary, balance: Node) -> Dictionary:
+	reward["currencies"] = _apply_reward_stack_overrides(prefix, "currencies", reward.get("currencies", []), balance)
+	reward["items"] = _apply_reward_stack_overrides(prefix, "items", reward.get("items", []), balance)
+	reward["relics"] = _apply_reward_stack_overrides(prefix, "relics", reward.get("relics", []), balance)
+	var loot_tables: Array = reward.get("loot_tables", []).duplicate(true)
+	for index: int in loot_tables.size():
+		var table_ref: Dictionary = loot_tables[index]
+		table_ref["rolls"] = int(balance.call("get_value", "events.%s.loot_tables.%d.rolls" % [prefix, index], int(table_ref.get("rolls", 1))))
+		loot_tables[index] = table_ref
+	reward["loot_tables"] = loot_tables
+	return reward
+
+
+func _apply_reward_stack_overrides(prefix: String, stack_group: String, stacks: Array, balance: Node) -> Array:
+	var adjusted: Array = stacks.duplicate(true)
+	for index: int in adjusted.size():
+		var stack: Dictionary = adjusted[index]
+		stack["count"] = int(balance.call("get_value", "events.%s.%s.%d.count" % [prefix, stack_group, index], int(stack.get("count", 0))))
+		adjusted[index] = stack
+	return adjusted
+
+
+func _pick_loot_entry(entries: Array) -> Dictionary:
+	var candidates: Array = []
+	var total_weight := 0.0
+	for entry_value in entries:
+		if typeof(entry_value) != TYPE_DICTIONARY:
+			continue
+		var entry: Dictionary = entry_value
+		if randf() > float(entry.get("prob", 1.0)):
+			continue
+		var weight: float = max(0.0, float(entry.get("weight", 0.0)))
+		if weight <= 0.0:
+			continue
+		candidates.append(entry)
+		total_weight += weight
+	if candidates.is_empty() or total_weight <= 0.0:
+		return {}
+	var roll: float = randf() * total_weight
+	var cursor := 0.0
+	for entry_value in candidates:
+		var entry: Dictionary = entry_value
+		cursor += float(entry.get("weight", 0.0))
+		if roll <= cursor:
+			return _deep_copy_dict(entry)
+	return _deep_copy_dict(candidates.back())
 
 
 func _deep_copy_dict(source: Dictionary) -> Dictionary:

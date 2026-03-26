@@ -84,6 +84,45 @@ var _battle_result_body_label: RichTextLabel
 var _battle_result_continue_button: Button
 var _battle_result_panel: PanelContainer
 var _pending_battle_flow_result: Dictionary = {}
+var _content_editor_layer: Control
+var _content_editor_shell: MarginContainer
+var _content_editor_panel: PanelContainer
+var _content_editor_title_label: Label
+var _content_editor_close_button: Button
+var _content_editor_open_button: Button
+var _home_content_editor_button: Button
+var _balance_editor_layer: Control
+var _balance_editor_shell: MarginContainer
+var _balance_editor_panel: PanelContainer
+var _balance_editor_title_label: Label
+var _balance_editor_summary_label: RichTextLabel
+var _balance_editor_tabs: TabContainer
+var _balance_editor_impact_label: RichTextLabel
+var _balance_editor_apply_button: Button
+var _balance_editor_reset_button: Button
+var _balance_editor_close_button: Button
+var _balance_editor_export_button: Button
+var _balance_editor_import_button: Button
+var _balance_editor_open_button: Button
+var _home_balance_editor_button: Button
+var _balance_preset_name_input: LineEdit
+var _balance_preset_select: OptionButton
+var _balance_preset_status_label: Label
+var _balance_spinboxes: Dictionary = {}
+var _balance_editor_dirty := false
+var _creator_summary_label: RichTextLabel
+var _creator_item_fields: Dictionary = {}
+var _creator_enemy_fields: Dictionary = {}
+var _creator_hero_fields: Dictionary = {}
+var _creator_item_list: ItemList
+var _creator_enemy_list: ItemList
+var _creator_hero_list: ItemList
+var _creator_item_status_label: Label
+var _creator_enemy_status_label: Label
+var _creator_hero_status_label: Label
+var _creator_selected_item_id := ""
+var _creator_selected_enemy_id := ""
+var _creator_selected_hero_id := ""
 var _task_snapshot_label: RichTextLabel
 var _delta_snapshot_label: RichTextLabel
 var _forced_hint_label: Label
@@ -258,10 +297,75 @@ func _apply_responsive_layout() -> void:
 		_return_home_button.add_theme_font_size_override("font_size", action_font_size)
 	if _home_start_button != null:
 		_home_start_button.add_theme_font_size_override("font_size", action_font_size)
+	if _home_balance_editor_button != null:
+		_home_balance_editor_button.add_theme_font_size_override("font_size", action_font_size)
+	if _home_content_editor_button != null:
+		_home_content_editor_button.add_theme_font_size_override("font_size", action_font_size)
 	if _settlement_return_button != null:
 		_settlement_return_button.add_theme_font_size_override("font_size", action_font_size)
+	if _balance_editor_open_button != null:
+		_balance_editor_open_button.add_theme_font_size_override("font_size", action_font_size)
+	if _content_editor_open_button != null:
+		_content_editor_open_button.add_theme_font_size_override("font_size", action_font_size)
+	if _balance_preset_name_input != null:
+		_balance_preset_name_input.add_theme_font_size_override("font_size", 16 if mobile_runtime else 18)
+	if _balance_preset_select != null:
+		_balance_preset_select.add_theme_font_size_override("font_size", 16 if mobile_runtime else 18)
+	if _balance_preset_status_label != null:
+		_balance_preset_status_label.add_theme_font_size_override("font_size", 13 if mobile_runtime else 15)
+	if _balance_editor_apply_button != null:
+		_balance_editor_apply_button.add_theme_font_size_override("font_size", action_font_size)
+	if _balance_editor_reset_button != null:
+		_balance_editor_reset_button.add_theme_font_size_override("font_size", action_font_size)
+	if _balance_editor_close_button != null:
+		_balance_editor_close_button.add_theme_font_size_override("font_size", action_font_size)
+	if _balance_editor_export_button != null:
+		_balance_editor_export_button.add_theme_font_size_override("font_size", action_font_size)
+	if _balance_editor_import_button != null:
+		_balance_editor_import_button.add_theme_font_size_override("font_size", action_font_size)
+	if _content_editor_close_button != null:
+		_content_editor_close_button.add_theme_font_size_override("font_size", action_font_size)
 	if preview_android_size_button != null:
 		preview_android_size_button.visible = _can_preview_android_sizes()
+	if _content_editor_shell != null:
+		var content_margin_x := 20 if mobile_runtime else clampi(int(viewport_size.x * 0.035), 28, 68)
+		var content_margin_top := 14 if mobile_runtime else clampi(int(viewport_size.y * 0.04), 24, 54)
+		var content_margin_bottom := 14 if mobile_runtime else clampi(int(viewport_size.y * 0.035), 22, 46)
+		_content_editor_shell.add_theme_constant_override("margin_left", content_margin_x)
+		_content_editor_shell.add_theme_constant_override("margin_top", content_margin_top)
+		_content_editor_shell.add_theme_constant_override("margin_right", content_margin_x)
+		_content_editor_shell.add_theme_constant_override("margin_bottom", content_margin_bottom)
+	if _content_editor_panel != null:
+		_content_editor_panel.custom_minimum_size = Vector2(
+			max(940.0, viewport_size.x - ((_content_editor_shell.get_theme_constant("margin_left") + _content_editor_shell.get_theme_constant("margin_right")) if _content_editor_shell != null else 120)),
+			max(600.0, viewport_size.y - ((_content_editor_shell.get_theme_constant("margin_top") + _content_editor_shell.get_theme_constant("margin_bottom")) if _content_editor_shell != null else 100))
+		)
+	if _content_editor_title_label != null:
+		_content_editor_title_label.add_theme_font_size_override("font_size", 26 if mobile_runtime else 34)
+	if _balance_editor_shell != null:
+		var shell_margin_x := 20 if mobile_runtime else clampi(int(viewport_size.x * 0.035), 28, 68)
+		var shell_margin_top := 14 if mobile_runtime else clampi(int(viewport_size.y * 0.04), 24, 54)
+		var shell_margin_bottom := 14 if mobile_runtime else clampi(int(viewport_size.y * 0.035), 22, 46)
+		_balance_editor_shell.add_theme_constant_override("margin_left", shell_margin_x)
+		_balance_editor_shell.add_theme_constant_override("margin_top", shell_margin_top)
+		_balance_editor_shell.add_theme_constant_override("margin_right", shell_margin_x)
+		_balance_editor_shell.add_theme_constant_override("margin_bottom", shell_margin_bottom)
+	if _balance_editor_panel != null:
+		_balance_editor_panel.custom_minimum_size = Vector2(
+			max(940.0, viewport_size.x - ((_balance_editor_shell.get_theme_constant("margin_left") + _balance_editor_shell.get_theme_constant("margin_right")) if _balance_editor_shell != null else 120)),
+			max(600.0, viewport_size.y - ((_balance_editor_shell.get_theme_constant("margin_top") + _balance_editor_shell.get_theme_constant("margin_bottom")) if _balance_editor_shell != null else 100))
+		)
+	if _balance_editor_title_label != null:
+		_balance_editor_title_label.add_theme_font_size_override("font_size", 26 if mobile_runtime else 34)
+	if _balance_editor_summary_label != null:
+		_balance_editor_summary_label.add_theme_font_size_override("normal_font_size", 15 if mobile_runtime else 18)
+		_balance_editor_summary_label.custom_minimum_size = Vector2(0, 88 if mobile_runtime else 118)
+	if _balance_editor_tabs != null:
+		_balance_editor_tabs.add_theme_font_size_override("font_size", 15 if mobile_runtime else 18)
+	if _balance_editor_impact_label != null:
+		_balance_editor_impact_label.add_theme_font_size_override("normal_font_size", 14 if mobile_runtime else 17)
+	if _creator_summary_label != null:
+		_creator_summary_label.add_theme_font_size_override("normal_font_size", 14 if mobile_runtime else 17)
 	_apply_overlay_layout(viewport_size, mobile_runtime, mobile_landscape)
 
 
@@ -1096,6 +1200,8 @@ func _build_runtime_ui_layers() -> void:
 	_inject_map_runtime_widgets()
 	_inject_dispatch_runtime_widgets()
 	_build_home_layer()
+	_build_content_editor_layer()
+	_build_balance_editor_layer()
 	_build_battle_result_layer()
 	_build_settlement_layer()
 
@@ -1110,6 +1216,20 @@ func _inject_map_runtime_widgets() -> void:
 		_return_home_button.text = "返回家园整备"
 		_return_home_button.pressed.connect(_on_return_home_pressed)
 		bottom_row.add_child(_return_home_button)
+	if _balance_editor_open_button == null and bottom_row != null:
+		_balance_editor_open_button = Button.new()
+		_balance_editor_open_button.custom_minimum_size = Vector2(0, 50)
+		_balance_editor_open_button.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		_balance_editor_open_button.text = "数值编辑台"
+		_balance_editor_open_button.pressed.connect(_on_open_balance_editor_pressed)
+		bottom_row.add_child(_balance_editor_open_button)
+	if _content_editor_open_button == null and bottom_row != null:
+		_content_editor_open_button = Button.new()
+		_content_editor_open_button.custom_minimum_size = Vector2(0, 50)
+		_content_editor_open_button.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		_content_editor_open_button.text = "内容库编辑器"
+		_content_editor_open_button.pressed.connect(_on_open_content_editor_pressed)
+		bottom_row.add_child(_content_editor_open_button)
 	if _forced_hint_label == null:
 		_forced_hint_label = Label.new()
 		_forced_hint_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
@@ -1284,11 +1404,1300 @@ func _build_home_layer() -> void:
 	_home_hint_label.text = "先整备再出发：进入地图后每回合只处理一个事件，危险度会上升，主线完成后可触发撤离。"
 	loadout_vbox.add_child(_home_hint_label)
 
+	var home_action_row := HBoxContainer.new()
+	home_action_row.add_theme_constant_override("separation", 10)
+	vbox.add_child(home_action_row)
+
+	_home_balance_editor_button = Button.new()
+	_home_balance_editor_button.custom_minimum_size = Vector2(0, 56)
+	_home_balance_editor_button.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	_home_balance_editor_button.text = "打开数值编辑台"
+	_home_balance_editor_button.pressed.connect(_on_open_balance_editor_pressed)
+	home_action_row.add_child(_home_balance_editor_button)
+
+	_home_content_editor_button = Button.new()
+	_home_content_editor_button.custom_minimum_size = Vector2(0, 56)
+	_home_content_editor_button.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	_home_content_editor_button.text = "打开内容库编辑器"
+	_home_content_editor_button.pressed.connect(_on_open_content_editor_pressed)
+	home_action_row.add_child(_home_content_editor_button)
+
 	_home_start_button = Button.new()
 	_home_start_button.custom_minimum_size = Vector2(0, 56)
+	_home_start_button.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	_home_start_button.text = "确认配置并出发"
 	_home_start_button.pressed.connect(_on_home_start_pressed)
-	vbox.add_child(_home_start_button)
+	home_action_row.add_child(_home_start_button)
+
+
+func _build_balance_editor_layer() -> void:
+	if _balance_editor_layer != null:
+		return
+	_balance_editor_layer = Control.new()
+	_balance_editor_layer.set_anchors_preset(Control.PRESET_FULL_RECT)
+	_balance_editor_layer.mouse_filter = Control.MOUSE_FILTER_STOP
+	_balance_editor_layer.visible = false
+	add_child(_balance_editor_layer)
+
+	var shade := ColorRect.new()
+	shade.set_anchors_preset(Control.PRESET_FULL_RECT)
+	shade.color = Color(0.01, 0.02, 0.05, 0.9)
+	_balance_editor_layer.add_child(shade)
+
+	var shell := MarginContainer.new()
+	shell.set_anchors_preset(Control.PRESET_FULL_RECT)
+	shell.add_theme_constant_override("margin_left", 72)
+	shell.add_theme_constant_override("margin_top", 52)
+	shell.add_theme_constant_override("margin_right", 72)
+	shell.add_theme_constant_override("margin_bottom", 52)
+	_balance_editor_layer.add_child(shell)
+	_balance_editor_shell = shell
+
+	var panel := PanelContainer.new()
+	panel.set_anchors_preset(Control.PRESET_FULL_RECT)
+	panel.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	panel.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	panel.custom_minimum_size = Vector2(1360, 860)
+	shell.add_child(panel)
+	_balance_editor_panel = panel
+
+	var padding := MarginContainer.new()
+	padding.add_theme_constant_override("margin_left", 26)
+	padding.add_theme_constant_override("margin_top", 22)
+	padding.add_theme_constant_override("margin_right", 26)
+	padding.add_theme_constant_override("margin_bottom", 22)
+	panel.add_child(padding)
+
+	var root_vbox := VBoxContainer.new()
+	root_vbox.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	root_vbox.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	root_vbox.add_theme_constant_override("separation", 12)
+	padding.add_child(root_vbox)
+
+	var title_row := HBoxContainer.new()
+	title_row.add_theme_constant_override("separation", 10)
+	root_vbox.add_child(title_row)
+
+	_balance_editor_title_label = Label.new()
+	_balance_editor_title_label.text = "数值系统可视化编辑台"
+	_balance_editor_title_label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	_balance_editor_title_label.add_theme_font_size_override("font_size", 28)
+	title_row.add_child(_balance_editor_title_label)
+
+	_balance_editor_close_button = Button.new()
+	_balance_editor_close_button.custom_minimum_size = Vector2(176, 52)
+	_balance_editor_close_button.text = "关闭"
+	_balance_editor_close_button.pressed.connect(_close_balance_editor)
+	title_row.add_child(_balance_editor_close_button)
+
+	_balance_editor_summary_label = RichTextLabel.new()
+	_balance_editor_summary_label.bbcode_enabled = true
+	_balance_editor_summary_label.fit_content = true
+	_balance_editor_summary_label.scroll_active = false
+	_balance_editor_summary_label.custom_minimum_size = Vector2(0, 110)
+	root_vbox.add_child(_balance_editor_summary_label)
+
+	var preset_vbox := VBoxContainer.new()
+	preset_vbox.add_theme_constant_override("separation", 8)
+	root_vbox.add_child(preset_vbox)
+
+	var export_row := HBoxContainer.new()
+	export_row.add_theme_constant_override("separation", 10)
+	preset_vbox.add_child(export_row)
+
+	var export_hint := Label.new()
+	export_hint.text = "导出为"
+	export_hint.custom_minimum_size = Vector2(78, 48)
+	export_hint.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	export_row.add_child(export_hint)
+
+	_balance_preset_name_input = LineEdit.new()
+	_balance_preset_name_input.custom_minimum_size = Vector2(420, 48)
+	_balance_preset_name_input.placeholder_text = "方案名，如 battle_v2"
+	_balance_preset_name_input.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	export_row.add_child(_balance_preset_name_input)
+
+	_balance_editor_export_button = Button.new()
+	_balance_editor_export_button.custom_minimum_size = Vector2(150, 48)
+	_balance_editor_export_button.text = "导出方案"
+	_balance_editor_export_button.pressed.connect(_on_balance_export_pressed)
+	export_row.add_child(_balance_editor_export_button)
+
+	var import_row := HBoxContainer.new()
+	import_row.add_theme_constant_override("separation", 10)
+	preset_vbox.add_child(import_row)
+
+	var import_hint := Label.new()
+	import_hint.text = "导入已保存方案"
+	import_hint.custom_minimum_size = Vector2(120, 48)
+	import_hint.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	import_row.add_child(import_hint)
+
+	_balance_preset_select = OptionButton.new()
+	_balance_preset_select.custom_minimum_size = Vector2(420, 48)
+	_balance_preset_select.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	import_row.add_child(_balance_preset_select)
+
+	_balance_editor_import_button = Button.new()
+	_balance_editor_import_button.custom_minimum_size = Vector2(150, 48)
+	_balance_editor_import_button.text = "导入方案"
+	_balance_editor_import_button.pressed.connect(_on_balance_import_pressed)
+	import_row.add_child(_balance_editor_import_button)
+
+	_balance_preset_status_label = Label.new()
+	_balance_preset_status_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	_balance_preset_status_label.text = "在这里输入方案名并导出，或从下方选择一套已保存方案导入。"
+	_balance_preset_status_label.modulate = Color(0.72, 0.78, 0.92, 0.96)
+	preset_vbox.add_child(_balance_preset_status_label)
+
+	var body_row := HBoxContainer.new()
+	body_row.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	body_row.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	body_row.add_theme_constant_override("separation", 18)
+	root_vbox.add_child(body_row)
+
+	_balance_editor_tabs = TabContainer.new()
+	_balance_editor_tabs.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	_balance_editor_tabs.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	_balance_editor_tabs.size_flags_stretch_ratio = 1.5
+	_balance_editor_tabs.current_tab = 0
+	body_row.add_child(_balance_editor_tabs)
+
+	var impact_panel := _build_overlay_card()
+	impact_panel.custom_minimum_size = Vector2(400, 0)
+	impact_panel.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	impact_panel.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	impact_panel.size_flags_stretch_ratio = 0.82
+	body_row.add_child(impact_panel)
+
+	var impact_margin := MarginContainer.new()
+	impact_margin.add_theme_constant_override("margin_left", 16)
+	impact_margin.add_theme_constant_override("margin_top", 14)
+	impact_margin.add_theme_constant_override("margin_right", 16)
+	impact_margin.add_theme_constant_override("margin_bottom", 14)
+	impact_panel.add_child(impact_margin)
+
+	var impact_vbox := VBoxContainer.new()
+	impact_vbox.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	impact_vbox.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	impact_vbox.add_theme_constant_override("separation", 10)
+	impact_margin.add_child(impact_vbox)
+
+	var impact_header := Label.new()
+	impact_header.text = "平衡影响预估"
+	impact_header.add_theme_font_size_override("font_size", 24)
+	impact_vbox.add_child(impact_header)
+
+	_balance_editor_impact_label = RichTextLabel.new()
+	_balance_editor_impact_label.bbcode_enabled = true
+	_balance_editor_impact_label.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	_balance_editor_impact_label.scroll_active = true
+	impact_vbox.add_child(_balance_editor_impact_label)
+
+	_balance_editor_reset_button = Button.new()
+	_balance_editor_reset_button.custom_minimum_size = Vector2(0, 54)
+	_balance_editor_reset_button.text = "恢复默认草案"
+	_balance_editor_reset_button.pressed.connect(_on_balance_reset_pressed)
+	impact_vbox.add_child(_balance_editor_reset_button)
+
+	_balance_editor_apply_button = Button.new()
+	_balance_editor_apply_button.custom_minimum_size = Vector2(0, 62)
+	_balance_editor_apply_button.text = "应用当前数值"
+	_balance_editor_apply_button.pressed.connect(_on_balance_apply_pressed)
+	impact_vbox.add_child(_balance_editor_apply_button)
+
+	_rebuild_balance_editor_tabs()
+
+
+func _rebuild_balance_editor_tabs() -> void:
+	if _balance_editor_tabs == null:
+		return
+	for child: Node in _balance_editor_tabs.get_children():
+		child.queue_free()
+	_balance_spinboxes.clear()
+	var balance := _balance_state()
+	if balance == null:
+		return
+	var sections: Array = balance.call("get_editor_sections")
+	for section_value in sections:
+		if typeof(section_value) != TYPE_DICTIONARY:
+			continue
+		var section: Dictionary = section_value
+		var scroll := ScrollContainer.new()
+		scroll.name = String(section.get("name_cn", "数值"))
+		scroll.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
+		_balance_editor_tabs.add_child(scroll)
+
+		var margin := MarginContainer.new()
+		margin.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		margin.size_flags_vertical = Control.SIZE_EXPAND_FILL
+		margin.add_theme_constant_override("margin_left", 8)
+		margin.add_theme_constant_override("margin_top", 8)
+		margin.add_theme_constant_override("margin_right", 8)
+		margin.add_theme_constant_override("margin_bottom", 8)
+		scroll.add_child(margin)
+
+		var vbox := VBoxContainer.new()
+		vbox.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		vbox.add_theme_constant_override("separation", 8)
+		margin.add_child(vbox)
+
+		var section_desc := Label.new()
+		section_desc.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		section_desc.text = String(section.get("description", ""))
+		vbox.add_child(section_desc)
+
+		for entry_value in section.get("entries", []):
+			if typeof(entry_value) != TYPE_DICTIONARY:
+				continue
+			vbox.add_child(_build_balance_editor_row(entry_value))
+
+
+func _build_balance_editor_row(entry: Dictionary) -> Control:
+	var card := _build_overlay_card()
+	card.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+
+	var margin := MarginContainer.new()
+	margin.add_theme_constant_override("margin_left", 16)
+	margin.add_theme_constant_override("margin_top", 12)
+	margin.add_theme_constant_override("margin_right", 16)
+	margin.add_theme_constant_override("margin_bottom", 12)
+	card.add_child(margin)
+
+	var row := HBoxContainer.new()
+	row.add_theme_constant_override("separation", 16)
+	margin.add_child(row)
+
+	var text_vbox := VBoxContainer.new()
+	text_vbox.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	text_vbox.add_theme_constant_override("separation", 4)
+	row.add_child(text_vbox)
+
+	var title := Label.new()
+	title.text = String(entry.get("label", ""))
+	title.add_theme_font_size_override("font_size", 19)
+	text_vbox.add_child(title)
+
+	var desc := Label.new()
+	desc.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	desc.text = String(entry.get("description", ""))
+	desc.add_theme_font_size_override("font_size", 15)
+	desc.modulate = Color(0.76, 0.8, 0.9, 0.92)
+	text_vbox.add_child(desc)
+
+	var value_box := VBoxContainer.new()
+	value_box.custom_minimum_size = Vector2(172, 0)
+	value_box.add_theme_constant_override("separation", 4)
+	row.add_child(value_box)
+
+	var spin := SpinBox.new()
+	spin.custom_minimum_size = Vector2(172, 48)
+	spin.min_value = float(entry.get("min", 0.0))
+	spin.max_value = float(entry.get("max", 1.0))
+	spin.step = float(entry.get("step", 0.1))
+	spin.value = float(entry.get("value", entry.get("default", 0.0)))
+	spin.alignment = HORIZONTAL_ALIGNMENT_CENTER
+	spin.value_changed.connect(_on_balance_spinbox_changed.bind(String(entry.get("path", ""))))
+	value_box.add_child(spin)
+	_balance_spinboxes[String(entry.get("path", ""))] = {"spinbox": spin, "entry": entry.duplicate(true)}
+
+	var range_label := Label.new()
+	range_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	range_label.add_theme_font_size_override("font_size", 14)
+	range_label.text = "范围 %s - %s" % [
+		_format_balance_value(float(entry.get("min", 0.0)), entry),
+		_format_balance_value(float(entry.get("max", 1.0)), entry)
+	]
+	range_label.modulate = Color(0.7, 0.74, 0.84, 0.9)
+	value_box.add_child(range_label)
+	return card
+
+
+func _build_content_editor_layer() -> void:
+	if _content_editor_layer != null:
+		return
+	_content_editor_layer = Control.new()
+	_content_editor_layer.set_anchors_preset(Control.PRESET_FULL_RECT)
+	_content_editor_layer.mouse_filter = Control.MOUSE_FILTER_STOP
+	_content_editor_layer.visible = false
+	add_child(_content_editor_layer)
+
+	var shade := ColorRect.new()
+	shade.set_anchors_preset(Control.PRESET_FULL_RECT)
+	shade.color = Color(0.01, 0.02, 0.05, 0.9)
+	_content_editor_layer.add_child(shade)
+
+	var shell := MarginContainer.new()
+	shell.set_anchors_preset(Control.PRESET_FULL_RECT)
+	shell.add_theme_constant_override("margin_left", 72)
+	shell.add_theme_constant_override("margin_top", 52)
+	shell.add_theme_constant_override("margin_right", 72)
+	shell.add_theme_constant_override("margin_bottom", 52)
+	_content_editor_layer.add_child(shell)
+	_content_editor_shell = shell
+
+	var panel := PanelContainer.new()
+	panel.set_anchors_preset(Control.PRESET_FULL_RECT)
+	panel.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	panel.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	panel.custom_minimum_size = Vector2(1360, 860)
+	shell.add_child(panel)
+	_content_editor_panel = panel
+
+	var padding := MarginContainer.new()
+	padding.add_theme_constant_override("margin_left", 26)
+	padding.add_theme_constant_override("margin_top", 22)
+	padding.add_theme_constant_override("margin_right", 26)
+	padding.add_theme_constant_override("margin_bottom", 22)
+	panel.add_child(padding)
+
+	var root_vbox := VBoxContainer.new()
+	root_vbox.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	root_vbox.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	root_vbox.add_theme_constant_override("separation", 12)
+	padding.add_child(root_vbox)
+
+	var title_row := HBoxContainer.new()
+	title_row.add_theme_constant_override("separation", 10)
+	root_vbox.add_child(title_row)
+
+	_content_editor_title_label = Label.new()
+	_content_editor_title_label.text = "全内容库编辑器"
+	_content_editor_title_label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	_content_editor_title_label.add_theme_font_size_override("font_size", 28)
+	title_row.add_child(_content_editor_title_label)
+
+	_content_editor_close_button = Button.new()
+	_content_editor_close_button.custom_minimum_size = Vector2(176, 52)
+	_content_editor_close_button.text = "关闭"
+	_content_editor_close_button.pressed.connect(_close_content_editor)
+	title_row.add_child(_content_editor_close_button)
+
+	var content_body := _build_content_creator_tab()
+	content_body.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	content_body.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	root_vbox.add_child(content_body)
+
+
+func _build_content_creator_tab() -> Control:
+	var scroll := ScrollContainer.new()
+	scroll.name = "内容创建器"
+	scroll.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
+
+	var margin := MarginContainer.new()
+	margin.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	margin.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	margin.add_theme_constant_override("margin_left", 8)
+	margin.add_theme_constant_override("margin_top", 8)
+	margin.add_theme_constant_override("margin_right", 8)
+	margin.add_theme_constant_override("margin_bottom", 8)
+	scroll.add_child(margin)
+
+	var vbox := VBoxContainer.new()
+	vbox.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	vbox.add_theme_constant_override("separation", 10)
+	margin.add_child(vbox)
+
+	var desc := Label.new()
+	desc.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	desc.add_theme_font_size_override("font_size", 16)
+	desc.text = "按分类查看当前自定义内容，左侧列表用于查找与切换，右侧详情区支持新建、修改、删除。英雄会同步到家园 roster，道具创建时会发放一份样本。"
+	vbox.add_child(desc)
+
+	var summary_card := _build_overlay_card()
+	summary_card.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	vbox.add_child(summary_card)
+
+	var summary_margin := MarginContainer.new()
+	summary_margin.add_theme_constant_override("margin_left", 14)
+	summary_margin.add_theme_constant_override("margin_top", 12)
+	summary_margin.add_theme_constant_override("margin_right", 14)
+	summary_margin.add_theme_constant_override("margin_bottom", 12)
+	summary_card.add_child(summary_margin)
+
+	_creator_summary_label = RichTextLabel.new()
+	_creator_summary_label.bbcode_enabled = true
+	_creator_summary_label.fit_content = true
+	_creator_summary_label.scroll_active = false
+	summary_margin.add_child(_creator_summary_label)
+
+	var tabs := TabContainer.new()
+	tabs.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	tabs.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	tabs.add_theme_font_size_override("font_size", 16)
+	vbox.add_child(tabs)
+
+	tabs.add_child(_build_content_manager_panel("item"))
+	tabs.add_child(_build_content_manager_panel("enemy"))
+	tabs.add_child(_build_content_manager_panel("hero"))
+	_refresh_creator_summary()
+	_refresh_creator_lists()
+	return scroll
+
+
+func _build_content_manager_panel(category: String) -> Control:
+	var panel := Control.new()
+	panel.name = _content_category_title(category)
+	panel.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	panel.size_flags_vertical = Control.SIZE_EXPAND_FILL
+
+	var row := HBoxContainer.new()
+	row.set_anchors_preset(Control.PRESET_FULL_RECT)
+	row.add_theme_constant_override("separation", 12)
+	panel.add_child(row)
+
+	var list_card := _build_overlay_card()
+	list_card.custom_minimum_size = Vector2(310, 0)
+	list_card.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	row.add_child(list_card)
+
+	var list_margin := MarginContainer.new()
+	list_margin.add_theme_constant_override("margin_left", 14)
+	list_margin.add_theme_constant_override("margin_top", 12)
+	list_margin.add_theme_constant_override("margin_right", 14)
+	list_margin.add_theme_constant_override("margin_bottom", 12)
+	list_card.add_child(list_margin)
+
+	var list_vbox := VBoxContainer.new()
+	list_vbox.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	list_vbox.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	list_vbox.add_theme_constant_override("separation", 8)
+	list_margin.add_child(list_vbox)
+
+	var list_title := Label.new()
+	list_title.text = "%s列表" % _content_category_title(category)
+	list_title.add_theme_font_size_override("font_size", 22)
+	list_vbox.add_child(list_title)
+
+	var list_hint := Label.new()
+	list_hint.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	list_hint.add_theme_font_size_override("font_size", 14)
+	list_hint.text = "选择一项进行查看或编辑；点击“新建”可清空表单。"
+	list_vbox.add_child(list_hint)
+
+	var list := ItemList.new()
+	list.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	list.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	list.select_mode = ItemList.SELECT_SINGLE
+	list.allow_reselect = true
+	list.item_selected.connect(_on_creator_list_selected.bind(category))
+	list_vbox.add_child(list)
+	match category:
+		"item":
+			_creator_item_list = list
+		"enemy":
+			_creator_enemy_list = list
+		"hero":
+			_creator_hero_list = list
+
+	var detail_card := _build_overlay_card()
+	detail_card.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	detail_card.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	row.add_child(detail_card)
+
+	var detail_margin := MarginContainer.new()
+	detail_margin.add_theme_constant_override("margin_left", 16)
+	detail_margin.add_theme_constant_override("margin_top", 14)
+	detail_margin.add_theme_constant_override("margin_right", 16)
+	detail_margin.add_theme_constant_override("margin_bottom", 14)
+	detail_card.add_child(detail_margin)
+
+	var detail_vbox := VBoxContainer.new()
+	detail_vbox.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	detail_vbox.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	detail_vbox.add_theme_constant_override("separation", 10)
+	detail_margin.add_child(detail_vbox)
+
+	var detail_title := Label.new()
+	detail_title.text = "%s详情" % _content_category_title(category)
+	detail_title.add_theme_font_size_override("font_size", 24)
+	detail_vbox.add_child(detail_title)
+
+	var toolbar := HBoxContainer.new()
+	toolbar.add_theme_constant_override("separation", 10)
+	detail_vbox.add_child(toolbar)
+
+	var new_button := Button.new()
+	new_button.custom_minimum_size = Vector2(120, 46)
+	new_button.text = "新建"
+	new_button.pressed.connect(_on_creator_new_pressed.bind(category))
+	toolbar.add_child(new_button)
+
+	var save_button := Button.new()
+	save_button.custom_minimum_size = Vector2(120, 46)
+	save_button.text = "保存"
+	save_button.pressed.connect(_on_creator_save_pressed.bind(category))
+	toolbar.add_child(save_button)
+
+	var delete_button := Button.new()
+	delete_button.custom_minimum_size = Vector2(120, 46)
+	delete_button.text = "删除"
+	delete_button.pressed.connect(_on_creator_delete_pressed.bind(category))
+	toolbar.add_child(delete_button)
+
+	var status := Label.new()
+	status.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	status.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+	status.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	status.add_theme_font_size_override("font_size", 14)
+	status.text = "当前为新建模式。"
+	toolbar.add_child(status)
+	match category:
+		"item":
+			_creator_item_status_label = status
+		"enemy":
+			_creator_enemy_status_label = status
+		"hero":
+			_creator_hero_status_label = status
+
+	var grid := GridContainer.new()
+	grid.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	grid.add_theme_constant_override("h_separation", 12)
+	grid.add_theme_constant_override("v_separation", 10)
+	grid.columns = 2 if category != "hero" else 4
+	detail_vbox.add_child(grid)
+
+	match category:
+		"item":
+			_build_creator_line_field(grid, _creator_item_fields, "id", "ID", "如 consumable_ember_tonic")
+			_build_creator_line_field(grid, _creator_item_fields, "name_cn", "中文名", "如 余烬药剂")
+			_build_creator_line_field(grid, _creator_item_fields, "alias_note", "别名备注", "会根据中文名自动生成")
+			_build_creator_option_field(grid, _creator_item_fields, "type", "类型", [
+				{"id": 6, "label": "消耗品"},
+				{"id": 2, "label": "物资"},
+				{"id": 10, "label": "圣遗"},
+				{"id": 7, "label": "线索"},
+				{"id": 9, "label": "关键物"},
+				{"id": 1, "label": "货币"}
+			], 6)
+			_build_creator_spin_field(grid, _creator_item_fields, "quality", "品质", 0, 5, 1, 1)
+			_build_creator_option_field(grid, _creator_item_fields, "combat_effect_kind", "战斗效果", [
+				{"id": "", "label": "无"},
+				{"id": "heal", "label": "治疗"}
+			], "")
+			_build_creator_spin_field(grid, _creator_item_fields, "combat_effect_value", "效果值", 0, 60, 0.5, 12)
+			_build_creator_line_field(grid, _creator_item_fields, "tags", "标签", "如 consumable,healing")
+			_build_creator_line_field(grid, _creator_item_fields, "description", "描述", "一句话描述")
+		"enemy":
+			_build_creator_line_field(grid, _creator_enemy_fields, "id", "ID", "如 enemy_ash_guard")
+			_build_creator_line_field(grid, _creator_enemy_fields, "name_cn", "中文名", "如 灰烬守卫")
+			_build_creator_line_field(grid, _creator_enemy_fields, "alias_note", "别名备注", "会根据中文名自动生成")
+			_build_creator_spin_field(grid, _creator_enemy_fields, "hp", "生命", 1, 240, 1, 28)
+			_build_creator_spin_field(grid, _creator_enemy_fields, "attack_power", "攻击力", 0.2, 30, 0.1, 4)
+			_build_creator_spin_field(grid, _creator_enemy_fields, "attack_speed", "攻速", 0.2, 4, 0.05, 1)
+			_build_creator_spin_field(grid, _creator_enemy_fields, "attack_range", "攻击距离", 1, 16, 1, 1)
+			_build_creator_option_field(grid, _creator_enemy_fields, "attack_type", "攻击类型", [
+				{"id": "melee", "label": "近战"},
+				{"id": "ranged_flat", "label": "远程"}
+			], "melee")
+			_build_creator_spin_field(grid, _creator_enemy_fields, "move_speed", "移动速度", 2, 24, 1, 9)
+			_build_creator_spin_field(grid, _creator_enemy_fields, "size", "体型", 1, 8, 1, 3)
+			_build_creator_line_field(grid, _creator_enemy_fields, "tags", "标签", "如 enemy,ash,elite")
+		"hero":
+			_build_creator_line_field(grid, _creator_hero_fields, "id", "ID", "如 hero_ash_pilgrim")
+			_build_creator_line_field(grid, _creator_hero_fields, "name_cn", "中文名", "如 灰誓行者")
+			_build_creator_line_field(grid, _creator_hero_fields, "alias_note", "别名备注", "会根据中文名自动生成")
+			_build_creator_spin_field(grid, _creator_hero_fields, "hp", "生命", 1, 240, 1, 40)
+			_build_creator_spin_field(grid, _creator_hero_fields, "attack_power", "攻击力", 0.2, 30, 0.1, 5)
+			_build_creator_spin_field(grid, _creator_hero_fields, "attack_speed", "攻速", 0.2, 4, 0.05, 1)
+			_build_creator_spin_field(grid, _creator_hero_fields, "attack_range", "攻击距离", 1, 16, 1, 2)
+			_build_creator_option_field(grid, _creator_hero_fields, "attack_type", "攻击类型", [
+				{"id": "melee", "label": "近战"},
+				{"id": "ranged_flat", "label": "远程"}
+			], "melee")
+			_build_creator_spin_field(grid, _creator_hero_fields, "move_speed", "移动速度", 2, 24, 1, 10)
+			_build_creator_spin_field(grid, _creator_hero_fields, "size", "体型", 1, 8, 1, 4)
+			_build_creator_line_field(grid, _creator_hero_fields, "tags", "标签", "如 hero,pilgrim,ritual")
+	return panel
+
+
+func _build_creator_line_field(parent: GridContainer, field_store: Dictionary, key: String, label_text: String, placeholder: String) -> void:
+	var label := Label.new()
+	label.text = label_text
+	label.add_theme_font_size_override("font_size", 15)
+	parent.add_child(label)
+
+	var edit := LineEdit.new()
+	edit.placeholder_text = placeholder
+	edit.custom_minimum_size = Vector2(0, 46)
+	edit.add_theme_font_size_override("font_size", 16)
+	if key == "id" or key == "alias_note":
+		edit.editable = false
+	parent.add_child(edit)
+	field_store[key] = edit
+	if key == "name_cn":
+		edit.text_changed.connect(_on_creator_name_changed.bind(field_store))
+
+
+func _build_creator_spin_field(parent: GridContainer, field_store: Dictionary, key: String, label_text: String, min_value: float, max_value: float, step: float, default_value: float) -> void:
+	var label := Label.new()
+	label.text = label_text
+	label.add_theme_font_size_override("font_size", 15)
+	parent.add_child(label)
+
+	var spin := SpinBox.new()
+	spin.custom_minimum_size = Vector2(0, 46)
+	spin.min_value = min_value
+	spin.max_value = max_value
+	spin.step = step
+	spin.value = default_value
+	spin.add_theme_font_size_override("font_size", 16)
+	parent.add_child(spin)
+	field_store[key] = spin
+
+
+func _build_creator_option_field(parent: GridContainer, field_store: Dictionary, key: String, label_text: String, entries: Array, selected_id: Variant) -> void:
+	var label := Label.new()
+	label.text = label_text
+	label.add_theme_font_size_override("font_size", 15)
+	parent.add_child(label)
+
+	var selector := OptionButton.new()
+	selector.custom_minimum_size = Vector2(0, 46)
+	selector.add_theme_font_size_override("font_size", 16)
+	for entry_value in entries:
+		if typeof(entry_value) != TYPE_DICTIONARY:
+			continue
+		var entry: Dictionary = entry_value
+		selector.add_item(String(entry.get("label", "")))
+		selector.set_item_metadata(selector.get_item_count() - 1, entry.get("id"))
+	var target_index := 0
+	for index: int in range(selector.get_item_count()):
+		if selector.get_item_metadata(index) == selected_id:
+			target_index = index
+			break
+	selector.select(target_index)
+	parent.add_child(selector)
+	field_store[key] = selector
+
+
+func _sync_balance_editor_from_live() -> void:
+	var balance := _balance_state()
+	if balance == null:
+		return
+	var flat: Dictionary = balance.call("get_flat_config")
+	for path: String in _balance_spinboxes.keys():
+		var payload: Dictionary = _balance_spinboxes[path]
+		var spin: SpinBox = payload.get("spinbox")
+		if spin == null:
+			continue
+		spin.value = float(flat.get(path, spin.value))
+	_refresh_balance_preset_selector()
+	var balance_names: Array = balance.call("list_preset_names")
+	_set_balance_preset_status("当前共有 %d 套已保存方案。导出会保存当前草案，导入会覆盖编辑台内容。" % balance_names.size())
+	_balance_editor_dirty = false
+	_refresh_creator_summary()
+	_update_balance_editor_preview()
+
+
+func _gather_balance_editor_flat() -> Dictionary:
+	var flat: Dictionary = {}
+	for path: String in _balance_spinboxes.keys():
+		var payload: Dictionary = _balance_spinboxes[path]
+		var spin: SpinBox = payload.get("spinbox")
+		var entry: Dictionary = payload.get("entry", {})
+		if spin == null:
+			continue
+		var value: Variant = spin.value
+		if float(entry.get("step", 0.1)) >= 1.0:
+			value = int(round(float(value)))
+		flat[path] = value
+	return flat
+
+
+func _update_balance_editor_preview() -> void:
+	if _balance_editor_summary_label == null or _balance_editor_impact_label == null:
+		return
+	var balance := _balance_state()
+	if balance == null:
+		_balance_editor_summary_label.text = "[color=#ffb4b4]未找到 BalanceState，无法生成数值编辑器。[/color]"
+		_balance_editor_impact_label.text = ""
+		return
+	var preview: Dictionary = balance.call("estimate_flat_impact", _gather_balance_editor_flat())
+	var difficulty_ratio: float = float(preview.get("difficulty_ratio", 1.0))
+	var difficulty_percent: int = int(round((difficulty_ratio - 1.0) * 100.0))
+	var overall_text := "整体难度基准未变"
+	if difficulty_percent > 0:
+		overall_text = "整体难度预计提高 %d%%" % difficulty_percent
+	elif difficulty_percent < 0:
+		overall_text = "整体难度预计降低 %d%%" % abs(difficulty_percent)
+	_balance_editor_summary_label.text = "[b]%s[/b]\n%s\n[color=#aeb8d6]应用后：新战斗立即生效；事件密度与危险度会从后续回合开始体现。[/color]" % [
+		overall_text,
+		String(preview.get("difficulty_summary", ""))
+	]
+	var lines: Array[String] = []
+	lines.append("[b]整体预估[/b]")
+	lines.append(String(preview.get("difficulty_summary", "")))
+	lines.append("")
+	lines.append("[b]维度变化[/b]")
+	for card_value in preview.get("cards", []):
+		if typeof(card_value) != TYPE_DICTIONARY:
+			continue
+		var card: Dictionary = card_value
+		var delta_ratio: float = float(card.get("delta_ratio", 0.0))
+		var color := "#9fd0ff"
+		if delta_ratio > 0.08:
+			color = "#ffd36c"
+		elif delta_ratio < -0.08:
+			color = "#88e0a6"
+		lines.append("[color=%s]%s[/color]" % [color, String(card.get("summary", ""))])
+	var warnings: Array = preview.get("warnings", [])
+	if not warnings.is_empty():
+		lines.append("")
+		lines.append("[b]平衡提醒[/b]")
+		for warning_value in warnings:
+			lines.append("• %s" % String(warning_value))
+	_balance_editor_impact_label.text = "\n".join(lines)
+	if _balance_editor_apply_button != null:
+		_balance_editor_apply_button.text = "应用当前数值%s" % ("（待应用）" if _balance_editor_dirty else "")
+
+
+func _format_balance_value(value: float, entry: Dictionary) -> String:
+	var step_value: float = float(entry.get("step", 0.1))
+	if step_value >= 1.0:
+		return str(int(round(value)))
+	if step_value < 0.1:
+		return "%.2f" % value
+	return "%.1f" % value
+
+
+func _refresh_creator_summary() -> void:
+	if _creator_summary_label == null:
+		return
+	var balance := _balance_state()
+	if balance == null or not balance.has_method("get_created_content_summary"):
+		_creator_summary_label.text = "未找到内容创建器状态。"
+		return
+	var summary: Dictionary = balance.call("get_created_content_summary")
+	var lines: Array[String] = []
+	lines.append("[b]已创建内容[/b]")
+	lines.append("道具 %d | 敌人 %d | 英雄 %d" % [
+		(summary.get("items", []) as Array).size(),
+		(summary.get("enemies", []) as Array).size(),
+		(summary.get("heroes", []) as Array).size()
+	])
+	if not (summary.get("items", []) as Array).is_empty():
+		lines.append("道具：%s" % " / ".join(summary.get("items", [])))
+	if not (summary.get("enemies", []) as Array).is_empty():
+		lines.append("敌人：%s" % " / ".join(summary.get("enemies", [])))
+	if not (summary.get("heroes", []) as Array).is_empty():
+		lines.append("英雄：%s" % " / ".join(summary.get("heroes", [])))
+	_creator_summary_label.text = "\n".join(lines)
+
+
+func _refresh_creator_lists() -> void:
+	var content := _content_db()
+	if content == null:
+		return
+	_populate_creator_list(_creator_item_list, _content_library_entries("item"), _creator_selected_item_id)
+	_populate_creator_list(_creator_enemy_list, _content_library_entries("enemy"), _creator_selected_enemy_id)
+	_populate_creator_list(_creator_hero_list, _content_library_entries("hero"), _creator_selected_hero_id)
+
+
+func _populate_creator_list(list: ItemList, entries: Array, selected_id: String) -> void:
+	if list == null:
+		return
+	list.clear()
+	var target_index := -1
+	for index: int in range(entries.size()):
+		var entry_value: Variant = entries[index]
+		if typeof(entry_value) != TYPE_DICTIONARY:
+			continue
+		var entry: Dictionary = entry_value
+		var entry_id: String = String(entry.get("id", ""))
+		var source_prefix := "[自定义] " if bool(entry.get("is_custom", false)) else "[内置] "
+		var label := "%s%s (%s)" % [source_prefix, String(entry.get("name_cn", entry_id)), entry_id]
+		list.add_item(label)
+		list.set_item_metadata(list.get_item_count() - 1, entry.duplicate(true))
+		if entry_id == selected_id:
+			target_index = list.get_item_count() - 1
+	if target_index >= 0:
+		list.select(target_index)
+
+
+func _content_library_entries(category: String) -> Array:
+	var content := _content_db()
+	var balance := _balance_state()
+	if content == null or balance == null:
+		return []
+	var custom_snapshot: Dictionary = balance.call("get_created_content")
+	var custom_ids: Dictionary = {}
+	match category:
+		"item":
+			for item_value in custom_snapshot.get("items", []):
+				if typeof(item_value) != TYPE_DICTIONARY:
+					continue
+				custom_ids[String((item_value as Dictionary).get("id", ""))] = true
+			var entries: Array = []
+			for item_value in content.data.get("items", []):
+				if typeof(item_value) != TYPE_DICTIONARY:
+					continue
+				var item_def: Dictionary = (item_value as Dictionary).duplicate(true)
+				item_def["is_custom"] = custom_ids.has(String(item_def.get("id", "")))
+				entries.append(item_def)
+			return entries
+		"enemy", "hero":
+			for unit_value in custom_snapshot.get("units", []):
+				if typeof(unit_value) != TYPE_DICTIONARY:
+					continue
+				var unit_def: Dictionary = unit_value
+				if String(unit_def.get("camp", "")) == category:
+					custom_ids[String(unit_def.get("id", ""))] = true
+			var entries: Array = []
+			for unit_value in content.data.get("units", []):
+				if typeof(unit_value) != TYPE_DICTIONARY:
+					continue
+				var unit_def: Dictionary = unit_value
+				if String(unit_def.get("camp", "")) != category:
+					continue
+				var hydrated: Dictionary = unit_def.duplicate(true)
+				hydrated["is_custom"] = custom_ids.has(String(hydrated.get("id", "")))
+				entries.append(hydrated)
+			return entries
+	return []
+
+
+func _creator_line_value(field_store: Dictionary, key: String) -> String:
+	var edit: LineEdit = field_store.get(key)
+	return "" if edit == null else edit.text.strip_edges()
+
+
+func _creator_spin_value(field_store: Dictionary, key: String) -> float:
+	var spin: SpinBox = field_store.get(key)
+	return 0.0 if spin == null else spin.value
+
+
+func _creator_option_value(field_store: Dictionary, key: String) -> Variant:
+	var selector: OptionButton = field_store.get(key)
+	if selector == null or selector.get_item_count() <= 0:
+		return null
+	return selector.get_item_metadata(selector.selected)
+
+
+func _refresh_balance_editor_after_content_created() -> void:
+	var draft: Dictionary = _gather_balance_editor_flat()
+	var was_dirty := _balance_editor_dirty
+	_rebuild_balance_editor_tabs()
+	for path: String in draft.keys():
+		if not _balance_spinboxes.has(path):
+			continue
+		var payload: Dictionary = _balance_spinboxes[path]
+		var spin: SpinBox = payload.get("spinbox")
+		if spin != null:
+			spin.value = float(draft[path])
+	_balance_editor_dirty = was_dirty
+	_update_balance_editor_preview()
+	_refresh_creator_summary()
+	_refresh_creator_lists()
+
+
+func _creator_field_store(category: String) -> Dictionary:
+	match category:
+		"item":
+			return _creator_item_fields
+		"enemy":
+			return _creator_enemy_fields
+		"hero":
+			return _creator_hero_fields
+	return {}
+
+
+func _creator_list_for_category(category: String) -> ItemList:
+	match category:
+		"item":
+			return _creator_item_list
+		"enemy":
+			return _creator_enemy_list
+		"hero":
+			return _creator_hero_list
+	return null
+
+
+func _creator_status_for_category(category: String) -> Label:
+	match category:
+		"item":
+			return _creator_item_status_label
+		"enemy":
+			return _creator_enemy_status_label
+		"hero":
+			return _creator_hero_status_label
+	return null
+
+
+func _content_category_title(category: String) -> String:
+	match category:
+		"item":
+			return "道具"
+		"enemy":
+			return "敌人"
+		"hero":
+			return "英雄"
+	return category
+
+
+func _set_creator_selected_id(category: String, entry_id: String) -> void:
+	match category:
+		"item":
+			_creator_selected_item_id = entry_id
+		"enemy":
+			_creator_selected_enemy_id = entry_id
+		"hero":
+			_creator_selected_hero_id = entry_id
+
+
+func _creator_selected_id(category: String) -> String:
+	match category:
+		"item":
+			return _creator_selected_item_id
+		"enemy":
+			return _creator_selected_enemy_id
+		"hero":
+			return _creator_selected_hero_id
+	return ""
+
+
+func _set_creator_status(category: String, message: String, is_error: bool = false) -> void:
+	var label := _creator_status_for_category(category)
+	if label == null:
+		return
+	label.text = message
+	label.modulate = Color(0.95, 0.64, 0.64, 0.98) if is_error else Color(0.72, 0.87, 0.78, 0.98)
+
+
+func _clear_creator_form(category: String) -> void:
+	var fields: Dictionary = _creator_field_store(category)
+	for key: String in fields.keys():
+		var node: Node = fields[key]
+		if node is LineEdit:
+			(node as LineEdit).text = ""
+		elif node is SpinBox:
+			match key:
+				"quality":
+					(node as SpinBox).value = 1
+				"combat_effect_value":
+					(node as SpinBox).value = 12
+				"hp":
+					(node as SpinBox).value = 40 if category == "hero" else 28
+				"attack_power":
+					(node as SpinBox).value = 5 if category == "hero" else 4
+				"attack_speed":
+					(node as SpinBox).value = 1
+				"attack_range":
+					(node as SpinBox).value = 2 if category == "hero" else 1
+				"move_speed":
+					(node as SpinBox).value = 10 if category == "hero" else 9
+				"size":
+					(node as SpinBox).value = 4 if category == "hero" else 3
+		elif node is OptionButton:
+			(node as OptionButton).select(0)
+	_assign_generated_creator_id(category)
+	_set_creator_selected_id(category, "")
+	_set_creator_status(category, "当前为新建模式，ID 已由系统自动生成。")
+
+
+func _fill_creator_form(category: String, entry: Dictionary) -> void:
+	var fields: Dictionary = _creator_field_store(category)
+	if fields.is_empty():
+		return
+	if fields.has("id"):
+		(fields["id"] as LineEdit).text = String(entry.get("id", ""))
+	if fields.has("name_cn"):
+		(fields["name_cn"] as LineEdit).text = String(entry.get("name_cn", ""))
+	if category == "item":
+		_set_option_value(fields["type"], entry.get("type", 6))
+		(fields["quality"] as SpinBox).value = int(entry.get("quality", 1))
+		var combat_effect: Dictionary = entry.get("combat_effect", {})
+		_set_option_value(fields["combat_effect_kind"], String(combat_effect.get("kind", "")))
+		(fields["combat_effect_value"] as SpinBox).value = float(combat_effect.get("value", 12.0))
+		(fields["tags"] as LineEdit).text = ",".join(entry.get("tags", []))
+		(fields["description"] as LineEdit).text = String(entry.get("description", ""))
+	else:
+		(fields["hp"] as SpinBox).value = int(entry.get("hp", 24))
+		var attack: Dictionary = entry.get("attack", {})
+		(fields["attack_power"] as SpinBox).value = float(attack.get("power", 3.0))
+		(fields["attack_speed"] as SpinBox).value = float(attack.get("speed", 1.0))
+		(fields["attack_range"] as SpinBox).value = int(attack.get("range", 1))
+		_set_option_value(fields["attack_type"], String(attack.get("type", "melee")))
+		(fields["move_speed"] as SpinBox).value = int(entry.get("move_speed", 9))
+		(fields["size"] as SpinBox).value = int(entry.get("size", 3))
+		(fields["tags"] as LineEdit).text = ",".join(entry.get("tags", []))
+	_refresh_creator_alias(fields)
+	var mode_text := "自定义内容" if bool(entry.get("is_custom", false)) else "内置内容"
+	_set_creator_status(category, "正在编辑：%s（%s）" % [String(entry.get("id", "")), mode_text])
+
+
+func _assign_generated_creator_id(category: String) -> void:
+	var balance := _balance_state()
+	var fields: Dictionary = _creator_field_store(category)
+	if balance == null or fields.is_empty() or not fields.has("id"):
+		return
+	var prefix := category
+	if category == "item":
+		prefix = "item"
+	elif category == "enemy":
+		prefix = "enemy"
+	elif category == "hero":
+		prefix = "hero"
+	var generated_id: String = String(balance.call("generate_content_id", prefix))
+	var id_edit := fields.get("id") as LineEdit
+	if id_edit != null:
+		id_edit.text = generated_id
+	_refresh_creator_alias(fields)
+
+
+func _refresh_creator_alias(field_store: Dictionary) -> void:
+	if field_store.is_empty() or not field_store.has("alias_note"):
+		return
+	var alias_edit := field_store.get("alias_note") as LineEdit
+	if alias_edit == null:
+		return
+	var id_text := _creator_line_value(field_store, "id")
+	var name_text := _creator_line_value(field_store, "name_cn")
+	if name_text.is_empty():
+		alias_edit.text = "系统备注：%s" % id_text if not id_text.is_empty() else "系统备注将根据中文名生成"
+		return
+	alias_edit.text = "系统备注：%s / %s" % [name_text, id_text]
+
+
+func _on_creator_name_changed(_text: String, field_store: Dictionary) -> void:
+	_refresh_creator_alias(field_store)
+
+
+func _set_option_value(node: Variant, metadata_value: Variant) -> void:
+	var selector := node as OptionButton
+	if selector == null:
+		return
+	for index: int in range(selector.get_item_count()):
+		if selector.get_item_metadata(index) == metadata_value:
+			selector.select(index)
+			return
+	if selector.get_item_count() > 0:
+		selector.select(0)
+
+
+func _creator_payload(category: String) -> Dictionary:
+	var fields := _creator_field_store(category)
+	if category == "item":
+		return {
+			"id": _creator_line_value(fields, "id"),
+			"name_cn": _creator_line_value(fields, "name_cn"),
+			"type": int(_creator_option_value(fields, "type")),
+			"quality": int(round(_creator_spin_value(fields, "quality"))),
+			"combat_effect_kind": String(_creator_option_value(fields, "combat_effect_kind")),
+			"combat_effect_value": _creator_spin_value(fields, "combat_effect_value"),
+			"tags": _creator_line_value(fields, "tags"),
+			"description": _creator_line_value(fields, "description")
+		}
+	return {
+		"id": _creator_line_value(fields, "id"),
+		"name_cn": _creator_line_value(fields, "name_cn"),
+		"hp": int(round(_creator_spin_value(fields, "hp"))),
+		"attack_power": _creator_spin_value(fields, "attack_power"),
+		"attack_speed": _creator_spin_value(fields, "attack_speed"),
+		"attack_range": int(round(_creator_spin_value(fields, "attack_range"))),
+		"attack_type": String(_creator_option_value(fields, "attack_type")),
+		"move_speed": int(round(_creator_spin_value(fields, "move_speed"))),
+		"size": int(round(_creator_spin_value(fields, "size"))),
+		"tags": _creator_line_value(fields, "tags")
+	}
+
+
+func _on_creator_new_pressed(category: String) -> void:
+	_clear_creator_form(category)
+
+
+func _on_creator_list_selected(index: int, category: String) -> void:
+	var list := _creator_list_for_category(category)
+	if list == null or index < 0 or index >= list.get_item_count():
+		return
+	var entry: Dictionary = list.get_item_metadata(index)
+	var entry_id: String = String(entry.get("id", ""))
+	_set_creator_selected_id(category, entry_id)
+	_fill_creator_form(category, entry)
+
+
+func _on_creator_save_pressed(category: String) -> void:
+	var balance := _balance_state()
+	if balance == null:
+		return
+	var payload := _creator_payload(category)
+	var result: Dictionary = {}
+	match category:
+		"item":
+			result = balance.call("upsert_item", payload)
+		"enemy":
+			result = balance.call("upsert_enemy", payload)
+		"hero":
+			result = balance.call("upsert_hero", payload)
+	if not bool(result.get("ok", false)):
+		_set_creator_status(category, "%s保存失败：ID 无效或与内置内容冲突。" % _content_category_title(category), true)
+		return
+	var entry: Dictionary = result.get("entry", {})
+	var entry_id: String = String(result.get("id", ""))
+	if category == "item" and String(result.get("mode", "")) == "create":
+		_progression_state().grant_created_item(entry_id, int(entry.get("type", 2)), 1)
+	if category == "hero":
+		_progression_state().ensure_hero_in_roster(entry_id)
+	_set_creator_selected_id(category, entry_id)
+	_set_creator_status(category, "%s已%s：%s" % [_content_category_title(category), "更新" if String(result.get("mode", "")) == "update" else "创建", entry_id])
+	_append_log("%s已%s：%s。" % [_content_category_title(category), "更新" if String(result.get("mode", "")) == "update" else "创建", entry_id])
+	_refresh_balance_editor_after_content_created()
+	_refresh_all()
+
+
+func _on_creator_delete_pressed(category: String) -> void:
+	var balance := _balance_state()
+	if balance == null:
+		return
+	var entry_id := _creator_selected_id(category)
+	if entry_id.is_empty():
+		_set_creator_status(category, "请先从左侧列表选择一项再删除。", true)
+		return
+	var result: Dictionary = {}
+	match category:
+		"item":
+			result = balance.call("delete_created_item", entry_id)
+		"enemy":
+			result = balance.call("delete_created_unit", entry_id, "enemy")
+		"hero":
+			result = balance.call("delete_created_unit", entry_id, "hero")
+	if not bool(result.get("ok", false)):
+		_set_creator_status(category, "删除失败：当前项没有自定义覆盖层可删。", true)
+		return
+	_append_log("已删除%s：%s。" % [_content_category_title(category), entry_id])
+	_clear_creator_form(category)
+	_refresh_balance_editor_after_content_created()
+	_refresh_all()
+
+
+func _open_balance_editor() -> void:
+	if _balance_editor_layer == null:
+		return
+	_sync_balance_editor_from_live()
+	_balance_editor_layer.visible = true
+
+
+func _open_content_editor() -> void:
+	if _content_editor_layer == null:
+		return
+	_refresh_creator_summary()
+	_refresh_creator_lists()
+	_content_editor_layer.visible = true
+
+
+func _close_balance_editor() -> void:
+	if _balance_editor_layer != null:
+		_balance_editor_layer.visible = false
+
+
+func _close_content_editor() -> void:
+	if _content_editor_layer != null:
+		_content_editor_layer.visible = false
+
+
+func _on_open_balance_editor_pressed() -> void:
+	_open_balance_editor()
+
+
+func _on_open_content_editor_pressed() -> void:
+	_open_content_editor()
+
+
+func _on_balance_spinbox_changed(_value: float, _path: String) -> void:
+	_balance_editor_dirty = true
+	_update_balance_editor_preview()
+
+
+func _on_balance_reset_pressed() -> void:
+	var balance := _balance_state()
+	if balance == null:
+		return
+	var defaults: Dictionary = balance.call("get_default_flat_config")
+	for path: String in _balance_spinboxes.keys():
+		var payload: Dictionary = _balance_spinboxes[path]
+		var spin: SpinBox = payload.get("spinbox")
+		if spin == null:
+			continue
+		spin.value = float(defaults.get(path, spin.value))
+	_balance_editor_dirty = true
+	_update_balance_editor_preview()
+
+
+func _on_balance_export_pressed() -> void:
+	var balance := _balance_state()
+	if balance == null or _balance_preset_name_input == null:
+		return
+	var preset_name: String = _balance_preset_name_input.text.strip_edges()
+	if preset_name.is_empty():
+		_set_balance_preset_status("导出失败：请先输入方案名。", true)
+		_append_log("导出失败：请先输入方案名。")
+		return
+	var export_result: Dictionary = balance.call("export_preset", preset_name, _gather_balance_editor_flat())
+	if not bool(export_result.get("ok", false)):
+		_set_balance_preset_status("导出失败：方案名无效或文件不可写。", true)
+		_append_log("导出失败：方案名无效或文件不可写。")
+		return
+	_refresh_balance_preset_selector(String(export_result.get("name", "")))
+	_balance_preset_name_input.text = String(export_result.get("name", ""))
+	_set_balance_preset_status("已导出方案：%s。" % String(export_result.get("name", "")))
+	_append_log("已导出平衡方案：%s。" % String(export_result.get("name", "")))
+
+
+func _on_balance_import_pressed() -> void:
+	var balance := _balance_state()
+	if balance == null or _balance_preset_select == null:
+		return
+	var preset_name: String = _selector_metadata(_balance_preset_select)
+	if preset_name.is_empty():
+		_set_balance_preset_status("导入失败：当前没有可用方案。", true)
+		_append_log("导入失败：当前没有可用方案。")
+		return
+	var import_result: Dictionary = balance.call("import_preset", preset_name)
+	if not bool(import_result.get("ok", false)):
+		_set_balance_preset_status("导入失败：未找到方案 %s。" % preset_name, true)
+		_append_log("导入失败：未找到方案 %s。" % preset_name)
+		return
+	_sync_balance_editor_from_live()
+	_balance_preset_name_input.text = String(import_result.get("name", ""))
+	_set_balance_preset_status("已导入方案：%s。" % String(import_result.get("name", "")))
+	_append_log("已导入平衡方案：%s。" % String(import_result.get("name", "")))
+	_refresh_all()
+
+
+func _on_balance_apply_pressed() -> void:
+	var balance := _balance_state()
+	if balance == null:
+		return
+	balance.call("apply_flat_config", _gather_balance_editor_flat())
+	_balance_editor_dirty = false
+	_update_balance_editor_preview()
+	_append_log("数值编辑台已应用新配置：后续战斗与回合推进将按新参数运行。")
+	_refresh_all()
+
+
+func _refresh_balance_preset_selector(preferred_name: String = "") -> void:
+	if _balance_preset_select == null:
+		return
+	var balance := _balance_state()
+	if balance == null:
+		return
+	var names: Array = balance.call("list_preset_names")
+	var entries: Array = []
+	for name_value in names:
+		var name_text: String = String(name_value)
+		entries.append({"id": name_text, "label": name_text})
+	_populate_selector(_balance_preset_select, entries, preferred_name, true, "已保存方案")
+	if _balance_preset_status_label != null and _balance_preset_status_label.text.is_empty():
+		_set_balance_preset_status("当前共有 %d 套已保存方案。" % names.size())
+
+
+func _set_balance_preset_status(message: String, is_error: bool = false) -> void:
+	if _balance_preset_status_label == null:
+		return
+	_balance_preset_status_label.text = message
+	_balance_preset_status_label.modulate = Color(0.95, 0.64, 0.64, 0.98) if is_error else Color(0.72, 0.87, 0.78, 0.98)
 
 
 func _build_battle_result_layer() -> void:
@@ -2778,3 +4187,7 @@ func _run_state() -> Node:
 
 func _progression_state() -> Node:
 	return get_node("/root/ProgressionState")
+
+
+func _balance_state() -> Node:
+	return get_node_or_null("/root/BalanceState")

@@ -1,6 +1,10 @@
 extends Node
 
 const EVENT_RESOLUTION_DISPATCHER := preload("res://systems/world/event_resolution_dispatcher.gd")
+const RANDOM_EVENT_DENSITY_MULTIPLIER := 1.0
+const DANGER_GAIN_PER_TURN := 1
+const FORCED_EVENT_UNLOCK_TURN := 4
+const FORCED_EVENT_CHANCE_MULTIPLIER := 1.0
 
 var active_run: Dictionary = {}
 var _event_dispatcher: RefCounted
@@ -100,6 +104,8 @@ func generate_turn_board() -> void:
 		if random_count > 0:
 			count_range = Vector2i(random_count, random_count)
 		required_mix = template.get("required_mix", {})
+
+	count_range = _apply_random_density(count_range)
 
 	var context: Dictionary = _build_condition_context()
 	_sync_fixed_event_instances(active_run["map_id"], context)
@@ -462,10 +468,11 @@ func get_forced_event_hint() -> Dictionary:
 			"text": "强制袭击已触发：%s（额外处理，不占回合）。" % String(pending.get("title", "强制袭击")),
 			"turn": turn_value
 		}
-	if turn_value < 4:
+	var unlock_turn: int = _balance_int("board.forced_event_unlock_turn", FORCED_EVENT_UNLOCK_TURN)
+	if turn_value < unlock_turn:
 		return {
 			"status": "locked",
-			"text": "第4回合后才可能触发强制袭击事件。",
+			"text": "第%d回合后才可能触发强制袭击事件。" % unlock_turn,
 			"turn": turn_value
 		}
 	var context: Dictionary = _build_condition_context()
@@ -485,7 +492,7 @@ func get_forced_event_hint() -> Dictionary:
 		if typeof(event_value) != TYPE_DICTIONARY:
 			continue
 		var event_def: Dictionary = event_value
-		max_chance = max(max_chance, float(event_def.get("chance", 0.0)))
+		max_chance = max(max_chance, _effective_forced_event_chance(event_def))
 	return {
 		"status": "armed",
 		"text": "强制袭击监测中：当前回合可能触发额外战斗（参考概率 %.0f%%）。" % (max_chance * 100.0),
@@ -629,6 +636,14 @@ func _apply_reward_package(reward: Dictionary) -> void:
 	_add_stacks(active_run["temporary_inventory"], reward.get("items", []))
 	_add_stacks(active_run["temporary_currencies"], reward.get("currencies", []))
 	_add_stacks(active_run["temporary_relics"], reward.get("relics", []))
+	for loot_ref_value in reward.get("loot_tables", []):
+		if typeof(loot_ref_value) != TYPE_DICTIONARY:
+			continue
+		var loot_ref: Dictionary = loot_ref_value
+		var loot_result: Dictionary = _content_db().roll_loot_table(String(loot_ref.get("id", "")), int(loot_ref.get("rolls", 1)))
+		_add_stacks(active_run["temporary_inventory"], loot_result.get("items", []))
+		_add_stacks(active_run["temporary_currencies"], loot_result.get("currencies", []))
+		_add_stacks(active_run["temporary_relics"], loot_result.get("relics", []))
 
 	for flag_id: String in reward.get("story_flags", []):
 		if not active_run["story_flags_gained_this_run"].has(flag_id):
@@ -678,8 +693,13 @@ func _roll_forced_event() -> Dictionary:
 		active_run["pending_forced_event"] = {}
 		return {}
 
+	var unlock_turn: int = _balance_int("board.forced_event_unlock_turn", FORCED_EVENT_UNLOCK_TURN)
+	if int(active_run.get("turn", 1)) < unlock_turn:
+		active_run["pending_forced_event"] = {}
+		return {}
+
 	for event_def: Dictionary in forced_candidates:
-		var chance: float = float(event_def.get("chance", 0.0))
+		var chance: float = _effective_forced_event_chance(event_def)
 		if randf() <= chance:
 			active_run["pending_forced_event"] = event_def.duplicate(true)
 			active_run["triggered_forced_events"].append(String(event_def.get("id", "")))
@@ -691,7 +711,7 @@ func _roll_forced_event() -> Dictionary:
 
 func _advance_turn() -> void:
 	active_run["turn"] = int(active_run["turn"]) + 1
-	active_run["danger_level"] = int(active_run["danger_level"]) + 1
+	active_run["danger_level"] = int(active_run["danger_level"]) + _balance_int("board.danger_gain_per_turn", DANGER_GAIN_PER_TURN)
 	generate_turn_board()
 
 
@@ -728,6 +748,19 @@ func _build_condition_context() -> Dictionary:
 		"completed_tasks": all_completed_tasks,
 		"item_ids": item_ids
 	}
+
+
+func _apply_random_density(count_range: Vector2i) -> Vector2i:
+	var density: float = _balance_float("board.random_event_density_multiplier", RANDOM_EVENT_DENSITY_MULTIPLIER)
+	var min_count: int = max(1, int(round(float(count_range.x) * density)))
+	var max_count: int = max(min_count, int(round(float(count_range.y) * density)))
+	return Vector2i(min_count, max_count)
+
+
+func _effective_forced_event_chance(event_def: Dictionary) -> float:
+	var chance: float = float(event_def.get("chance", 0.0))
+	var multiplier: float = _balance_float("board.forced_event_chance_multiplier", FORCED_EVENT_CHANCE_MULTIPLIER)
+	return clampf(chance * multiplier, 0.0, 1.0)
 
 
 func _attach_slot_ids(events: Array, anchors: Array) -> Array:
@@ -1076,6 +1109,24 @@ func _dispatcher() -> RefCounted:
 	if _event_dispatcher == null:
 		_event_dispatcher = EVENT_RESOLUTION_DISPATCHER.new()
 	return _event_dispatcher
+
+
+func _balance_state() -> Node:
+	return get_node_or_null("/root/BalanceState")
+
+
+func _balance_float(path: String, fallback: float) -> float:
+	var balance := _balance_state()
+	if balance != null and balance.has_method("get_value"):
+		return float(balance.call("get_value", path, fallback))
+	return fallback
+
+
+func _balance_int(path: String, fallback: int) -> int:
+	var balance := _balance_state()
+	if balance != null and balance.has_method("get_value"):
+		return int(balance.call("get_value", path, fallback))
+	return fallback
 
 
 func _content_db() -> Node:

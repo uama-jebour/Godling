@@ -76,6 +76,70 @@ func configure_home_loadout(hero_id: String, carried_item_ids: Array, equipped_r
 	save_to_disk()
 
 
+func ensure_hero_in_roster(hero_id: String) -> void:
+	if hero_id.is_empty():
+		return
+	if not state.has("hero_roster"):
+		state["hero_roster"] = []
+	if state["hero_roster"].has(hero_id):
+		return
+	state["hero_roster"].append(hero_id)
+	if String(state.get("home_loadout", {}).get("hero_id", "")).is_empty():
+		var loadout: Dictionary = get_home_loadout()
+		configure_home_loadout(
+			hero_id,
+			loadout.get("carried_item_ids", []).duplicate(true),
+			loadout.get("equipped_relic_ids", []).duplicate(true)
+		)
+		return
+	save_to_disk()
+
+
+func grant_created_item(item_id: String, item_type: int, count: int = 1) -> void:
+	if item_id.is_empty() or count <= 0:
+		return
+	match item_type:
+		1:
+			_add_stack_items("currencies", [{"id": item_id, "count": count}])
+		10:
+			_add_stack_items("relics", [{"id": item_id, "count": count}])
+		_:
+			_add_stack_items("inventory_items", [{"id": item_id, "count": count}])
+	save_to_disk()
+
+
+func remove_hero_from_roster(hero_id: String) -> void:
+	if hero_id.is_empty():
+		return
+	var roster: Array = state.get("hero_roster", []).duplicate(true)
+	roster.erase(hero_id)
+	state["hero_roster"] = roster
+	if String(state.get("home_loadout", {}).get("hero_id", "")) == hero_id:
+		state["home_loadout"]["hero_id"] = String(roster[0]) if not roster.is_empty() else ""
+	save_to_disk()
+
+
+func remove_item_references(item_id: String) -> void:
+	if item_id.is_empty():
+		return
+	for key in ["inventory_items", "currencies", "relics"]:
+		var stacks: Array = state.get(key, []).duplicate(true)
+		var filtered: Array = []
+		for stack_value in stacks:
+			if typeof(stack_value) != TYPE_DICTIONARY:
+				continue
+			if String((stack_value as Dictionary).get("id", "")) == item_id:
+				continue
+			filtered.append((stack_value as Dictionary).duplicate(true))
+		state[key] = filtered
+	var loadout: Dictionary = get_home_loadout()
+	var carried: Array = loadout.get("carried_item_ids", []).duplicate(true)
+	carried.erase(item_id)
+	var relics: Array = loadout.get("equipped_relic_ids", []).duplicate(true)
+	relics.erase(item_id)
+	configure_home_loadout(String(loadout.get("hero_id", "")), carried, relics)
+
+
 func get_context_for_conditions() -> Dictionary:
 	var inventory_item_ids: Array = []
 	for stack: Dictionary in state.get("inventory_items", []):
@@ -191,6 +255,8 @@ func _ensure_runtime_defaults() -> void:
 		state["unlock_flags"] = []
 	if not state.has("completed_tasks"):
 		state["completed_tasks"] = []
+	if not state.has("hero_roster"):
+		state["hero_roster"] = []
 	if not state.has("home_loadout"):
 		state["home_loadout"] = {
 			"hero_id": "",

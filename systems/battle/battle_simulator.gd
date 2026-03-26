@@ -3,10 +3,25 @@ extends RefCounted
 const TICK_LIMIT := 60
 const REINFORCE_TRIGGER_TIME := 20
 const HERO_BASE_POWER_MULTIPLIER := 2.1
+const RELIC_BONUS_PER_RELIC := 0.12
 const HERO_PRIMARY_DAMAGE_MULTIPLIER := 1.15
 const HERO_BURST_DAMAGE_MULTIPLIER := 0.72
 const HERO_GUARD_DAMAGE_FACTOR := 0.22
 const ENEMY_PHASE_ATTACKER_LIMIT := 2
+const ENEMY_DAMAGE_DIVISOR := 7.5
+const ENEMY_DAMAGE_FLOOR := 0.8
+const INITIAL_HERO_RESOLVE := 3
+const HERO_RESOLVE_MAX := 4
+const RESOLVE_GAIN_ON_WAIT := 1
+const RESOLVE_GAIN_ON_ENEMY_PHASE_END := 1
+const RESOLVE_GAIN_ON_GUARD := 1
+const PRIMARY_COOLDOWN := 0
+const GUARD_COOLDOWN := 1
+const BURST_COOLDOWN := 2
+const PRIMARY_COST := 1
+const GUARD_COST := 1
+const BURST_COST := 2
+const FIELD_BALM_RECOVER_HP := 16.0
 
 
 func initialize_state(request: Dictionary, battle_def: Dictionary, content_db: Node) -> Dictionary:
@@ -65,8 +80,8 @@ func initialize_state(request: Dictionary, battle_def: Dictionary, content_db: N
 		"turn_phase": "player",
 		"selected_target_id": _first_alive_enemy_id(enemy_entities),
 		"skill_slots": _default_skill_slots(),
-		"hero_resolve": 3,
-		"hero_resolve_max": 4,
+		"hero_resolve": _balance_int("battle.initial_hero_resolve", INITIAL_HERO_RESOLVE),
+		"hero_resolve_max": _balance_int("battle.hero_resolve_max", HERO_RESOLVE_MAX),
 		"battle_items": _extract_battle_items(hero_snapshot, content_db),
 		"consumed_items": [],
 		"guard_active": false,
@@ -107,7 +122,7 @@ func apply_player_burst(state: Dictionary) -> Dictionary:
 		state["status_text"] = "英雄已倒下。"
 		return state
 	var targets_hit: int = 0
-	var damage: float = float(state.get("hero_attack", 0.0)) * HERO_BURST_DAMAGE_MULTIPLIER
+	var damage: float = float(state.get("hero_attack", 0.0)) * _balance_float("skills.burst_damage_multiplier", HERO_BURST_DAMAGE_MULTIPLIER)
 	for enemy_entity_value in state.get("enemy_entities", []):
 		if typeof(enemy_entity_value) != TYPE_DICTIONARY:
 			continue
@@ -167,7 +182,7 @@ func apply_player_attack(state: Dictionary, target_entity_id: String) -> Diction
 		state["status_text"] = "请选择有效目标。"
 		return state
 
-	var damage: float = float(state.get("hero_attack", 0.0)) * HERO_PRIMARY_DAMAGE_MULTIPLIER
+	var damage: float = float(state.get("hero_attack", 0.0)) * _balance_float("skills.primary_damage_multiplier", HERO_PRIMARY_DAMAGE_MULTIPLIER)
 	_apply_damage_to_target_entity(state, String(target.get("entity_id", "")), damage)
 	_commit_skill_use(state, "primary")
 	state["enemy_total_hp"] = _living_enemy_total_hp(state)
@@ -211,7 +226,7 @@ func apply_player_defend(state: Dictionary) -> Dictionary:
 	var hero_entity: Dictionary = state.get("hero_entity", {})
 	_commit_skill_use(state, "guard")
 	state["guard_active"] = true
-	state["hero_resolve"] = min(int(state.get("hero_resolve_max", 4)), int(state.get("hero_resolve", 0)) + 1)
+	state["hero_resolve"] = min(int(state.get("hero_resolve_max", HERO_RESOLVE_MAX)), int(state.get("hero_resolve", 0)) + _balance_int("battle.resolve_gain_on_guard", RESOLVE_GAIN_ON_GUARD))
 	state["last_action"] = {
 		"actor_id": String(hero_entity.get("entity_id", "hero_1")),
 		"actor_side": "hero",
@@ -237,7 +252,7 @@ func apply_player_wait(state: Dictionary) -> Dictionary:
 		return state
 	if String(state.get("turn_phase", "player")) != "player":
 		return state
-	state["hero_resolve"] = min(int(state.get("hero_resolve_max", 3)), int(state.get("hero_resolve", 0)) + 1)
+	state["hero_resolve"] = min(int(state.get("hero_resolve_max", HERO_RESOLVE_MAX)), int(state.get("hero_resolve", 0)) + _balance_int("battle.resolve_gain_on_wait", RESOLVE_GAIN_ON_WAIT))
 	var hero_entity: Dictionary = state.get("hero_entity", {})
 	state["guard_active"] = false
 	state["last_action"] = {
@@ -325,9 +340,9 @@ func apply_enemy_phase(state: Dictionary) -> Dictionary:
 		return _finalize_enemy_phase(state)
 
 	var enemy_actor: Dictionary = queue[turn_index]
-	var hero_damage: float = max(0.8, float(enemy_actor.get("attack_power", 0.0)) / 7.5)
+	var hero_damage: float = max(_balance_float("battle.enemy_damage_floor", ENEMY_DAMAGE_FLOOR), float(enemy_actor.get("attack_power", 0.0)) / _balance_float("battle.enemy_damage_divisor", ENEMY_DAMAGE_DIVISOR))
 	if bool(state.get("guard_active", false)):
-		hero_damage *= HERO_GUARD_DAMAGE_FACTOR
+		hero_damage *= _balance_float("skills.guard_damage_factor", HERO_GUARD_DAMAGE_FACTOR)
 	state["hero_hp"] = max(0.0, float(state.get("hero_hp", 0.0)) - hero_damage)
 	state["last_action"] = {
 		"actor_id": String(enemy_actor.get("entity_id", "enemy")),
@@ -359,7 +374,7 @@ func is_battle_active(state: Dictionary) -> bool:
 	if state.has("invalid_reason"):
 		return false
 	return (
-		int(state.get("elapsed", 0)) < TICK_LIMIT
+		int(state.get("elapsed", 0)) < _balance_int("battle.tick_limit", TICK_LIMIT)
 		and float(state.get("hero_hp", 0.0)) > 0.0
 		and float(state.get("enemy_total_hp", 0.0)) > 0.0
 	)
@@ -514,8 +529,9 @@ func _living_enemy_turn_queue(state: Dictionary) -> Array:
 			return a_attack > b_attack
 		return float(a.get("current_hp", 0.0)) > float(b.get("current_hp", 0.0))
 	)
-	if queue.size() > ENEMY_PHASE_ATTACKER_LIMIT:
-		queue.resize(ENEMY_PHASE_ATTACKER_LIMIT)
+	var attacker_limit: int = _balance_int("battle.enemy_phase_attacker_limit", ENEMY_PHASE_ATTACKER_LIMIT)
+	if queue.size() > attacker_limit:
+		queue.resize(attacker_limit)
 	return queue
 
 
@@ -529,7 +545,7 @@ func _finalize_enemy_phase(state: Dictionary) -> Dictionary:
 	state["enemy_turn_queue"] = []
 	state["enemy_turn_index"] = 0
 	_advance_skill_cooldowns(state)
-	state["hero_resolve"] = min(int(state.get("hero_resolve_max", 3)), int(state.get("hero_resolve", 0)) + 1)
+	state["hero_resolve"] = min(int(state.get("hero_resolve_max", HERO_RESOLVE_MAX)), int(state.get("hero_resolve", 0)) + _balance_int("battle.resolve_gain_on_enemy_phase", RESOLVE_GAIN_ON_ENEMY_PHASE_END))
 	if not bool(hero_entity.get("is_alive", true)):
 		state["turn_phase"] = "finished"
 		state["status_text"] = "英雄已倒下，战斗失败。"
@@ -625,7 +641,7 @@ func _completed_objectives(victory: bool, victory_type: String, elapsed: int, ev
 
 func _hero_power_modifier(request: Dictionary) -> float:
 	var modifiers: Array = request.get("equipped_relic_modifiers", [])
-	return HERO_BASE_POWER_MULTIPLIER + (float(modifiers.size()) * 0.12)
+	return _balance_float("battle.hero_base_power_multiplier", HERO_BASE_POWER_MULTIPLIER) + (float(modifiers.size()) * _balance_float("battle.relic_bonus_per_relic", RELIC_BONUS_PER_RELIC))
 
 
 func _unit_attack_power(unit_def: Dictionary) -> float:
@@ -663,10 +679,10 @@ func _default_skill_slots() -> Array:
 			"name_cn": "斩击",
 			"command": "attack",
 			"description": "迅速前压，对选中的敌人造成高于基础值的稳定伤害。",
-			"cooldown_max": 0,
+			"cooldown_max": _balance_int("skills.primary_cooldown", PRIMARY_COOLDOWN),
 			"cooldown_remaining": 0,
 			"resource_kind": "resolve",
-			"resource_cost": 1
+			"resource_cost": _balance_int("skills.primary_cost", PRIMARY_COST)
 		},
 		{
 			"slot": "guard",
@@ -674,10 +690,10 @@ func _default_skill_slots() -> Array:
 			"name_cn": "架盾",
 			"command": "defend",
 			"description": "稳住阵线，本轮大幅降低敌方反击伤害，并回复1点灵势。",
-			"cooldown_max": 1,
+			"cooldown_max": _balance_int("skills.guard_cooldown", GUARD_COOLDOWN),
 			"cooldown_remaining": 0,
 			"resource_kind": "resolve",
-			"resource_cost": 1
+			"resource_cost": _balance_int("skills.guard_cost", GUARD_COST)
 		},
 		{
 			"slot": "burst",
@@ -685,10 +701,10 @@ func _default_skill_slots() -> Array:
 			"name_cn": "祷焰横扫",
 			"command": "burst",
 			"description": "以较高灵势代价压制敌方全体，适合处理多目标战局。",
-			"cooldown_max": 2,
+			"cooldown_max": _balance_int("skills.burst_cooldown", BURST_COOLDOWN),
 			"cooldown_remaining": 0,
 			"resource_kind": "resolve",
-			"resource_cost": 2
+			"resource_cost": _balance_int("skills.burst_cost", BURST_COST)
 		}
 	]
 
@@ -737,7 +753,7 @@ func _battle_item_effect(item_def: Dictionary) -> Dictionary:
 	if String(item_def.get("id", "")) == "consumable_field_balm":
 		return {
 			"kind": "heal",
-			"recover_hp": 16.0,
+			"recover_hp": _balance_float("items.field_balm_recover_hp", FIELD_BALM_RECOVER_HP),
 			"display_name": String(item_def.get("name_cn", item_def.get("id", "")))
 		}
 	return {}
@@ -818,6 +834,27 @@ func _item_target_type_text(effect: Dictionary) -> String:
 			return "目标：我方单体"
 		_:
 			return "目标：即时生效"
+
+
+func _balance_state() -> Node:
+	var main_loop: MainLoop = Engine.get_main_loop()
+	if main_loop is SceneTree:
+		return (main_loop as SceneTree).root.get_node_or_null("BalanceState")
+	return null
+
+
+func _balance_float(path: String, fallback: float) -> float:
+	var balance := _balance_state()
+	if balance != null and balance.has_method("get_value"):
+		return float(balance.call("get_value", path, fallback))
+	return fallback
+
+
+func _balance_int(path: String, fallback: int) -> int:
+	var balance := _balance_state()
+	if balance != null and balance.has_method("get_value"):
+		return int(balance.call("get_value", path, fallback))
+	return fallback
 
 
 func _invalid_result(reason: String) -> Dictionary:

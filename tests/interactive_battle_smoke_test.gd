@@ -18,6 +18,7 @@ func _run_suite() -> void:
 	_test_interactive_round_progression()
 	_test_interactive_commands()
 	_test_patrol_battle_is_winnable()
+	_test_loot_table_rolls_produce_rewards()
 	_test_random_battle_group_counts()
 	_test_run_state_accepts_interactive_battle_result()
 	_restore_save_file()
@@ -215,6 +216,12 @@ func _test_patrol_battle_is_winnable() -> void:
 			state = simulator.apply_enemy_phase(state)
 	var result: Dictionary = simulator.build_result(state)
 	_assert_true(bool(result.get("victory", false)), "基础巡逻战在默认英雄面板下应可通过")
+
+
+func _test_loot_table_rolls_produce_rewards() -> void:
+	var loot_result: Dictionary = _content_db().roll_loot_table("loot_table_a02_basic_field", 2)
+	var total_entries: int = loot_result.get("items", []).size() + loot_result.get("currencies", []).size() + loot_result.get("relics", []).size()
+	_assert_true(total_entries > 0, "掉落表 roll 后应生成至少一类奖励")
 
 
 func _test_run_state_accepts_interactive_battle_result() -> void:
