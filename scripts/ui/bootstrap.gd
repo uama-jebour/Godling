@@ -78,6 +78,12 @@ var _settlement_title_label: Label
 var _settlement_body_label: RichTextLabel
 var _settlement_return_button: Button
 var _settlement_panel: PanelContainer
+var _battle_result_layer: Control
+var _battle_result_title_label: Label
+var _battle_result_body_label: RichTextLabel
+var _battle_result_continue_button: Button
+var _battle_result_panel: PanelContainer
+var _pending_battle_flow_result: Dictionary = {}
 var _task_snapshot_label: RichTextLabel
 var _delta_snapshot_label: RichTextLabel
 var _forced_hint_label: Label
@@ -208,7 +214,7 @@ func _apply_responsive_layout() -> void:
 		event_title_label.custom_minimum_size = Vector2(0, 24 if mobile_runtime else 30)
 	if summary_label != null:
 		summary_label.add_theme_font_size_override("normal_font_size", 14 if mobile_landscape else (15 if mobile_runtime else 18))
-		summary_label.custom_minimum_size = Vector2(0, 0 if mobile_landscape else (110 if mobile_runtime else 0))
+		summary_label.custom_minimum_size = Vector2(0, 0 if mobile_landscape else (72 if mobile_runtime else 0))
 	if map_hint_label != null:
 		map_hint_label.add_theme_font_size_override("font_size", 12 if mobile_runtime else 15)
 	if dispatch_title_label != null:
@@ -228,7 +234,7 @@ func _apply_responsive_layout() -> void:
 	if _task_snapshot_label != null:
 		_task_snapshot_label.custom_minimum_size = Vector2(0, 88 if mobile_landscape else 126)
 	if _delta_snapshot_label != null:
-		_delta_snapshot_label.custom_minimum_size = Vector2(0, 64 if mobile_landscape else 84)
+		_delta_snapshot_label.custom_minimum_size = Vector2(0, 42 if mobile_landscape else 56)
 	if bottom_row != null:
 		bottom_row.vertical = stack_buttons
 		bottom_row.add_theme_constant_override("separation", 6 if stack_buttons else 8)
@@ -280,49 +286,30 @@ func _render_summary() -> void:
 	var loot: Dictionary = _run_state().get_temporary_loot_snapshot()
 	var progress: Dictionary = _run_state().get_progress_snapshot()
 	var lines: Array[String] = []
-	if _is_mobile_landscape(get_viewport_rect().size):
-		lines.append("[b]%s[/b]  %s" % [theme_name, summary.get("map_name_cn", "")])
-		lines.append(
-			"英雄 %s  |  回合 %d  危险 %d  |  撤离 %s" % [
-				summary.get("hero_id", ""),
-				summary.get("turn", 0),
-				summary.get("danger_level", 0),
-				_bool_text(bool(summary.get("can_extract", false)))
-			]
-		)
-		lines.append(
-			"事件 随机 %d / 固定 %d  |  战利品 物资 %d 货币 %d 圣遗 %d" % [
-				summary.get("random_event_count", 0),
-				summary.get("fixed_event_count", 0),
-				loot.get("items", []).size(),
-				loot.get("currencies", []).size(),
-				loot.get("relics", []).size()
-			]
-		)
-		lines.append(
-			"进度 任务 %d / 剧情 %d / 解锁 %d" % [
-				progress.get("completed_tasks", []).size(),
-				progress.get("story_flags", []).size(),
-				progress.get("unlock_flags", []).size()
-			]
-		)
-	else:
-		lines.append("[b]主题[/b] %s" % theme_name)
-		lines.append("[b]地图[/b] %s (%s)" % [summary.get("map_name_cn", ""), summary.get("map_id", "")])
-		lines.append("[b]英雄[/b] %s" % summary.get("hero_id", ""))
-		lines.append("[b]回合[/b] %d  [b]危险度[/b] %d" % [summary.get("turn", 0), summary.get("danger_level", 0)])
-		lines.append("[b]事件[/b] 随机 %d / 固定 %d" % [summary.get("random_event_count", 0), summary.get("fixed_event_count", 0)])
-		lines.append("[b]可撤离[/b] %s" % _bool_text(bool(summary.get("can_extract", false))))
-		lines.append("[b]临时战利品[/b] 物资 %d / 货币 %d / 圣遗 %d" % [
+	lines.append("[b]%s[/b]｜%s｜英雄 %s" % [
+		theme_name,
+		summary.get("map_name_cn", ""),
+		summary.get("hero_id", "")
+	])
+	lines.append(
+		"回合 %d 危险 %d ｜ 事件 随机 %d / 固定 %d ｜ 撤离 %s" % [
+			summary.get("turn", 0),
+			summary.get("danger_level", 0),
+			summary.get("random_event_count", 0),
+			summary.get("fixed_event_count", 0),
+			_bool_text(bool(summary.get("can_extract", false)))
+		]
+	)
+	lines.append(
+		"战利品 物资 %d 货币 %d 圣遗 %d ｜ 进度 任务 %d 剧情 %d 解锁 %d" % [
 			loot.get("items", []).size(),
 			loot.get("currencies", []).size(),
-			loot.get("relics", []).size()
-		])
-		lines.append("[b]局内进度[/b] 任务 %d / 剧情标记 %d / 解锁标记 %d" % [
+			loot.get("relics", []).size(),
 			progress.get("completed_tasks", []).size(),
 			progress.get("story_flags", []).size(),
 			progress.get("unlock_flags", []).size()
-		])
+		]
+	)
 	if not String(summary.get("pending_forced_event_id", "")).is_empty():
 		lines.append("[color=#f6b26b][b]强制袭击待处理[/b] %s[/color]" % summary.get("pending_forced_event_id", ""))
 	if bool(summary.get("is_extracted", false)):
@@ -1109,6 +1096,7 @@ func _build_runtime_ui_layers() -> void:
 	_inject_map_runtime_widgets()
 	_inject_dispatch_runtime_widgets()
 	_build_home_layer()
+	_build_battle_result_layer()
 	_build_settlement_layer()
 
 
@@ -1135,7 +1123,7 @@ func _inject_map_runtime_widgets() -> void:
 		_delta_snapshot_label.bbcode_enabled = true
 		_delta_snapshot_label.fit_content = true
 		_delta_snapshot_label.scroll_active = false
-		_delta_snapshot_label.custom_minimum_size = Vector2(0, 84)
+		_delta_snapshot_label.custom_minimum_size = Vector2(0, 56)
 		map_vbox.add_child(_delta_snapshot_label)
 		if _forced_hint_label != null:
 			map_vbox.move_child(_delta_snapshot_label, _forced_hint_label.get_index() + 1)
@@ -1301,6 +1289,63 @@ func _build_home_layer() -> void:
 	_home_start_button.text = "确认配置并出发"
 	_home_start_button.pressed.connect(_on_home_start_pressed)
 	vbox.add_child(_home_start_button)
+
+
+func _build_battle_result_layer() -> void:
+	if _battle_result_layer != null:
+		return
+	_battle_result_layer = Control.new()
+	_battle_result_layer.set_anchors_preset(Control.PRESET_FULL_RECT)
+	_battle_result_layer.mouse_filter = Control.MOUSE_FILTER_STOP
+	_battle_result_layer.visible = false
+	add_child(_battle_result_layer)
+
+	var shade := ColorRect.new()
+	shade.set_anchors_preset(Control.PRESET_FULL_RECT)
+	shade.color = Color(0.02, 0.02, 0.06, 0.84)
+	_battle_result_layer.add_child(shade)
+
+	var center := CenterContainer.new()
+	center.set_anchors_preset(Control.PRESET_FULL_RECT)
+	_battle_result_layer.add_child(center)
+
+	var panel := PanelContainer.new()
+	panel.custom_minimum_size = Vector2(760, 500)
+	center.add_child(panel)
+	_battle_result_panel = panel
+
+	var padding := MarginContainer.new()
+	padding.add_theme_constant_override("margin_left", 22)
+	padding.add_theme_constant_override("margin_top", 18)
+	padding.add_theme_constant_override("margin_right", 22)
+	padding.add_theme_constant_override("margin_bottom", 18)
+	panel.add_child(padding)
+
+	var vbox := VBoxContainer.new()
+	vbox.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	vbox.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	vbox.add_theme_constant_override("separation", 12)
+	padding.add_child(vbox)
+
+	_battle_result_title_label = Label.new()
+	_battle_result_title_label.add_theme_font_size_override("font_size", 28)
+	_battle_result_title_label.custom_minimum_size = Vector2(0, 42)
+	_battle_result_title_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	vbox.add_child(_battle_result_title_label)
+
+	_battle_result_body_label = RichTextLabel.new()
+	_battle_result_body_label.bbcode_enabled = true
+	_battle_result_body_label.fit_content = true
+	_battle_result_body_label.scroll_active = true
+	_battle_result_body_label.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	_battle_result_body_label.custom_minimum_size = Vector2(0, 280)
+	vbox.add_child(_battle_result_body_label)
+
+	_battle_result_continue_button = Button.new()
+	_battle_result_continue_button.custom_minimum_size = Vector2(0, 54)
+	_battle_result_continue_button.text = "确认并返回作战地图"
+	_battle_result_continue_button.pressed.connect(_on_battle_result_continue_pressed)
+	vbox.add_child(_battle_result_continue_button)
 
 
 func _build_settlement_layer() -> void:
@@ -1793,33 +1838,52 @@ func _render_resolution_delta() -> void:
 	var event_title: String = String(delta.get("event_title", ""))
 	if not event_title.is_empty():
 		lines.append("事件：%s" % event_title)
-	lines.append("回合变化：%+d / 危险度变化：%+d" % [int(delta.get("turn_delta", 0)), int(delta.get("danger_delta", 0))])
-	lines.append("临时物资：%s" % _format_delta_stacks(delta.get("items_delta", [])))
-	lines.append("临时货币：%s" % _format_delta_stacks(delta.get("currencies_delta", [])))
-	lines.append("临时圣遗：%s" % _format_delta_stacks(delta.get("relics_delta", [])))
+	var compact_parts: Array[String] = []
+	compact_parts.append("回合 %+d" % int(delta.get("turn_delta", 0)))
+	compact_parts.append("危险 %+d" % int(delta.get("danger_delta", 0)))
+	var items_text: String = _format_delta_stacks(delta.get("items_delta", []))
+	if items_text != "无":
+		compact_parts.append("物资 %s" % items_text)
+	var currencies_text: String = _format_delta_stacks(delta.get("currencies_delta", []))
+	if currencies_text != "无":
+		compact_parts.append("货币 %s" % currencies_text)
+	var relics_text: String = _format_delta_stacks(delta.get("relics_delta", []))
+	if relics_text != "无":
+		compact_parts.append("圣遗 %s" % relics_text)
 	var task_delta: Array = delta.get("task_delta", [])
-	lines.append("任务推进：%s" % (_format_task_name_list(task_delta) if not task_delta.is_empty() else "无"))
+	if not task_delta.is_empty():
+		compact_parts.append("任务 %s" % _format_task_name_list(task_delta))
 	var story_delta: Array = delta.get("story_flags_delta", [])
-	lines.append("剧情标记：%s" % _format_story_flag_list(story_delta))
+	if not story_delta.is_empty():
+		compact_parts.append("剧情 %s" % _format_story_flag_list(story_delta))
 	var unlock_delta: Array = delta.get("unlock_flags_delta", [])
-	lines.append("系统解锁：%s" % _format_unlock_flag_list(unlock_delta))
+	if not unlock_delta.is_empty():
+		compact_parts.append("解锁 %s" % _format_unlock_flag_list(unlock_delta))
+	if compact_parts.is_empty():
+		compact_parts.append("局内状态无新增变化")
+	lines.append(" / ".join(compact_parts))
 	var narrative_card: Dictionary = delta.get("narrative_card", {})
 	if not narrative_card.is_empty():
 		var selected_option_text: String = String(narrative_card.get("selected_option_text", ""))
+		var narrative_parts: Array[String] = []
 		if not selected_option_text.is_empty():
-			lines.append("叙事选择：%s" % selected_option_text)
+			narrative_parts.append("叙事选择 %s" % selected_option_text)
 		var selected_impact: String = String(narrative_card.get("selected_option_preview_impact", ""))
 		if not selected_impact.is_empty():
-			lines.append("叙事结果：%s" % selected_impact)
+			narrative_parts.append("结果 %s" % selected_impact)
 		var requirement: Dictionary = narrative_card.get("submission_requirement", {})
 		if not requirement.is_empty():
-			lines.append("后续要求：提交 %s 以推进主线。" % _item_name(String(requirement.get("item_id", ""))))
+			narrative_parts.append("后续提交 %s" % _item_name(String(requirement.get("item_id", ""))))
+		if not narrative_parts.is_empty():
+			lines.append(" / ".join(narrative_parts))
 	var battle_card: Dictionary = delta.get("battle_card", {})
 	if not battle_card.is_empty():
-		lines.append("战斗结果卡：%s" % ("胜利" if bool(battle_card.get("victory", false)) else "失败"))
+		var battle_parts: Array[String] = []
+		battle_parts.append("战斗%s" % ("胜利" if bool(battle_card.get("victory", false)) else "失败"))
 		var completed_objectives: Array = battle_card.get("completed_objectives", [])
 		if not completed_objectives.is_empty():
-			lines.append("目标完成：%s" % ", ".join(completed_objectives))
+			battle_parts.append("目标 %s" % ", ".join(completed_objectives))
+		lines.append(" / ".join(battle_parts))
 	if not String(delta.get("warning", "")).is_empty():
 		lines.append("[color=#ff9b9b]警告：%s[/color]" % String(delta.get("warning", "")))
 	_delta_snapshot_label.text = "\n".join(lines)
@@ -2075,12 +2139,56 @@ func _open_settlement(settlement_snapshot: Dictionary) -> void:
 	_set_ui_phase("settlement")
 
 
+func _open_battle_result(result: Dictionary) -> void:
+	if _battle_result_layer == null:
+		return
+	_pending_battle_flow_result = result.duplicate(true)
+	_render_battle_result_summary(result)
+	_battle_result_layer.visible = true
+
+
+func _close_battle_result() -> void:
+	if _battle_result_layer != null:
+		_battle_result_layer.visible = false
+
+
 func _open_settlement_from_death() -> void:
 	var death_result: Dictionary = _run_state().consume_death_result()
 	if death_result.is_empty():
 		return
 	var settlement_snapshot: Dictionary = _progression_state().build_run_settlement_snapshot({}, death_result)
 	_open_settlement(settlement_snapshot)
+
+
+func _render_battle_result_summary(result: Dictionary) -> void:
+	if _battle_result_title_label == null or _battle_result_body_label == null:
+		return
+	var resolved_event: Dictionary = result.get("selected_event", {})
+	var dispatch_result: Dictionary = result.get("dispatch_result", {})
+	var battle_result: Dictionary = dispatch_result.get("battle_result", {})
+	var map_effects: Dictionary = battle_result.get("map_effects", {})
+	var is_victory: bool = bool(battle_result.get("victory", false))
+	_battle_result_title_label.text = "战斗结果：%s" % ("胜利" if is_victory else "失败")
+	var lines: Array[String] = []
+	lines.append("[b]战斗事件[/b] %s" % String(resolved_event.get("title", "未命名战斗")))
+	lines.append("[b]结果判定[/b] %s" % ("已达成目标" if is_victory else "未达成目标"))
+	lines.append("[b]剩余生命[/b] %.1f" % float(map_effects.get("hero_hp_remaining", 0.0)))
+	lines.append("[b]剩余敌方生命[/b] %.1f" % float(map_effects.get("enemy_hp_remaining", 0.0)))
+	lines.append("[b]敌方总数[/b] %d" % int(map_effects.get("enemy_count_total", 0)))
+	lines.append("[b]战斗时长[/b] %d 回合节拍" % int(map_effects.get("elapsed_ticks", 0)))
+	var completed_objectives: Array = battle_result.get("completed_objectives", [])
+	lines.append("[b]目标完成[/b] %s" % (", ".join(completed_objectives) if not completed_objectives.is_empty() else "无"))
+	var reward_package: Dictionary = battle_result.get("reward_package", {})
+	if not reward_package.is_empty():
+		lines.append("")
+		lines.append("[b]战利品[/b]")
+		lines.append("货币：%s" % _format_stack_lines(reward_package.get("currencies", [])))
+		lines.append("物资：%s" % _format_stack_lines(reward_package.get("items", [])))
+		lines.append("圣遗：%s" % _format_stack_lines(reward_package.get("relics", [])))
+	if not String(battle_result.get("defeat_reason", "")).is_empty():
+		lines.append("")
+		lines.append("[color=#ff9b9b][b]失败原因[/b] %s[/color]" % String(battle_result.get("defeat_reason", "")))
+	_battle_result_body_label.text = "\n".join(lines)
 
 
 func _render_settlement_snapshot(snapshot: Dictionary) -> void:
@@ -2346,6 +2454,20 @@ func _on_preview_android_size_pressed() -> void:
 
 func _on_interactive_battle_finished(battle_result: Dictionary) -> void:
 	var result: Dictionary = _run_state().complete_selected_event_with_battle_result(battle_result)
+	if result.is_empty():
+		_finalize_selected_event_result(result)
+		return
+	var dispatch_result: Dictionary = result.get("dispatch_result", {})
+	if dispatch_result.get("battle_result", {}).is_empty():
+		_finalize_selected_event_result(result)
+		return
+	_open_battle_result(result)
+
+
+func _on_battle_result_continue_pressed() -> void:
+	var result: Dictionary = _pending_battle_flow_result.duplicate(true)
+	_pending_battle_flow_result = {}
+	_close_battle_result()
 	_finalize_selected_event_result(result)
 
 

@@ -2,6 +2,11 @@ extends RefCounted
 
 const TICK_LIMIT := 60
 const REINFORCE_TRIGGER_TIME := 20
+const HERO_BASE_POWER_MULTIPLIER := 2.1
+const HERO_PRIMARY_DAMAGE_MULTIPLIER := 1.15
+const HERO_BURST_DAMAGE_MULTIPLIER := 0.72
+const HERO_GUARD_DAMAGE_FACTOR := 0.22
+const ENEMY_PHASE_ATTACKER_LIMIT := 2
 
 
 func initialize_state(request: Dictionary, battle_def: Dictionary, content_db: Node) -> Dictionary:
@@ -60,8 +65,8 @@ func initialize_state(request: Dictionary, battle_def: Dictionary, content_db: N
 		"turn_phase": "player",
 		"selected_target_id": _first_alive_enemy_id(enemy_entities),
 		"skill_slots": _default_skill_slots(),
-		"hero_resolve": 2,
-		"hero_resolve_max": 3,
+		"hero_resolve": 3,
+		"hero_resolve_max": 4,
 		"battle_items": _extract_battle_items(hero_snapshot, content_db),
 		"consumed_items": [],
 		"guard_active": false,
@@ -82,6 +87,60 @@ func step_once(state: Dictionary) -> Dictionary:
 	state = apply_player_attack(state, target_id)
 	while is_battle_active(state) and String(state.get("turn_phase", "")) == "enemy":
 		state = apply_enemy_phase(state)
+	return state
+
+
+func apply_player_burst(state: Dictionary) -> Dictionary:
+	if state.has("invalid_reason"):
+		return state
+	if not is_battle_active(state):
+		return state
+	if String(state.get("turn_phase", "player")) != "player":
+		state["status_text"] = "当前不是我方行动阶段。"
+		return state
+	var skill_gate: Dictionary = _validate_skill_usage(state, "burst")
+	if not bool(skill_gate.get("ok", false)):
+		state["status_text"] = String(skill_gate.get("reason", "该技能暂时无法使用。"))
+		return state
+	var hero_entity: Dictionary = state.get("hero_entity", {})
+	if not bool(hero_entity.get("is_alive", true)):
+		state["status_text"] = "英雄已倒下。"
+		return state
+	var targets_hit: int = 0
+	var damage: float = float(state.get("hero_attack", 0.0)) * HERO_BURST_DAMAGE_MULTIPLIER
+	for enemy_entity_value in state.get("enemy_entities", []):
+		if typeof(enemy_entity_value) != TYPE_DICTIONARY:
+			continue
+		var enemy_entity: Dictionary = enemy_entity_value
+		if not bool(enemy_entity.get("is_alive", true)):
+			continue
+		_apply_damage_to_target_entity(state, String(enemy_entity.get("entity_id", "")), damage)
+		targets_hit += 1
+	_commit_skill_use(state, "burst")
+	state["enemy_total_hp"] = _living_enemy_total_hp(state)
+	state["enemy_total_attack"] = _living_enemy_total_attack(state)
+	state["selected_target_id"] = _first_alive_enemy_id(state.get("enemy_entities", []))
+	state["last_action"] = {
+		"actor_id": String(hero_entity.get("entity_id", "hero_1")),
+		"actor_side": "hero",
+		"actor_name": String(hero_entity.get("display_name", "Hero")),
+		"target_id": "enemy_all",
+		"target_name": "敌方全体",
+		"target_side": "enemy",
+		"skill_slot": "burst",
+		"damage": damage,
+		"targets_hit": targets_hit,
+		"phase": "burst"
+	}
+	if float(state.get("enemy_total_hp", 0.0)) <= 0.0:
+		state["turn_phase"] = "finished"
+		state["status_text"] = "敌方被全部清除。"
+		return state
+	state["guard_active"] = false
+	state["enemy_turn_queue"] = []
+	state["enemy_turn_index"] = 0
+	state["turn_phase"] = "enemy"
+	state["status_text"] = "祷焰横扫撕开敌阵，敌方准备反击。"
 	return state
 
 
@@ -108,7 +167,7 @@ func apply_player_attack(state: Dictionary, target_entity_id: String) -> Diction
 		state["status_text"] = "请选择有效目标。"
 		return state
 
-	var damage: float = float(state.get("hero_attack", 0.0))
+	var damage: float = float(state.get("hero_attack", 0.0)) * HERO_PRIMARY_DAMAGE_MULTIPLIER
 	_apply_damage_to_target_entity(state, String(target.get("entity_id", "")), damage)
 	_commit_skill_use(state, "primary")
 	state["enemy_total_hp"] = _living_enemy_total_hp(state)
@@ -152,6 +211,7 @@ func apply_player_defend(state: Dictionary) -> Dictionary:
 	var hero_entity: Dictionary = state.get("hero_entity", {})
 	_commit_skill_use(state, "guard")
 	state["guard_active"] = true
+	state["hero_resolve"] = min(int(state.get("hero_resolve_max", 4)), int(state.get("hero_resolve", 0)) + 1)
 	state["last_action"] = {
 		"actor_id": String(hero_entity.get("entity_id", "hero_1")),
 		"actor_side": "hero",
@@ -265,9 +325,9 @@ func apply_enemy_phase(state: Dictionary) -> Dictionary:
 		return _finalize_enemy_phase(state)
 
 	var enemy_actor: Dictionary = queue[turn_index]
-	var hero_damage: float = max(1.0, float(enemy_actor.get("attack_power", 0.0)) / 6.0)
+	var hero_damage: float = max(0.8, float(enemy_actor.get("attack_power", 0.0)) / 7.5)
 	if bool(state.get("guard_active", false)):
-		hero_damage *= 0.45
+		hero_damage *= HERO_GUARD_DAMAGE_FACTOR
 	state["hero_hp"] = max(0.0, float(state.get("hero_hp", 0.0)) - hero_damage)
 	state["last_action"] = {
 		"actor_id": String(enemy_actor.get("entity_id", "enemy")),
@@ -447,6 +507,15 @@ func _living_enemy_turn_queue(state: Dictionary) -> Array:
 		if not bool(enemy_entity.get("is_alive", true)):
 			continue
 		queue.append(enemy_entity.duplicate(true))
+	queue.sort_custom(func(a: Dictionary, b: Dictionary) -> bool:
+		var a_attack: float = float(a.get("attack_power", 0.0))
+		var b_attack: float = float(b.get("attack_power", 0.0))
+		if not is_equal_approx(a_attack, b_attack):
+			return a_attack > b_attack
+		return float(a.get("current_hp", 0.0)) > float(b.get("current_hp", 0.0))
+	)
+	if queue.size() > ENEMY_PHASE_ATTACKER_LIMIT:
+		queue.resize(ENEMY_PHASE_ATTACKER_LIMIT)
 	return queue
 
 
@@ -556,9 +625,7 @@ func _completed_objectives(victory: bool, victory_type: String, elapsed: int, ev
 
 func _hero_power_modifier(request: Dictionary) -> float:
 	var modifiers: Array = request.get("equipped_relic_modifiers", [])
-	if modifiers.is_empty():
-		return 1.0
-	return 1.0 + (float(modifiers.size()) * 0.08)
+	return HERO_BASE_POWER_MULTIPLIER + (float(modifiers.size()) * 0.12)
 
 
 func _unit_attack_power(unit_def: Dictionary) -> float:
@@ -595,8 +662,8 @@ func _default_skill_slots() -> Array:
 			"skill_id": "skill_basic_slash",
 			"name_cn": "斩击",
 			"command": "attack",
-			"description": "迅速前压，对选中的敌人造成标准伤害。",
-			"cooldown_max": 1,
+			"description": "迅速前压，对选中的敌人造成高于基础值的稳定伤害。",
+			"cooldown_max": 0,
 			"cooldown_remaining": 0,
 			"resource_kind": "resolve",
 			"resource_cost": 1
@@ -606,11 +673,22 @@ func _default_skill_slots() -> Array:
 			"skill_id": "skill_basic_guard",
 			"name_cn": "架盾",
 			"command": "defend",
-			"description": "稳住阵线，本轮显著降低敌方反击伤害。",
-			"cooldown_max": 2,
+			"description": "稳住阵线，本轮大幅降低敌方反击伤害，并回复1点灵势。",
+			"cooldown_max": 1,
 			"cooldown_remaining": 0,
 			"resource_kind": "resolve",
 			"resource_cost": 1
+		},
+		{
+			"slot": "burst",
+			"skill_id": "skill_litany_sweep",
+			"name_cn": "祷焰横扫",
+			"command": "burst",
+			"description": "以较高灵势代价压制敌方全体，适合处理多目标战局。",
+			"cooldown_max": 2,
+			"cooldown_remaining": 0,
+			"resource_kind": "resolve",
+			"resource_cost": 2
 		}
 	]
 
@@ -659,7 +737,7 @@ func _battle_item_effect(item_def: Dictionary) -> Dictionary:
 	if String(item_def.get("id", "")) == "consumable_field_balm":
 		return {
 			"kind": "heal",
-			"recover_hp": 12.0,
+			"recover_hp": 16.0,
 			"display_name": String(item_def.get("name_cn", item_def.get("id", "")))
 		}
 	return {}

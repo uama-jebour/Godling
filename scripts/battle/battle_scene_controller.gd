@@ -31,6 +31,13 @@ const UNIT_TOKEN_SCENE := preload("res://scenes/battle/unit_token.tscn")
 @onready var item_button: Button = get_node_or_null("%ItemButton")
 @onready var attack_skill_card: Control = get_node_or_null("%AttackSkillCard")
 @onready var defend_skill_card: Control = get_node_or_null("%DefendSkillCard")
+var burst_button: Button
+var burst_skill_card: Control
+var burst_skill_icon: TextureRect
+var burst_cooldown_mask: ColorRect
+var burst_meta_label: Label
+var burst_cooldown_bar: ProgressBar
+var burst_resource_bar: ProgressBar
 @onready var attack_skill_icon: TextureRect = get_node_or_null("%AttackSkillIcon")
 @onready var defend_skill_icon: TextureRect = get_node_or_null("%DefendSkillIcon")
 @onready var attack_cooldown_mask: ColorRect = get_node_or_null("%AttackCooldownMask")
@@ -83,6 +90,7 @@ func _ready() -> void:
 	if item_button != null and not item_button.pressed.is_connected(_on_item_pressed):
 		item_button.pressed.connect(_on_item_pressed)
 	_build_action_deck()
+	_bind_clickable_cards()
 	_set_interaction_enabled(false)
 	call_deferred("_refresh_layout_after_frame")
 
@@ -235,6 +243,9 @@ func _update_interaction_hud(state: Dictionary) -> void:
 		if defend_button != null:
 			defend_button.disabled = true
 			defend_button.text = "技能·架盾"
+		if burst_button != null:
+			burst_button.disabled = true
+			burst_button.text = "技能·祷焰横扫"
 		if wait_button != null:
 			wait_button.disabled = true
 			wait_button.text = "结束回合"
@@ -243,6 +254,7 @@ func _update_interaction_hud(state: Dictionary) -> void:
 			item_button.text = "选择道具"
 		_update_skill_card({}, attack_skill_card, attack_skill_icon, attack_meta_label, attack_cooldown_bar, attack_resource_bar, attack_cooldown_mask, 0, 0)
 		_update_skill_card({}, defend_skill_card, defend_skill_icon, defend_meta_label, defend_cooldown_bar, defend_resource_bar, defend_cooldown_mask, 0, 0)
+		_update_skill_card({}, burst_skill_card, burst_skill_icon, burst_meta_label, burst_cooldown_bar, burst_resource_bar, burst_cooldown_mask, 0, 0)
 		return
 
 	var phase: String = String(state.get("turn_phase", "player"))
@@ -251,13 +263,16 @@ func _update_interaction_hud(state: Dictionary) -> void:
 	var skill_slots: Array = state.get("skill_slots", [])
 	var slash_skill: Dictionary = _skill_slot(skill_slots, "primary")
 	var guard_skill: Dictionary = _skill_slot(skill_slots, "guard")
+	var burst_skill: Dictionary = _skill_slot(skill_slots, "burst")
 	var slash_name: String = String(slash_skill.get("name_cn", "斩击"))
 	var guard_name: String = String(guard_skill.get("name_cn", "架盾"))
+	var burst_name: String = String(burst_skill.get("name_cn", "祷焰横扫"))
 	var hero_resolve: int = int(state.get("hero_resolve", 0))
 	var hero_resolve_max: int = int(state.get("hero_resolve_max", 0))
 	var can_player_input := phase == "player" and not _resolving_enemy_phase
 	var slash_block_reason: String = _skill_unavailable_reason(slash_skill, hero_resolve)
 	var guard_block_reason: String = _skill_unavailable_reason(guard_skill, hero_resolve)
+	var burst_block_reason: String = _skill_unavailable_reason(burst_skill, hero_resolve)
 	var target_hp_text: String = _selected_target_hp_text(state, _selected_target_id)
 	var fallback_status := "请选择一个敌人并发动攻击。"
 	if not can_player_input:
@@ -290,6 +305,15 @@ func _update_interaction_hud(state: Dictionary) -> void:
 			defend_button.text = "技能2·%s（%s）" % [guard_name, guard_block_reason]
 		else:
 			defend_button.text = "技能2·%s" % guard_name
+	if burst_button != null:
+		burst_button.disabled = not can_player_input or not burst_block_reason.is_empty()
+		burst_button.tooltip_text = "对敌方全体造成压制伤害，适合削弱群体。"
+		if not can_player_input:
+			burst_button.text = "敌方行动中"
+		elif not burst_block_reason.is_empty():
+			burst_button.text = "技能3·%s（%s）" % [burst_name, burst_block_reason]
+		else:
+			burst_button.text = "技能3·%s" % burst_name
 	if wait_button != null:
 		wait_button.disabled = not can_player_input
 		wait_button.text = "蓄势待机"
@@ -305,6 +329,7 @@ func _update_interaction_hud(state: Dictionary) -> void:
 			item_button.tooltip_text = "使用战斗道具后会立即进入敌方回合。"
 	_update_skill_card(slash_skill, attack_skill_card, attack_skill_icon, attack_meta_label, attack_cooldown_bar, attack_resource_bar, attack_cooldown_mask, hero_resolve, hero_resolve_max)
 	_update_skill_card(guard_skill, defend_skill_card, defend_skill_icon, defend_meta_label, defend_cooldown_bar, defend_resource_bar, defend_cooldown_mask, hero_resolve, hero_resolve_max)
+	_update_skill_card(burst_skill, burst_skill_card, burst_skill_icon, burst_meta_label, burst_cooldown_bar, burst_resource_bar, burst_cooldown_mask, hero_resolve, hero_resolve_max)
 	_refresh_item_popup(battle_items)
 
 
@@ -746,6 +771,8 @@ func _format_action_brief(state: Dictionary) -> String:
 	match phase_name:
 		"player":
 			return "%s 对 %s 造成 %.1f 伤害" % [actor_name, target_name, max(0.0, damage)]
+		"burst":
+			return "%s 以祷焰横扫压制敌方全体（%.1f）" % [actor_name, max(0.0, damage)]
 		"enemy":
 			return "%s 对 %s 造成 %.1f 伤害" % [actor_name, target_name, max(0.0, damage)]
 		"defend":
@@ -790,6 +817,9 @@ func _set_interaction_enabled(enabled: bool) -> void:
 	if defend_button != null:
 		defend_button.visible = enabled
 		defend_button.disabled = not enabled
+	if burst_button != null:
+		burst_button.visible = enabled
+		burst_button.disabled = not enabled
 	if wait_button != null:
 		wait_button.visible = enabled
 		wait_button.disabled = not enabled
@@ -841,6 +871,14 @@ func _on_defend_pressed() -> void:
 		return
 	_interactive_state = _sim().apply_player_defend(_interactive_state)
 	_render_state(_interactive_state, "我方进入防御")
+	_queue_enemy_phase_or_finish()
+
+
+func _on_burst_pressed() -> void:
+	if not _interactive_mode or _resolving_enemy_phase:
+		return
+	_interactive_state = _sim().apply_player_burst(_interactive_state)
+	_render_state(_interactive_state, "我方发动祷焰横扫")
 	_queue_enemy_phase_or_finish()
 
 
@@ -1047,10 +1085,13 @@ func _update_skill_card(skill: Dictionary, card: Control, icon_node: TextureRect
 	resource_bar.modulate = Color(0.96, 0.74, 0.34, 1.0) if enough_resource else Color(1.0, 0.42, 0.42, 1.0)
 	if icon_node != null:
 		icon_node.texture = DEFAULT_SKILL_ICON
-		if String(skill.get("slot", "")) == "guard":
-			icon_node.modulate = Color(0.54, 0.76, 1.0, 1.0)
-		else:
-			icon_node.modulate = Color(1.0, 0.84, 0.46, 1.0)
+		match String(skill.get("slot", "")):
+			"guard":
+				icon_node.modulate = Color(0.54, 0.76, 1.0, 1.0)
+			"burst":
+				icon_node.modulate = Color(1.0, 0.62, 0.34, 1.0)
+			_:
+				icon_node.modulate = Color(1.0, 0.84, 0.46, 1.0)
 	if cooldown_mask != null:
 		cooldown_mask.color = Color(0.05, 0.07, 0.11, 0.42) if cooldown_remaining > 0 else Color(0.05, 0.07, 0.11, 0.0)
 	if card != null:
@@ -1060,6 +1101,7 @@ func _update_skill_card(skill: Dictionary, card: Control, icon_node: TextureRect
 func _build_item_row(stack: Dictionary) -> Control:
 	var row := PanelContainer.new()
 	row.custom_minimum_size = Vector2(0, 92)
+	row.mouse_filter = Control.MOUSE_FILTER_STOP
 	var margin := MarginContainer.new()
 	margin.add_theme_constant_override("margin_left", 10)
 	margin.add_theme_constant_override("margin_top", 8)
@@ -1103,6 +1145,7 @@ func _build_item_row(stack: Dictionary) -> Control:
 		_use_item_and_continue(String(stack.get("id", "")))
 	)
 	hbox.add_child(use_button)
+	_bind_card_click_target(row, Callable(self, "_use_item_and_continue").bind(String(stack.get("id", ""))), use_button)
 	return row
 
 
@@ -1138,6 +1181,7 @@ func _build_action_deck() -> void:
 		action_info_box.add_theme_constant_override("separation", 8)
 	if command_strip != null:
 		command_strip.add_theme_constant_override("separation", 12)
+		_ensure_burst_skill_card()
 	if status_label != null:
 		status_label.add_theme_font_size_override("font_size", 16)
 	if selected_target_label != null:
@@ -1146,6 +1190,7 @@ func _build_action_deck() -> void:
 	_style_action_button(item_button, Color(0.18, 0.22, 0.30, 1.0), Color(0.44, 0.62, 0.88, 1.0))
 	_style_skill_card(attack_skill_card, Color(0.24, 0.15, 0.12, 1.0), Color(0.72, 0.46, 0.22, 1.0))
 	_style_skill_card(defend_skill_card, Color(0.12, 0.18, 0.24, 1.0), Color(0.34, 0.56, 0.82, 1.0))
+	_style_skill_card(burst_skill_card, Color(0.26, 0.12, 0.10, 1.0), Color(0.90, 0.50, 0.18, 1.0))
 
 
 func _style_action_button(button: Button, bg: Color, border: Color) -> void:
@@ -1183,3 +1228,148 @@ func _style_skill_card(card: Control, bg: Color, border: Color) -> void:
 	style.corner_radius_bottom_left = 14
 	style.corner_radius_bottom_right = 14
 	panel.add_theme_stylebox_override("panel", style)
+
+
+func _ensure_burst_skill_card() -> void:
+	if command_strip == null or burst_skill_card != null:
+		return
+	var insert_index: int = command_strip.get_children().find(wait_button)
+	if insert_index < 0:
+		insert_index = command_strip.get_child_count()
+	var card := PanelContainer.new()
+	card.name = "BurstSkillCard"
+	card.custom_minimum_size = Vector2(190, 0)
+	card.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	command_strip.add_child(card)
+	command_strip.move_child(card, insert_index)
+	burst_skill_card = card
+
+	var cooldown_mask := ColorRect.new()
+	cooldown_mask.name = "BurstCooldownMask"
+	cooldown_mask.anchor_right = 1.0
+	cooldown_mask.anchor_bottom = 1.0
+	cooldown_mask.grow_horizontal = Control.GROW_DIRECTION_BOTH
+	cooldown_mask.grow_vertical = Control.GROW_DIRECTION_BOTH
+	cooldown_mask.color = Color(0.05, 0.07, 0.11, 0.0)
+	cooldown_mask.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	card.add_child(cooldown_mask)
+	burst_cooldown_mask = cooldown_mask
+
+	var margin := MarginContainer.new()
+	margin.name = "BurstSkillMargin"
+	margin.add_theme_constant_override("margin_left", 10)
+	margin.add_theme_constant_override("margin_top", 8)
+	margin.add_theme_constant_override("margin_right", 10)
+	margin.add_theme_constant_override("margin_bottom", 8)
+	card.add_child(margin)
+
+	var vbox := VBoxContainer.new()
+	vbox.name = "BurstSkillVBox"
+	vbox.add_theme_constant_override("separation", 4)
+	margin.add_child(vbox)
+
+	var head_row := HBoxContainer.new()
+	head_row.name = "BurstHeadRow"
+	head_row.add_theme_constant_override("separation", 8)
+	vbox.add_child(head_row)
+
+	var icon := TextureRect.new()
+	icon.name = "BurstSkillIcon"
+	icon.custom_minimum_size = Vector2(24, 24)
+	icon.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	icon.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	head_row.add_child(icon)
+	burst_skill_icon = icon
+
+	var button := Button.new()
+	button.name = "BurstButton"
+	button.custom_minimum_size = Vector2(0, 38)
+	button.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	button.text = "技能3·祷焰横扫"
+	button.add_theme_font_size_override("font_size", 16)
+	if not button.pressed.is_connected(_on_burst_pressed):
+		button.pressed.connect(_on_burst_pressed)
+	head_row.add_child(button)
+	burst_button = button
+
+	var meta := Label.new()
+	meta.name = "BurstMetaLabel"
+	meta.text = "冷却正常 | 灵势 2"
+	meta.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	meta.add_theme_font_size_override("font_size", 12)
+	vbox.add_child(meta)
+	burst_meta_label = meta
+
+	var cooldown_row := HBoxContainer.new()
+	cooldown_row.name = "BurstCooldownRow"
+	cooldown_row.add_theme_constant_override("separation", 6)
+	vbox.add_child(cooldown_row)
+
+	var cooldown_tag := Label.new()
+	cooldown_tag.text = "CD"
+	cooldown_tag.custom_minimum_size = Vector2(26, 0)
+	cooldown_tag.add_theme_font_size_override("font_size", 11)
+	cooldown_row.add_child(cooldown_tag)
+
+	var cooldown_bar := ProgressBar.new()
+	cooldown_bar.name = "BurstCooldownBar"
+	cooldown_bar.custom_minimum_size = Vector2(0, 8)
+	cooldown_bar.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	cooldown_bar.show_percentage = false
+	cooldown_row.add_child(cooldown_bar)
+	burst_cooldown_bar = cooldown_bar
+
+	var resource_row := HBoxContainer.new()
+	resource_row.name = "BurstResourceRow"
+	resource_row.add_theme_constant_override("separation", 6)
+	vbox.add_child(resource_row)
+
+	var resource_tag := Label.new()
+	resource_tag.text = "灵势"
+	resource_tag.custom_minimum_size = Vector2(26, 0)
+	resource_tag.add_theme_font_size_override("font_size", 11)
+	resource_row.add_child(resource_tag)
+
+	var resource_bar := ProgressBar.new()
+	resource_bar.name = "BurstResourceBar"
+	resource_bar.custom_minimum_size = Vector2(0, 8)
+	resource_bar.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	resource_bar.show_percentage = false
+	resource_row.add_child(resource_bar)
+	burst_resource_bar = resource_bar
+
+
+func _bind_clickable_cards() -> void:
+	_bind_card_click_target(attack_skill_card, Callable(self, "_on_attack_pressed"), attack_button)
+	_bind_card_click_target(defend_skill_card, Callable(self, "_on_defend_pressed"), defend_button)
+	_bind_card_click_target(burst_skill_card, Callable(self, "_on_burst_pressed"), burst_button)
+
+
+func _bind_card_click_target(card: Control, action: Callable, exclude_button: Button = null) -> void:
+	if card == null:
+		return
+	card.mouse_filter = Control.MOUSE_FILTER_STOP
+	_set_descendants_mouse_filter(card, exclude_button)
+	if not card.gui_input.is_connected(_on_card_gui_input.bind(action, exclude_button)):
+		card.gui_input.connect(_on_card_gui_input.bind(action, exclude_button))
+
+
+func _set_descendants_mouse_filter(node: Node, exclude_button: Button) -> void:
+	for child: Node in node.get_children():
+		if child == exclude_button:
+			continue
+		if child is Control:
+			var control := child as Control
+			control.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		_set_descendants_mouse_filter(child, exclude_button)
+
+
+func _on_card_gui_input(event: InputEvent, action: Callable, exclude_button: Button = null) -> void:
+	if event is not InputEventMouseButton:
+		return
+	var mouse_event := event as InputEventMouseButton
+	if mouse_event.button_index != MOUSE_BUTTON_LEFT or not mouse_event.pressed:
+		return
+	if exclude_button != null and exclude_button.get_global_rect().has_point(mouse_event.global_position):
+		return
+	action.call()

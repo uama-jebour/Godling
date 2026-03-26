@@ -17,6 +17,7 @@ func _run_suite() -> void:
 	_reset_progression_to_defaults()
 	_test_interactive_round_progression()
 	_test_interactive_commands()
+	_test_patrol_battle_is_winnable()
 	_test_random_battle_group_counts()
 	_test_run_state_accepts_interactive_battle_result()
 	_restore_save_file()
@@ -93,8 +94,8 @@ func _test_interactive_round_progression() -> void:
 	state = simulator.apply_player_attack(state, target_id)
 	_assert_true(String(state.get("turn_phase", "")) == "enemy" or float(state.get("enemy_total_hp", 0.0)) <= 0.0, "玩家攻击后应轮到敌方阶段或直接结束")
 	_assert_true(_enemy_hp_by_id(state, target_id) < before_enemy_hp, "玩家攻击后目标生命应下降")
-	_assert_true(int(state.get("hero_resolve", 0)) == 1, "斩击后应消耗 1 点灵势")
-	_assert_true(_skill_cooldown(state, "primary") >= 1, "斩击后应进入冷却")
+	_assert_true(int(state.get("hero_resolve", 0)) == 2, "斩击后应消耗 1 点灵势")
+	_assert_true(_skill_cooldown(state, "primary") == 0, "斩击应保持每回合可用")
 
 	var hero_hp_before_enemy: float = float(state.get("hero_hp", 0.0))
 	if simulator.is_battle_active(state):
@@ -129,7 +130,7 @@ func _test_interactive_commands() -> void:
 	var open_state: Dictionary = defend_state.duplicate(true)
 	defend_state = simulator.apply_player_defend(defend_state)
 	open_state = simulator.apply_player_wait(open_state)
-	_assert_true(_skill_cooldown(defend_state, "guard") >= 2, "架盾后应进入较长冷却")
+	_assert_true(_skill_cooldown(defend_state, "guard") >= 1, "架盾后应至少进入 1 回合冷却")
 	while simulator.is_battle_active(defend_state) and String(defend_state.get("turn_phase", "")) == "enemy":
 		defend_state = simulator.apply_enemy_phase(defend_state)
 	while simulator.is_battle_active(open_state) and String(open_state.get("turn_phase", "")) == "enemy":
@@ -160,6 +161,60 @@ func _test_interactive_commands() -> void:
 	_assert_true(float(item_state.get("hero_hp", 0.0)) > 12.0, "使用道具后英雄生命应恢复")
 	_assert_true(item_state.get("battle_items", []).is_empty(), "使用道具后库存应扣减")
 	_assert_true(String(item_state.get("last_action", {}).get("phase", "")) == "item", "使用道具后应记录 item 行动")
+
+	var burst_state: Dictionary = simulator.initialize_state(
+		{
+			"battle_id": "battle_a02_patrol",
+			"hero_snapshot": {
+				"hero_id": "hero_pilgrim_a01",
+				"runtime_stats": {
+					"hp": 36.0,
+					"attack_power": 4.0
+				}
+			}
+		},
+		battle_def,
+		_content_db()
+	)
+	var enemy_hp_before_burst: float = float(burst_state.get("enemy_total_hp", 0.0))
+	burst_state = simulator.apply_player_burst(burst_state)
+	_assert_true(float(burst_state.get("enemy_total_hp", 0.0)) < enemy_hp_before_burst, "祷焰横扫应压低敌方总生命")
+	_assert_true(int(burst_state.get("hero_resolve", 0)) == 1, "祷焰横扫后应消耗 2 点灵势")
+	_assert_true(_skill_cooldown(burst_state, "burst") >= 2, "祷焰横扫后应进入较长冷却")
+	_assert_true(String(burst_state.get("last_action", {}).get("phase", "")) == "burst", "祷焰横扫后应记录 burst 行动")
+
+
+func _test_patrol_battle_is_winnable() -> void:
+	var simulator: RefCounted = load("res://systems/battle/battle_simulator.gd").new()
+	var battle_def: Dictionary = _content_db().get_battle("battle_a02_patrol")
+	var state: Dictionary = simulator.initialize_state(
+		{
+			"battle_id": "battle_a02_patrol",
+			"hero_snapshot": {
+				"hero_id": "hero_pilgrim_a01",
+				"runtime_stats": {
+					"hp": 36.0,
+					"attack_power": 4.0
+				},
+				"temporary_inventory": [{"id": "consumable_field_balm", "count": 1}]
+			}
+		},
+		battle_def,
+		_content_db()
+	)
+	_assert_true(not state.has("invalid_reason"), "平衡验证初始化不应失败")
+	if state.has("invalid_reason"):
+		return
+	while simulator.is_battle_active(state):
+		if String(state.get("turn_phase", "player")) == "player":
+			if float(state.get("hero_hp", 0.0)) <= 12.0 and not state.get("battle_items", []).is_empty():
+				state = simulator.apply_player_item(state, "consumable_field_balm")
+			else:
+				state = simulator.apply_player_attack(state, String(state.get("selected_target_id", "")))
+		else:
+			state = simulator.apply_enemy_phase(state)
+	var result: Dictionary = simulator.build_result(state)
+	_assert_true(bool(result.get("victory", false)), "基础巡逻战在默认英雄面板下应可通过")
 
 
 func _test_run_state_accepts_interactive_battle_result() -> void:

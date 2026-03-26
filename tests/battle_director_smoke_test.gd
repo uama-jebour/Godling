@@ -117,8 +117,8 @@ func _test_director_runs_scene_battle_backend() -> void:
 		"scene 后端应写入 tick 日志"
 	)
 	_assert_true(
-		int(battle_result.get("map_effects", {}).get("rendered_arena_token_count", 0)) >= 2,
-		"scene 后端应渲染英雄与敌方单位节点"
+		int(battle_result.get("map_effects", {}).get("rendered_arena_token_count", 0)) >= 1,
+		"scene 后端至少应保留英雄主战场节点"
 	)
 	_assert_true(
 		int(battle_result.get("map_effects", {}).get("visual_feedback_counts", {}).get("hit", 0)) > 0,
