@@ -70,9 +70,12 @@ python3 -m http.server 8080 --directory dist/web
 
 ## 缓存策略
 
-- `scripts/web/prepare_web_build.sh` 会在导出后执行两件事：
+- `scripts/web/prepare_web_build.sh` 会在导出后执行三件事：
   1. 将 `index.html` 中 `index.js` 改为 `index.js?v=<BUILD_ID>`
   2. 将 `index.js` 内部 `index.wasm / index.pck` 请求改为 `?v=<BUILD_ID>`
+- 同时会向 `index.html` 注入构建探针脚本（`GODLING_BUILD_GUARD`）：
+  - 页面加载后以 `no-store` 方式读取 `.build-id`
+  - 若发现远端构建号与当前页面不一致，会自动追加 `build_reload=<最新ID>` 参数并重载一次，降低“普通窗口卡旧 HTML”的概率
 - 同时生成：
   - `dist/web/build-meta.json`
   - `dist/web/.build-id`

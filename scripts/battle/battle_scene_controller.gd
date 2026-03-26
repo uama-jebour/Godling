@@ -65,7 +65,9 @@ var _timeline: Array = []
 var _playback_nonce: int = 0
 var _attack_line: Line2D
 var _attack_arrow: Polygon2D
+var _attack_arrow_glow: Polygon2D
 var _attack_line_tween: Tween
+var _attack_curve_points := PackedVector2Array()
 var _interactive_mode := false
 var _interactive_request: Dictionary = {}
 var _interactive_context: Dictionary = {}
@@ -513,6 +515,8 @@ func _render_attack_cues(state: Dictionary) -> void:
 	_attack_line.visible = false
 	if _attack_arrow != null:
 		_attack_arrow.visible = false
+	if _attack_arrow_glow != null:
+		_attack_arrow_glow.visible = false
 	for entity_id: String in _arena_nodes.keys():
 		var token: Control = _arena_nodes[entity_id]
 		if token != null and token.has_method("set_targeted"):
@@ -551,20 +555,20 @@ func _render_attack_cues(state: Dictionary) -> void:
 		return
 	var source_point: Vector2 = source_token.position + (source_token.custom_minimum_size * 0.5)
 	var target_point: Vector2 = target_token.position + (target_token.custom_minimum_size * 0.5)
-	var direction: Vector2 = (target_point - source_point).normalized()
-	var arrow_point: Vector2 = target_point - (direction * 34.0)
-	_attack_line.clear_points()
-	_attack_line.add_point(source_point)
-	_attack_line.add_point(arrow_point)
-	_attack_line.default_color = Color(1.0, 0.92, 0.42, 1.0) if String(action.get("actor_side", "hero")) == "hero" else Color(1.0, 0.42, 0.36, 0.96)
+	var line_color := Color(1.0, 0.92, 0.42, 1.0) if String(action.get("actor_side", "hero")) == "hero" else Color(1.0, 0.42, 0.36, 0.96)
+	_attack_curve_points = _build_attack_curve_points(source_point, target_point)
+	_attack_line.default_color = line_color
 	_attack_line.visible = true
 	_attack_line.modulate.a = 1.0
 	if _attack_arrow != null:
-		_attack_arrow.position = arrow_point
-		_attack_arrow.rotation = direction.angle()
-		_attack_arrow.color = _attack_line.default_color
+		_attack_arrow.color = Color(1.0, 0.98, 0.92, 1.0)
 		_attack_arrow.visible = true
 		_attack_arrow.modulate.a = 1.0
+	if _attack_arrow_glow != null:
+		_attack_arrow_glow.color = Color(line_color.r, line_color.g, line_color.b, 0.42)
+		_attack_arrow_glow.visible = true
+		_attack_arrow_glow.modulate.a = 1.0
+	_set_attack_cue_progress(0.0)
 	_combat_cue_counts["attack_lines"] = int(_combat_cue_counts.get("attack_lines", 0)) + 1
 	if source_token.has_method("play_action_cue"):
 		source_token.call("play_action_cue", "attack", String(action.get("actor_side", "hero")))
@@ -573,10 +577,14 @@ func _render_attack_cues(state: Dictionary) -> void:
 	if _attack_line_tween != null:
 		_attack_line_tween.kill()
 	_attack_line_tween = create_tween()
-	_attack_line_tween.tween_interval(0.24)
+	_attack_line_tween.set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT)
+	_attack_line_tween.tween_method(Callable(self, "_set_attack_cue_progress"), 0.0, 1.0, 0.28)
+	_attack_line_tween.tween_interval(0.10)
 	_attack_line_tween.parallel().tween_property(_attack_line, "modulate:a", 0.0, 0.48)
 	if _attack_arrow != null:
 		_attack_line_tween.parallel().tween_property(_attack_arrow, "modulate:a", 0.0, 0.48)
+	if _attack_arrow_glow != null:
+		_attack_line_tween.parallel().tween_property(_attack_arrow_glow, "modulate:a", 0.0, 0.48)
 	_attack_line_tween.tween_callback(_hide_attack_line)
 	if source_token.has_method("set_targeted"):
 		source_token.call("set_targeted", true, String(action.get("actor_side", "hero")))
@@ -588,14 +596,36 @@ func _ensure_fx_nodes() -> void:
 	if _attack_line != null:
 		return
 	_attack_line = Line2D.new()
-	_attack_line.width = 8.0
+	_attack_line.width = 9.0
 	_attack_line.z_index = 20
 	_attack_line.antialiased = true
+	_attack_line.begin_cap_mode = Line2D.LINE_CAP_ROUND
+	_attack_line.end_cap_mode = Line2D.LINE_CAP_ROUND
+	_attack_line.joint_mode = Line2D.LINE_JOINT_ROUND
 	_attack_line.visible = false
 	battle_arena.add_child(_attack_line)
+	_attack_arrow_glow = Polygon2D.new()
+	_attack_arrow_glow.polygon = PackedVector2Array([
+		Vector2(12, 0),
+		Vector2(-18, 22),
+		Vector2(-8, 7),
+		Vector2(-58, 0),
+		Vector2(-8, -7),
+		Vector2(-18, -22)
+	])
+	_attack_arrow_glow.z_index = 21
+	_attack_arrow_glow.visible = false
+	battle_arena.add_child(_attack_arrow_glow)
 	_attack_arrow = Polygon2D.new()
-	_attack_arrow.polygon = PackedVector2Array([Vector2(0, 0), Vector2(-30, 14), Vector2(-30, -14)])
-	_attack_arrow.z_index = 21
+	_attack_arrow.polygon = PackedVector2Array([
+		Vector2(10, 0),
+		Vector2(-10, 16),
+		Vector2(-2, 5),
+		Vector2(-42, 0),
+		Vector2(-2, -5),
+		Vector2(-10, -16)
+	])
+	_attack_arrow.z_index = 22
 	_attack_arrow.visible = false
 	battle_arena.add_child(_attack_arrow)
 
@@ -605,6 +635,66 @@ func _hide_attack_line() -> void:
 		_attack_line.visible = false
 	if _attack_arrow != null:
 		_attack_arrow.visible = false
+	if _attack_arrow_glow != null:
+		_attack_arrow_glow.visible = false
+
+
+func _build_attack_curve_points(source_point: Vector2, target_point: Vector2) -> PackedVector2Array:
+	var points: PackedVector2Array = PackedVector2Array()
+	var direction: Vector2 = target_point - source_point
+	var distance: float = direction.length()
+	if distance <= 0.001:
+		points.append(source_point)
+		points.append(target_point)
+		return points
+	var forward: Vector2 = direction.normalized()
+	var normal: Vector2 = Vector2(-forward.y, forward.x)
+	if normal.y > 0.0:
+		normal *= -1.0
+	var arc_height: float = clampf(distance * 0.16, 30.0, 74.0)
+	var control: Vector2 = source_point.lerp(target_point, 0.5) + (normal * arc_height)
+	var sample_count: int = maxi(14, int(distance / 24.0))
+	for i in range(sample_count + 1):
+		var t: float = float(i) / float(sample_count)
+		var a: Vector2 = source_point.lerp(control, t)
+		var b: Vector2 = control.lerp(target_point, t)
+		points.append(a.lerp(b, t))
+	return points
+
+
+func _set_attack_cue_progress(progress: float) -> void:
+	if _attack_line == null or _attack_curve_points.size() < 2:
+		return
+	var clamped: float = clampf(progress, 0.0, 1.0)
+	var scaled_progress: float = clamped * float(_attack_curve_points.size() - 1)
+	var base_index := int(floor(scaled_progress))
+	var next_index: int = mini(base_index + 1, _attack_curve_points.size() - 1)
+	var local_t: float = scaled_progress - float(base_index)
+	var tip_point: Vector2 = _attack_curve_points[base_index].lerp(_attack_curve_points[next_index], local_t)
+	var path: PackedVector2Array = PackedVector2Array()
+	for i in range(base_index + 1):
+		path.append(_attack_curve_points[i])
+	if path.is_empty():
+		path.append(_attack_curve_points[0])
+	if path[path.size() - 1].distance_to(tip_point) > 0.001:
+		path.append(tip_point)
+	if path.size() < 2:
+		path.append(tip_point)
+	_attack_line.points = path
+	_attack_line.visible = true
+	var tangent: Vector2 = (_attack_curve_points[next_index] - _attack_curve_points[base_index]).normalized()
+	if tangent == Vector2.ZERO and path.size() >= 2:
+		tangent = (path[path.size() - 1] - path[path.size() - 2]).normalized()
+	if tangent == Vector2.ZERO:
+		tangent = Vector2.RIGHT
+	if _attack_arrow_glow != null:
+		_attack_arrow_glow.position = tip_point
+		_attack_arrow_glow.rotation = tangent.angle()
+		_attack_arrow_glow.visible = true
+	if _attack_arrow != null:
+		_attack_arrow.position = tip_point
+		_attack_arrow.rotation = tangent.angle()
+		_attack_arrow.visible = true
 
 
 func _update_death_hold(entity_id: String, entity: Dictionary) -> void:

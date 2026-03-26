@@ -1,0 +1,26 @@
+# 默认激活的模型和提供商
+model = "gpt-5.3-codex"
+model_provider = "my-newapi"
+model_reasoning_effort = "high"
+approval_policy = "never"
+sandbox_mode = "danger-full-access"
+preferred_auth_method = "apikey"
+instructions_file = ".codex/instructions.md"
+
+# --- 定义 NewAPI 提供商 ---
+[model_providers.my-newapi]
+name = "NewAPI Aggregator"
+base_url = "https://lgw.weathercn.com/v1"
+env_key = "OPENAI_API_KEY"
+wire_api = "responses"
+
+# --- 多模型切换配置 (Profiles) ---
+[profiles.gpt5_4]
+model = "gpt-5.4"
+model_provider = "my-newapi"
+model_reasoning_effort = "high"
+
+[profiles.o1]
+model = "o1-preview"
+model_provider = "my-newapi"
+model_reasoning_effort = "high"

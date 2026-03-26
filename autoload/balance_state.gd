@@ -45,7 +45,7 @@ const EDITOR_SECTIONS := [
 			{"path": "skills.primary_cooldown", "label": "斩击冷却", "description": "斩击使用后的冷却回合。", "default": 0, "min": 0, "max": 4, "step": 1},
 			{"path": "skills.primary_cost", "label": "斩击灵势消耗", "description": "斩击释放所需的灵势点数。", "default": 1, "min": 0, "max": 4, "step": 1},
 			{"path": "skills.guard_damage_factor", "label": "架盾承伤系数", "description": "架盾生效时敌伤乘数，越低越硬。", "default": 0.22, "min": 0.05, "max": 0.7, "step": 0.01},
-			{"path": "skills.guard_cooldown", "label": "架盾冷却", "description": "架盾进入再次可用前的回合数。", "default": 1, "min": 0, "max": 4, "step": 1},
+			{"path": "skills.guard_cooldown", "label": "架盾冷却", "description": "架盾进入再次可用前的回合数。", "default": 2, "min": 0, "max": 4, "step": 1},
 			{"path": "skills.guard_cost", "label": "架盾灵势消耗", "description": "架盾释放所需的灵势点数。", "default": 1, "min": 0, "max": 3, "step": 1},
 			{"path": "skills.burst_damage_multiplier", "label": "横扫倍率", "description": "祷焰横扫对每个敌人的伤害倍率。", "default": 0.72, "min": 0.2, "max": 1.8, "step": 0.05},
 			{"path": "skills.burst_cooldown", "label": "横扫冷却", "description": "祷焰横扫再次可用前的回合数。", "default": 2, "min": 0, "max": 5, "step": 1},

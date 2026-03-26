@@ -1,0 +1,16 @@
+# 默认激活的模型和提供商
+model = "gpt-5.3-codex"
+model_reasoning_effort = "high"
+approval_policy = "never"
+sandbox_mode = "danger-full-access"
+instructions_file = ".codex/instructions.md"
+
+
+# --- 多模型切换配置 (Profiles) ---
+[profiles.gpt5_4]
+model = "gpt-5.4"
+model_reasoning_effort = "high"
+
+[profiles.o1]
+model = "o1-preview"
+model_reasoning_effort = "high"

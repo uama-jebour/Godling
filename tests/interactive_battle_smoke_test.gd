@@ -136,6 +136,7 @@ func _test_interactive_commands() -> void:
 		defend_state = simulator.apply_enemy_phase(defend_state)
 	while simulator.is_battle_active(open_state) and String(open_state.get("turn_phase", "")) == "enemy":
 		open_state = simulator.apply_enemy_phase(open_state)
+	_assert_true(_skill_cooldown(defend_state, "guard") >= 1, "敌方回合结束后架盾不应立刻回满")
 	_assert_true(
 		float(defend_state.get("hero_hp", 0.0)) > float(open_state.get("hero_hp", 0.0)),
 		"防御应比直接结束回合承受更少伤害"

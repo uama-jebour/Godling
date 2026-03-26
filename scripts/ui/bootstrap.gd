@@ -223,28 +223,28 @@ func _apply_responsive_layout() -> void:
 			map_panel.size_flags_vertical = Control.SIZE_EXPAND_FILL
 			map_panel.size_flags_stretch_ratio = 1.9
 		else:
-			map_panel.custom_minimum_size = Vector2(0, 0) if compact else Vector2(700, 0)
+			map_panel.custom_minimum_size = Vector2(0, 0) if compact else Vector2(840, 0)
 			map_panel.size_flags_vertical = Control.SIZE_EXPAND_FILL if compact else Control.SIZE_FILL
-			map_panel.size_flags_stretch_ratio = 1.0
+			map_panel.size_flags_stretch_ratio = 1.55 if not compact else 1.0
 	if dispatch_panel != null:
 		if mobile_landscape:
 			dispatch_panel.custom_minimum_size = Vector2(400, 0)
 			dispatch_panel.size_flags_vertical = Control.SIZE_EXPAND_FILL
 			dispatch_panel.size_flags_stretch_ratio = 0.76
 		else:
-			dispatch_panel.custom_minimum_size = Vector2(0, 0) if compact else Vector2(530, 0)
+			dispatch_panel.custom_minimum_size = Vector2(0, 0) if compact else Vector2(360, 0)
 			dispatch_panel.size_flags_vertical = Control.SIZE_EXPAND_FILL if compact else Control.SIZE_FILL
-			dispatch_panel.size_flags_stretch_ratio = 1.0
+			dispatch_panel.size_flags_stretch_ratio = 0.72 if not compact else 1.0
 	if map_frame != null:
 		if mobile_runtime:
 			map_frame.custom_minimum_size = Vector2(0, clampf(viewport_size.y * (0.68 if mobile_landscape else 0.34), 280.0, 560.0))
 		else:
-			map_frame.custom_minimum_size = Vector2(0, 360) if compact else Vector2(0, 460)
+			map_frame.custom_minimum_size = Vector2(0, 360) if compact else Vector2(0, 520)
 	if map_surface != null:
 		if mobile_runtime:
 			map_surface.custom_minimum_size = Vector2(0, clampf(map_frame.custom_minimum_size.y - 28.0, 248.0, 472.0))
 		else:
-			map_surface.custom_minimum_size = Vector2(0, 320) if compact else Vector2(0, 432)
+			map_surface.custom_minimum_size = Vector2(0, 320) if compact else Vector2(0, 492)
 	if title_label != null:
 		title_label.add_theme_font_size_override("font_size", 20 if mobile_landscape else (24 if mobile_runtime else 26))
 		title_label.custom_minimum_size = Vector2(0, 32 if mobile_runtime else 38)
