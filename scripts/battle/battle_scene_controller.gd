@@ -20,6 +20,12 @@ const MAIN_ITEM_CARD_LIMIT := 2
 const ACTION_INFO_WIDTH_RATIO := 0.15
 const ACTION_INFO_MIN_WIDTH := 180.0
 const ACTION_INFO_MAX_WIDTH := 260.0
+const ACTION_CARD_FRAME_TEXTURE := preload("res://assets/battle/ui/action_card_frame.svg")
+const ACTION_CARD_SURFACE_TEXTURE := preload("res://output/imagegen/godling-batch1/action-card-surface.png")
+const ARENA_BACKDROP_TEXTURE := preload("res://output/imagegen/godling-batch1/battle-arena-backdrop.png")
+const SKILL_ICON_PRIMARY := preload("res://assets/battle/icons/skill_primary.svg")
+const SKILL_ICON_GUARD := preload("res://assets/battle/icons/skill_guard.svg")
+const SKILL_ICON_BURST := preload("res://assets/battle/icons/skill_burst.svg")
 
 @onready var battle_arena: Control = %BattleArena
 @onready var hero_lane: ColorRect = get_node_or_null("%HeroLane")
@@ -134,6 +140,7 @@ func _ready() -> void:
 	if item_button != null and not item_button.pressed.is_connected(_on_item_pressed):
 		item_button.pressed.connect(_on_item_pressed)
 	_build_action_deck()
+	_apply_generated_art_preview()
 	_bind_drag_sources()
 	_set_interaction_enabled(false)
 	call_deferred("_refresh_layout_after_frame")
@@ -1614,14 +1621,8 @@ func _update_skill_card(
 	cooldown_bar.modulate = Color(0.62, 0.78, 1.0, 1.0)
 	resource_bar.modulate = Color(0.96, 0.74, 0.34, 1.0) if enough_resource else Color(1.0, 0.42, 0.42, 1.0)
 	if icon_node != null:
-		icon_node.texture = DEFAULT_SKILL_ICON
-		match String(skill.get("slot", "")):
-			"guard":
-				icon_node.modulate = Color(0.54, 0.76, 1.0, 1.0)
-			"burst":
-				icon_node.modulate = Color(1.0, 0.62, 0.34, 1.0)
-			_:
-				icon_node.modulate = Color(1.0, 0.84, 0.46, 1.0)
+		icon_node.texture = _skill_icon_texture(String(skill.get("slot", "")))
+		icon_node.modulate = Color.WHITE
 	if cooldown_mask != null:
 		cooldown_mask.color = Color(0.05, 0.07, 0.11, 0.42) if cooldown_remaining > 0 else Color(0.05, 0.07, 0.11, 0.0)
 	if card != null:
@@ -1717,8 +1718,8 @@ func _build_action_deck() -> void:
 	_action_deck_panel = PanelContainer.new()
 	_action_deck_panel.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	var style := StyleBoxFlat.new()
-	style.bg_color = Color(0.12, 0.11, 0.08, 0.96)
-	style.border_color = Color(0.53, 0.42, 0.18, 1.0)
+	style.bg_color = Color(0.13, 0.09, 0.08, 0.96)
+	style.border_color = Color(0.74, 0.60, 0.35, 1.0)
 	style.set_border_width_all(2)
 	style.corner_radius_top_left = 18
 	style.corner_radius_top_right = 18
@@ -1876,12 +1877,42 @@ func _apply_item_card_theme() -> void:
 	_apply_current_action_card_size()
 
 
+func _apply_generated_art_preview() -> void:
+	_apply_generated_arena_backdrop()
+
+
+func _apply_generated_arena_backdrop() -> void:
+	if battle_arena == null:
+		return
+	var backdrop_layer := battle_arena.get_node_or_null("ArenaBackdropArt") as TextureRect
+	if backdrop_layer == null:
+		backdrop_layer = TextureRect.new()
+		backdrop_layer.name = "ArenaBackdropArt"
+		backdrop_layer.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		backdrop_layer.anchor_right = 1.0
+		backdrop_layer.anchor_bottom = 1.0
+		backdrop_layer.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+		backdrop_layer.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_COVERED
+		battle_arena.add_child(backdrop_layer)
+		battle_arena.move_child(backdrop_layer, 0)
+	backdrop_layer.texture = ARENA_BACKDROP_TEXTURE
+	backdrop_layer.modulate = Color(1, 1, 1, 0.66)
+	if hero_lane != null:
+		hero_lane.color = Color(0.33, 0.18, 0.12, 0.12)
+	if enemy_lane != null:
+		enemy_lane.color = Color(0.29, 0.12, 0.12, 0.12)
+	if mid_gap != null:
+		mid_gap.color = Color(0.04, 0.04, 0.06, 0.18)
+	if center_line != null:
+		center_line.color = Color(0.91, 0.78, 0.46, 0.24)
+
+
 func _apply_action_card_chrome(panel: PanelContainer, accent: Color, noise_seed: int) -> void:
 	if panel == null:
 		return
 	var base := StyleBoxFlat.new()
-	base.bg_color = Color(0.10, 0.09, 0.07, 0.97)
-	base.border_color = accent
+	base.bg_color = Color(0.15, 0.10, 0.08, 0.98)
+	base.border_color = accent.lerp(Color(0.84, 0.71, 0.42, 1.0), 0.35)
 	base.set_border_width_all(2)
 	base.corner_radius_top_left = ACTION_CARD_CORNER_RADIUS
 	base.corner_radius_top_right = ACTION_CARD_CORNER_RADIUS
@@ -1904,6 +1935,19 @@ func _ensure_action_card_layers(panel: PanelContainer, accent: Color, noise_seed
 		panel.add_child(top_glow)
 		panel.move_child(top_glow, 0)
 	top_glow.color = Color(accent.r, accent.g, accent.b, 0.12)
+	var surface_layer := panel.get_node_or_null("CardSurface") as TextureRect
+	if surface_layer == null:
+		surface_layer = TextureRect.new()
+		surface_layer.name = "CardSurface"
+		surface_layer.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		surface_layer.anchor_right = 1.0
+		surface_layer.anchor_bottom = 1.0
+		surface_layer.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+		surface_layer.stretch_mode = TextureRect.STRETCH_SCALE
+		panel.add_child(surface_layer)
+		panel.move_child(surface_layer, 1)
+	surface_layer.texture = ACTION_CARD_SURFACE_TEXTURE
+	surface_layer.modulate = Color(1, 1, 1, 0.28)
 	var noise_layer := panel.get_node_or_null("CardNoise") as TextureRect
 	if noise_layer == null:
 		noise_layer = TextureRect.new()
@@ -1911,11 +1955,25 @@ func _ensure_action_card_layers(panel: PanelContainer, accent: Color, noise_seed
 		noise_layer.mouse_filter = Control.MOUSE_FILTER_IGNORE
 		noise_layer.anchor_right = 1.0
 		noise_layer.anchor_bottom = 1.0
+		noise_layer.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
 		noise_layer.stretch_mode = TextureRect.STRETCH_SCALE
 		panel.add_child(noise_layer)
-		panel.move_child(noise_layer, 1)
+		panel.move_child(noise_layer, 2)
 	noise_layer.texture = _card_noise_texture(noise_seed)
 	noise_layer.modulate = Color(0.92, 0.86, 0.70, 0.13)
+	var frame_layer := panel.get_node_or_null("CardFrame") as TextureRect
+	if frame_layer == null:
+		frame_layer = TextureRect.new()
+		frame_layer.name = "CardFrame"
+		frame_layer.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		frame_layer.anchor_right = 1.0
+		frame_layer.anchor_bottom = 1.0
+		frame_layer.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+		frame_layer.stretch_mode = TextureRect.STRETCH_SCALE
+		frame_layer.texture = ACTION_CARD_FRAME_TEXTURE
+		panel.add_child(frame_layer)
+		panel.move_child(frame_layer, 3)
+	frame_layer.modulate = Color(1, 1, 1, 0.92)
 	var rune_stripe := panel.get_node_or_null("CardRuneStripe") as ColorRect
 	if rune_stripe == null:
 		rune_stripe = ColorRect.new()
@@ -1928,8 +1986,19 @@ func _ensure_action_card_layers(panel: PanelContainer, accent: Color, noise_seed
 		rune_stripe.offset_right = -8.0
 		rune_stripe.offset_bottom = -8.0
 		panel.add_child(rune_stripe)
-		panel.move_child(rune_stripe, 2)
-	rune_stripe.color = Color(accent.r, accent.g, accent.b, 0.04)
+		panel.move_child(rune_stripe, 4)
+	rune_stripe.color = Color(accent.r, accent.g, accent.b, 0.06)
+
+
+func _skill_icon_texture(slot_id: String) -> Texture2D:
+	match slot_id:
+		"guard":
+			return SKILL_ICON_GUARD
+		"burst":
+			return SKILL_ICON_BURST
+		"primary":
+			return SKILL_ICON_PRIMARY
+	return DEFAULT_SKILL_ICON
 
 
 func _card_noise_texture(seed: int) -> Texture2D:

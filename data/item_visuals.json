@@ -1,15 +1,15 @@
 {
 	"consumable_field_balm": {
-		"icon_path": "res://icon.svg",
+		"icon_path": "res://assets/battle/icons/consumable_field_balm.svg",
 		"origin": "placeholder",
 		"notes": "Replace with final balm icon when available."
 	},
 	"currency_lumen_mark": {
-		"icon_path": "res://icon.svg",
+		"icon_path": "res://assets/battle/icons/currency_lumen_mark.svg",
 		"origin": "placeholder"
 	},
 	"resource_ash_herb": {
-		"icon_path": "res://icon.svg",
+		"icon_path": "res://assets/battle/icons/resource_ash_herb.svg",
 		"origin": "placeholder"
 	}
 }

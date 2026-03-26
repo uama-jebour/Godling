@@ -1,10 +1,18 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="160" height="160" viewBox="0 0 160 160">
-  <rect width="160" height="160" rx="18" fill="#1a1e2a"/>
-  <ellipse cx="80" cy="136" rx="40" ry="10" fill="#0c0f16" opacity="0.55"/>
-  <path d="M56 54 C60 28, 100 28, 104 54 L108 76 C110 90, 98 102, 80 102 C62 102, 50 90, 52 76 Z" fill="#d6c27a"/>
-  <circle cx="80" cy="52" r="18" fill="#f0dfb0"/>
-  <path d="M66 53 C70 45, 90 45, 94 53" stroke="#6e5636" stroke-width="4" fill="none" stroke-linecap="round"/>
-  <path d="M61 100 L99 100 L112 138 L48 138 Z" fill="#7b3a31"/>
-  <path d="M72 102 L88 102 L92 138 L68 138 Z" fill="#d6c27a" opacity="0.85"/>
-  <rect x="74" y="84" width="12" height="18" rx="5" fill="#f0dfb0"/>
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#231b1c"/>
+      <stop offset="100%" stop-color="#120f12"/>
+    </linearGradient>
+  </defs>
+  <rect width="160" height="160" rx="22" fill="url(#bg)"/>
+  <rect x="6" y="6" width="148" height="148" rx="18" fill="none" stroke="#d2ae69" stroke-opacity="0.88" stroke-width="3"/>
+  <rect x="14" y="14" width="132" height="132" rx="14" fill="none" stroke="#efd79f" stroke-opacity="0.18" stroke-width="1.5"/>
+  <ellipse cx="80" cy="136" rx="42" ry="10" fill="#09090c" opacity="0.58"/>
+  <path d="M52 98 C58 70, 102 70, 108 98 L116 138 L44 138 Z" fill="#6d2d28"/>
+  <path d="M66 102 H94 L98 138 H62 Z" fill="#d0b16d" opacity="0.86"/>
+  <circle cx="80" cy="50" r="18" fill="#f0ddbb"/>
+  <path d="M62 55 C66 34, 94 34, 98 55" fill="none" stroke="#d6ba79" stroke-width="6" stroke-linecap="round"/>
+  <path d="M69 76 C73 72, 87 72, 91 76" fill="none" stroke="#8e6739" stroke-width="4" stroke-linecap="round"/>
+  <rect x="28" y="18" width="52" height="18" rx="9" fill="#d4b46f" fill-opacity="0.16"/>
 </svg>

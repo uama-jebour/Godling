@@ -1,38 +1,38 @@
 {
 	"hero_pilgrim_a01": {
-		"portrait_path": "res://assets/battle/placeholders/hero_pilgrim_a01.svg",
-		"icon_path": "res://icon.svg",
+		"portrait_path": "res://output/imagegen/godling-portraits-v2/hero-pilgrim-a01-shadow.png",
+		"icon_path": "res://assets/battle/icons/hero_pilgrim_a01.svg",
 		"portrait_scale": 1.0,
 		"x_offset": 0.0,
 		"y_offset": 0.0,
-		"origin": "placeholder",
-		"notes": "Replace with final hero battle portrait when available."
+		"origin": "azure-imagegen-preview",
+		"notes": "Previewing generated hero portrait directly in battle UI."
 	},
 	"enemy_hollow_deacon": {
-		"portrait_path": "res://assets/battle/placeholders/enemy_hollow_deacon.svg",
-		"icon_path": "res://icon.svg",
+		"portrait_path": "res://output/imagegen/godling-portraits-v2/enemy-hollow-deacon-v2.png",
+		"icon_path": "res://assets/battle/icons/enemy_hollow_deacon.svg",
 		"portrait_scale": 1.0,
 		"x_offset": 0.0,
 		"y_offset": 0.0,
-		"origin": "placeholder",
-		"notes": "Replace with final enemy portrait when available."
+		"origin": "azure-imagegen-preview",
+		"notes": "Previewing generated enemy portrait directly in battle UI."
 	},
 	"enemy_ashen_hunter": {
-		"portrait_path": "res://assets/battle/placeholders/enemy_ashen_hunter.svg",
-		"icon_path": "res://icon.svg",
+		"portrait_path": "res://output/imagegen/godling-portraits-v2/enemy-ashen-hunter-v2.png",
+		"icon_path": "res://assets/battle/icons/enemy_ashen_hunter.svg",
 		"portrait_scale": 1.0,
 		"x_offset": 0.0,
 		"y_offset": 0.0,
-		"origin": "placeholder",
-		"notes": "Replace with final enemy portrait when available."
+		"origin": "azure-imagegen-preview",
+		"notes": "Previewing generated enemy portrait directly in battle UI."
 	},
 	"enemy_demon_stalker": {
-		"portrait_path": "res://assets/battle/placeholders/enemy_demon_stalker.svg",
-		"icon_path": "res://icon.svg",
+		"portrait_path": "res://output/imagegen/godling-portraits-v2/enemy-demon-stalker-v2.png",
+		"icon_path": "res://assets/battle/icons/enemy_demon_stalker.svg",
 		"portrait_scale": 1.0,
 		"x_offset": 0.0,
 		"y_offset": 0.0,
-		"origin": "placeholder",
-		"notes": "Replace with final enemy portrait when available."
+		"origin": "azure-imagegen-preview",
+		"notes": "Previewing generated enemy portrait directly in battle UI."
 	}
 }
