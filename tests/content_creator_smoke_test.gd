@@ -22,6 +22,7 @@ func _run_suite() -> void:
 	_test_create_enemy()
 	_test_link_item_to_loot_table()
 	_test_link_enemy_to_battle()
+	_test_link_loot_table_to_event_reward()
 	_test_delete_created_content_cleans_links()
 	_test_create_hero()
 	_restore_files()
@@ -180,6 +181,52 @@ func _test_link_enemy_to_battle() -> void:
 		_assert_true(count_range.size() >= 2 and int(count_range[0]) == 1 and int(count_range[1]) == 3, "挂入 battle 后的数量区间应生效")
 		break
 	_assert_true(found, "挂入后应能在 battle 编组中看到自定义敌人")
+
+
+func _test_link_loot_table_to_event_reward() -> void:
+	var root_result: Dictionary = _balance_state().link_loot_table_to_event_reward({
+		"event_id": "event_a01_random_bridge_cache",
+		"loot_table_id": "loot_table_a02_basic_field",
+		"rolls": 2
+	})
+	_assert_true(bool(root_result.get("ok", false)), "将 loot table 挂入事件主奖励应成功")
+	var root_event: Dictionary = _content_db().get_event("event_a01_random_bridge_cache")
+	var root_found := false
+	for loot_value in root_event.get("reward_package", {}).get("loot_tables", []):
+		if typeof(loot_value) != TYPE_DICTIONARY:
+			continue
+		var loot_ref: Dictionary = loot_value
+		if String(loot_ref.get("id", "")) != "loot_table_a02_basic_field":
+			continue
+		root_found = true
+		_assert_true(int(loot_ref.get("rolls", 0)) == 2, "事件主奖励挂载的 loot rolls 应生效")
+		break
+	_assert_true(root_found, "事件主奖励应能看到挂入的 loot table")
+
+	var option_result: Dictionary = _balance_state().link_loot_table_to_event_reward({
+		"event_id": "event_a01_fixed_crossing_log",
+		"option_index": 0,
+		"loot_table_id": "loot_table_a02_basic_field",
+		"rolls": 1
+	})
+	_assert_true(bool(option_result.get("ok", false)), "将 loot table 挂入事件选项奖励应成功")
+	var option_event: Dictionary = _content_db().get_event("event_a01_fixed_crossing_log")
+	var option_list: Array = option_event.get("option_list", [])
+	_assert_true(option_list.size() > 0 and typeof(option_list[0]) == TYPE_DICTIONARY, "挂载后目标事件应包含可读取的选项奖励")
+	if option_list.size() <= 0 or typeof(option_list[0]) != TYPE_DICTIONARY:
+		return
+	var option_def: Dictionary = option_list[0]
+	var option_found := false
+	for loot_value in option_def.get("reward_package", {}).get("loot_tables", []):
+		if typeof(loot_value) != TYPE_DICTIONARY:
+			continue
+		var loot_ref: Dictionary = loot_value
+		if String(loot_ref.get("id", "")) != "loot_table_a02_basic_field":
+			continue
+		option_found = true
+		_assert_true(int(loot_ref.get("rolls", 0)) == 1, "事件选项奖励挂载的 loot rolls 应生效")
+		break
+	_assert_true(option_found, "事件选项奖励应能看到挂入的 loot table")
 
 
 func _test_delete_created_content_cleans_links() -> void:

@@ -288,16 +288,25 @@ layout_mode = 2
 theme_override_font_sizes/font_size = 15
 text = "当前目标：未选择"
 
-[node name="CommandStrip" type="HBoxContainer" parent="BattleUI/ShellMargin/ModalPanel/PanelMargin/RootVBox/ActionBar"]
+[node name="CommandStripScroll" type="ScrollContainer" parent="BattleUI/ShellMargin/ModalPanel/PanelMargin/RootVBox/ActionBar"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+size_flags_vertical = 3
+horizontal_scroll_mode = 1
+vertical_scroll_mode = 0
+
+[node name="CommandStrip" type="HBoxContainer" parent="BattleUI/ShellMargin/ModalPanel/PanelMargin/RootVBox/ActionBar/CommandStripScroll"]
+unique_name_in_owner = true
 layout_mode = 2
 theme_override_constants/separation = 10
 
-[node name="AttackSkillCard" type="PanelContainer" parent="BattleUI/ShellMargin/ModalPanel/PanelMargin/RootVBox/ActionBar/CommandStrip"]
+[node name="AttackSkillCard" type="PanelContainer" parent="BattleUI/ShellMargin/ModalPanel/PanelMargin/RootVBox/ActionBar/CommandStripScroll/CommandStrip"]
 unique_name_in_owner = true
 layout_mode = 2
 custom_minimum_size = Vector2(190, 0)
 
-[node name="AttackCooldownMask" type="ColorRect" parent="BattleUI/ShellMargin/ModalPanel/PanelMargin/RootVBox/ActionBar/CommandStrip/AttackSkillCard"]
+[node name="AttackCooldownMask" type="ColorRect" parent="BattleUI/ShellMargin/ModalPanel/PanelMargin/RootVBox/ActionBar/CommandStripScroll/CommandStrip/AttackSkillCard"]
 unique_name_in_owner = true
 layout_mode = 1
 anchors_preset = 15
@@ -308,81 +317,83 @@ grow_vertical = 2
 color = Color(0.05, 0.07, 0.11, 0.0)
 mouse_filter = 2
 
-[node name="AttackSkillMargin" type="MarginContainer" parent="BattleUI/ShellMargin/ModalPanel/PanelMargin/RootVBox/ActionBar/CommandStrip/AttackSkillCard"]
+[node name="AttackSkillMargin" type="MarginContainer" parent="BattleUI/ShellMargin/ModalPanel/PanelMargin/RootVBox/ActionBar/CommandStripScroll/CommandStrip/AttackSkillCard"]
 layout_mode = 2
 theme_override_constants/margin_left = 10
 theme_override_constants/margin_top = 8
 theme_override_constants/margin_right = 10
 theme_override_constants/margin_bottom = 8
 
-[node name="AttackSkillVBox" type="VBoxContainer" parent="BattleUI/ShellMargin/ModalPanel/PanelMargin/RootVBox/ActionBar/CommandStrip/AttackSkillCard/AttackSkillMargin"]
+[node name="AttackSkillVBox" type="VBoxContainer" parent="BattleUI/ShellMargin/ModalPanel/PanelMargin/RootVBox/ActionBar/CommandStripScroll/CommandStrip/AttackSkillCard/AttackSkillMargin"]
 layout_mode = 2
 theme_override_constants/separation = 4
 
-[node name="AttackHeadRow" type="HBoxContainer" parent="BattleUI/ShellMargin/ModalPanel/PanelMargin/RootVBox/ActionBar/CommandStrip/AttackSkillCard/AttackSkillMargin/AttackSkillVBox"]
+[node name="AttackHeadRow" type="HBoxContainer" parent="BattleUI/ShellMargin/ModalPanel/PanelMargin/RootVBox/ActionBar/CommandStripScroll/CommandStrip/AttackSkillCard/AttackSkillMargin/AttackSkillVBox"]
 layout_mode = 2
 theme_override_constants/separation = 8
 
-[node name="AttackSkillIcon" type="TextureRect" parent="BattleUI/ShellMargin/ModalPanel/PanelMargin/RootVBox/ActionBar/CommandStrip/AttackSkillCard/AttackSkillMargin/AttackSkillVBox/AttackHeadRow"]
+[node name="AttackSkillIcon" type="TextureRect" parent="BattleUI/ShellMargin/ModalPanel/PanelMargin/RootVBox/ActionBar/CommandStripScroll/CommandStrip/AttackSkillCard/AttackSkillMargin/AttackSkillVBox/AttackHeadRow"]
 unique_name_in_owner = true
 custom_minimum_size = Vector2(24, 24)
 layout_mode = 2
 expand_mode = 1
 stretch_mode = 5
 
-[node name="AttackButton" type="Button" parent="BattleUI/ShellMargin/ModalPanel/PanelMargin/RootVBox/ActionBar/CommandStrip/AttackSkillCard/AttackSkillMargin/AttackSkillVBox/AttackHeadRow"]
+[node name="AttackButton" type="Label" parent="BattleUI/ShellMargin/ModalPanel/PanelMargin/RootVBox/ActionBar/CommandStripScroll/CommandStrip/AttackSkillCard/AttackSkillMargin/AttackSkillVBox/AttackHeadRow"]
 unique_name_in_owner = true
 custom_minimum_size = Vector2(0, 38)
 layout_mode = 2
 size_flags_horizontal = 3
 theme_override_font_sizes/font_size = 16
 text = "技能·斩击"
-[node name="AttackMetaLabel" type="Label" parent="BattleUI/ShellMargin/ModalPanel/PanelMargin/RootVBox/ActionBar/CommandStrip/AttackSkillCard/AttackSkillMargin/AttackSkillVBox"]
+[node name="AttackMetaLabel" type="Label" parent="BattleUI/ShellMargin/ModalPanel/PanelMargin/RootVBox/ActionBar/CommandStripScroll/CommandStrip/AttackSkillCard/AttackSkillMargin/AttackSkillVBox"]
 unique_name_in_owner = true
 layout_mode = 2
 theme_override_font_sizes/font_size = 12
 text = "冷却正常 | 灵势 1"
 
-[node name="AttackCooldownRow" type="HBoxContainer" parent="BattleUI/ShellMargin/ModalPanel/PanelMargin/RootVBox/ActionBar/CommandStrip/AttackSkillCard/AttackSkillMargin/AttackSkillVBox"]
+[node name="AttackCooldownRow" type="HBoxContainer" parent="BattleUI/ShellMargin/ModalPanel/PanelMargin/RootVBox/ActionBar/CommandStripScroll/CommandStrip/AttackSkillCard/AttackSkillMargin/AttackSkillVBox"]
 layout_mode = 2
 theme_override_constants/separation = 6
 
-[node name="AttackCooldownTag" type="Label" parent="BattleUI/ShellMargin/ModalPanel/PanelMargin/RootVBox/ActionBar/CommandStrip/AttackSkillCard/AttackSkillMargin/AttackSkillVBox/AttackCooldownRow"]
+[node name="AttackCooldownTag" type="Label" parent="BattleUI/ShellMargin/ModalPanel/PanelMargin/RootVBox/ActionBar/CommandStripScroll/CommandStrip/AttackSkillCard/AttackSkillMargin/AttackSkillVBox/AttackCooldownRow"]
+unique_name_in_owner = true
 layout_mode = 2
 custom_minimum_size = Vector2(26, 0)
 theme_override_font_sizes/font_size = 11
 text = "CD"
 
-[node name="AttackCooldownBar" type="ProgressBar" parent="BattleUI/ShellMargin/ModalPanel/PanelMargin/RootVBox/ActionBar/CommandStrip/AttackSkillCard/AttackSkillMargin/AttackSkillVBox/AttackCooldownRow"]
+[node name="AttackCooldownBar" type="ProgressBar" parent="BattleUI/ShellMargin/ModalPanel/PanelMargin/RootVBox/ActionBar/CommandStripScroll/CommandStrip/AttackSkillCard/AttackSkillMargin/AttackSkillVBox/AttackCooldownRow"]
 unique_name_in_owner = true
 custom_minimum_size = Vector2(0, 8)
 layout_mode = 2
 size_flags_horizontal = 3
 show_percentage = false
 
-[node name="AttackResourceRow" type="HBoxContainer" parent="BattleUI/ShellMargin/ModalPanel/PanelMargin/RootVBox/ActionBar/CommandStrip/AttackSkillCard/AttackSkillMargin/AttackSkillVBox"]
+[node name="AttackResourceRow" type="HBoxContainer" parent="BattleUI/ShellMargin/ModalPanel/PanelMargin/RootVBox/ActionBar/CommandStripScroll/CommandStrip/AttackSkillCard/AttackSkillMargin/AttackSkillVBox"]
 layout_mode = 2
 theme_override_constants/separation = 6
 
-[node name="AttackResourceTag" type="Label" parent="BattleUI/ShellMargin/ModalPanel/PanelMargin/RootVBox/ActionBar/CommandStrip/AttackSkillCard/AttackSkillMargin/AttackSkillVBox/AttackResourceRow"]
+[node name="AttackResourceTag" type="Label" parent="BattleUI/ShellMargin/ModalPanel/PanelMargin/RootVBox/ActionBar/CommandStripScroll/CommandStrip/AttackSkillCard/AttackSkillMargin/AttackSkillVBox/AttackResourceRow"]
+unique_name_in_owner = true
 layout_mode = 2
 custom_minimum_size = Vector2(26, 0)
 theme_override_font_sizes/font_size = 11
 text = "灵势"
 
-[node name="AttackResourceBar" type="ProgressBar" parent="BattleUI/ShellMargin/ModalPanel/PanelMargin/RootVBox/ActionBar/CommandStrip/AttackSkillCard/AttackSkillMargin/AttackSkillVBox/AttackResourceRow"]
+[node name="AttackResourceBar" type="ProgressBar" parent="BattleUI/ShellMargin/ModalPanel/PanelMargin/RootVBox/ActionBar/CommandStripScroll/CommandStrip/AttackSkillCard/AttackSkillMargin/AttackSkillVBox/AttackResourceRow"]
 unique_name_in_owner = true
 custom_minimum_size = Vector2(0, 8)
 layout_mode = 2
 size_flags_horizontal = 3
 show_percentage = false
 
-[node name="DefendSkillCard" type="PanelContainer" parent="BattleUI/ShellMargin/ModalPanel/PanelMargin/RootVBox/ActionBar/CommandStrip"]
+[node name="DefendSkillCard" type="PanelContainer" parent="BattleUI/ShellMargin/ModalPanel/PanelMargin/RootVBox/ActionBar/CommandStripScroll/CommandStrip"]
 unique_name_in_owner = true
 layout_mode = 2
 custom_minimum_size = Vector2(190, 0)
 
-[node name="DefendCooldownMask" type="ColorRect" parent="BattleUI/ShellMargin/ModalPanel/PanelMargin/RootVBox/ActionBar/CommandStrip/DefendSkillCard"]
+[node name="DefendCooldownMask" type="ColorRect" parent="BattleUI/ShellMargin/ModalPanel/PanelMargin/RootVBox/ActionBar/CommandStripScroll/CommandStrip/DefendSkillCard"]
 unique_name_in_owner = true
 layout_mode = 1
 anchors_preset = 15
@@ -393,29 +404,29 @@ grow_vertical = 2
 color = Color(0.05, 0.07, 0.11, 0.0)
 mouse_filter = 2
 
-[node name="DefendSkillMargin" type="MarginContainer" parent="BattleUI/ShellMargin/ModalPanel/PanelMargin/RootVBox/ActionBar/CommandStrip/DefendSkillCard"]
+[node name="DefendSkillMargin" type="MarginContainer" parent="BattleUI/ShellMargin/ModalPanel/PanelMargin/RootVBox/ActionBar/CommandStripScroll/CommandStrip/DefendSkillCard"]
 layout_mode = 2
 theme_override_constants/margin_left = 10
 theme_override_constants/margin_top = 8
 theme_override_constants/margin_right = 10
 theme_override_constants/margin_bottom = 8
 
-[node name="DefendSkillVBox" type="VBoxContainer" parent="BattleUI/ShellMargin/ModalPanel/PanelMargin/RootVBox/ActionBar/CommandStrip/DefendSkillCard/DefendSkillMargin"]
+[node name="DefendSkillVBox" type="VBoxContainer" parent="BattleUI/ShellMargin/ModalPanel/PanelMargin/RootVBox/ActionBar/CommandStripScroll/CommandStrip/DefendSkillCard/DefendSkillMargin"]
 layout_mode = 2
 theme_override_constants/separation = 4
 
-[node name="DefendHeadRow" type="HBoxContainer" parent="BattleUI/ShellMargin/ModalPanel/PanelMargin/RootVBox/ActionBar/CommandStrip/DefendSkillCard/DefendSkillMargin/DefendSkillVBox"]
+[node name="DefendHeadRow" type="HBoxContainer" parent="BattleUI/ShellMargin/ModalPanel/PanelMargin/RootVBox/ActionBar/CommandStripScroll/CommandStrip/DefendSkillCard/DefendSkillMargin/DefendSkillVBox"]
 layout_mode = 2
 theme_override_constants/separation = 8
 
-[node name="DefendSkillIcon" type="TextureRect" parent="BattleUI/ShellMargin/ModalPanel/PanelMargin/RootVBox/ActionBar/CommandStrip/DefendSkillCard/DefendSkillMargin/DefendSkillVBox/DefendHeadRow"]
+[node name="DefendSkillIcon" type="TextureRect" parent="BattleUI/ShellMargin/ModalPanel/PanelMargin/RootVBox/ActionBar/CommandStripScroll/CommandStrip/DefendSkillCard/DefendSkillMargin/DefendSkillVBox/DefendHeadRow"]
 unique_name_in_owner = true
 custom_minimum_size = Vector2(24, 24)
 layout_mode = 2
 expand_mode = 1
 stretch_mode = 5
 
-[node name="DefendButton" type="Button" parent="BattleUI/ShellMargin/ModalPanel/PanelMargin/RootVBox/ActionBar/CommandStrip/DefendSkillCard/DefendSkillMargin/DefendSkillVBox/DefendHeadRow"]
+[node name="DefendButton" type="Label" parent="BattleUI/ShellMargin/ModalPanel/PanelMargin/RootVBox/ActionBar/CommandStripScroll/CommandStrip/DefendSkillCard/DefendSkillMargin/DefendSkillVBox/DefendHeadRow"]
 unique_name_in_owner = true
 custom_minimum_size = Vector2(0, 38)
 layout_mode = 2
@@ -423,81 +434,206 @@ size_flags_horizontal = 3
 theme_override_font_sizes/font_size = 16
 text = "技能·架盾"
 
-[node name="DefendMetaLabel" type="Label" parent="BattleUI/ShellMargin/ModalPanel/PanelMargin/RootVBox/ActionBar/CommandStrip/DefendSkillCard/DefendSkillMargin/DefendSkillVBox"]
+[node name="DefendMetaLabel" type="Label" parent="BattleUI/ShellMargin/ModalPanel/PanelMargin/RootVBox/ActionBar/CommandStripScroll/CommandStrip/DefendSkillCard/DefendSkillMargin/DefendSkillVBox"]
 unique_name_in_owner = true
 layout_mode = 2
 theme_override_font_sizes/font_size = 12
 text = "冷却正常 | 灵势 1"
 
-[node name="DefendCooldownRow" type="HBoxContainer" parent="BattleUI/ShellMargin/ModalPanel/PanelMargin/RootVBox/ActionBar/CommandStrip/DefendSkillCard/DefendSkillMargin/DefendSkillVBox"]
+[node name="DefendCooldownRow" type="HBoxContainer" parent="BattleUI/ShellMargin/ModalPanel/PanelMargin/RootVBox/ActionBar/CommandStripScroll/CommandStrip/DefendSkillCard/DefendSkillMargin/DefendSkillVBox"]
 layout_mode = 2
 theme_override_constants/separation = 6
 
-[node name="DefendCooldownTag" type="Label" parent="BattleUI/ShellMargin/ModalPanel/PanelMargin/RootVBox/ActionBar/CommandStrip/DefendSkillCard/DefendSkillMargin/DefendSkillVBox/DefendCooldownRow"]
+[node name="DefendCooldownTag" type="Label" parent="BattleUI/ShellMargin/ModalPanel/PanelMargin/RootVBox/ActionBar/CommandStripScroll/CommandStrip/DefendSkillCard/DefendSkillMargin/DefendSkillVBox/DefendCooldownRow"]
+unique_name_in_owner = true
 layout_mode = 2
 custom_minimum_size = Vector2(26, 0)
 theme_override_font_sizes/font_size = 11
 text = "CD"
 
-[node name="DefendCooldownBar" type="ProgressBar" parent="BattleUI/ShellMargin/ModalPanel/PanelMargin/RootVBox/ActionBar/CommandStrip/DefendSkillCard/DefendSkillMargin/DefendSkillVBox/DefendCooldownRow"]
+[node name="DefendCooldownBar" type="ProgressBar" parent="BattleUI/ShellMargin/ModalPanel/PanelMargin/RootVBox/ActionBar/CommandStripScroll/CommandStrip/DefendSkillCard/DefendSkillMargin/DefendSkillVBox/DefendCooldownRow"]
 unique_name_in_owner = true
 custom_minimum_size = Vector2(0, 8)
 layout_mode = 2
 size_flags_horizontal = 3
 show_percentage = false
 
-[node name="DefendResourceRow" type="HBoxContainer" parent="BattleUI/ShellMargin/ModalPanel/PanelMargin/RootVBox/ActionBar/CommandStrip/DefendSkillCard/DefendSkillMargin/DefendSkillVBox"]
+[node name="DefendResourceRow" type="HBoxContainer" parent="BattleUI/ShellMargin/ModalPanel/PanelMargin/RootVBox/ActionBar/CommandStripScroll/CommandStrip/DefendSkillCard/DefendSkillMargin/DefendSkillVBox"]
 layout_mode = 2
 theme_override_constants/separation = 6
 
-[node name="DefendResourceTag" type="Label" parent="BattleUI/ShellMargin/ModalPanel/PanelMargin/RootVBox/ActionBar/CommandStrip/DefendSkillCard/DefendSkillMargin/DefendSkillVBox/DefendResourceRow"]
+[node name="DefendResourceTag" type="Label" parent="BattleUI/ShellMargin/ModalPanel/PanelMargin/RootVBox/ActionBar/CommandStripScroll/CommandStrip/DefendSkillCard/DefendSkillMargin/DefendSkillVBox/DefendResourceRow"]
+unique_name_in_owner = true
 layout_mode = 2
 custom_minimum_size = Vector2(26, 0)
 theme_override_font_sizes/font_size = 11
 text = "灵势"
 
-[node name="DefendResourceBar" type="ProgressBar" parent="BattleUI/ShellMargin/ModalPanel/PanelMargin/RootVBox/ActionBar/CommandStrip/DefendSkillCard/DefendSkillMargin/DefendSkillVBox/DefendResourceRow"]
+[node name="DefendResourceBar" type="ProgressBar" parent="BattleUI/ShellMargin/ModalPanel/PanelMargin/RootVBox/ActionBar/CommandStripScroll/CommandStrip/DefendSkillCard/DefendSkillMargin/DefendSkillVBox/DefendResourceRow"]
 unique_name_in_owner = true
 custom_minimum_size = Vector2(0, 8)
 layout_mode = 2
 size_flags_horizontal = 3
 show_percentage = false
 
-[node name="WaitButton" type="Button" parent="BattleUI/ShellMargin/ModalPanel/PanelMargin/RootVBox/ActionBar/CommandStrip"]
+[node name="ItemCardRack" type="HBoxContainer" parent="BattleUI/ShellMargin/ModalPanel/PanelMargin/RootVBox/ActionBar/CommandStripScroll/CommandStrip"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_constants/separation = 10
+
+[node name="ItemCardA" type="PanelContainer" parent="BattleUI/ShellMargin/ModalPanel/PanelMargin/RootVBox/ActionBar/CommandStripScroll/CommandStrip/ItemCardRack"]
+unique_name_in_owner = true
+layout_mode = 2
+custom_minimum_size = Vector2(190, 0)
+
+[node name="ItemCardAMargin" type="MarginContainer" parent="BattleUI/ShellMargin/ModalPanel/PanelMargin/RootVBox/ActionBar/CommandStripScroll/CommandStrip/ItemCardRack/ItemCardA"]
+layout_mode = 2
+theme_override_constants/margin_left = 10
+theme_override_constants/margin_top = 8
+theme_override_constants/margin_right = 10
+theme_override_constants/margin_bottom = 8
+
+[node name="ItemCardAVBox" type="VBoxContainer" parent="BattleUI/ShellMargin/ModalPanel/PanelMargin/RootVBox/ActionBar/CommandStripScroll/CommandStrip/ItemCardRack/ItemCardA/ItemCardAMargin"]
+layout_mode = 2
+theme_override_constants/separation = 4
+
+[node name="ItemCardAHeadRow" type="HBoxContainer" parent="BattleUI/ShellMargin/ModalPanel/PanelMargin/RootVBox/ActionBar/CommandStripScroll/CommandStrip/ItemCardRack/ItemCardA/ItemCardAMargin/ItemCardAVBox"]
+layout_mode = 2
+theme_override_constants/separation = 8
+
+[node name="ItemCardAIcon" type="TextureRect" parent="BattleUI/ShellMargin/ModalPanel/PanelMargin/RootVBox/ActionBar/CommandStripScroll/CommandStrip/ItemCardRack/ItemCardA/ItemCardAMargin/ItemCardAVBox/ItemCardAHeadRow"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(24, 24)
+layout_mode = 2
+expand_mode = 1
+stretch_mode = 5
+
+[node name="ItemCardATitle" type="Label" parent="BattleUI/ShellMargin/ModalPanel/PanelMargin/RootVBox/ActionBar/CommandStripScroll/CommandStrip/ItemCardRack/ItemCardA/ItemCardAMargin/ItemCardAVBox/ItemCardAHeadRow"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(0, 38)
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_font_sizes/font_size = 16
+text = "道具槽 A"
+
+[node name="ItemCardADesc" type="Label" parent="BattleUI/ShellMargin/ModalPanel/PanelMargin/RootVBox/ActionBar/CommandStripScroll/CommandStrip/ItemCardRack/ItemCardA/ItemCardAMargin/ItemCardAVBox"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_font_sizes/font_size = 12
+text = "暂无可用道具。"
+
+[node name="ItemCardAMetaRow" type="HBoxContainer" parent="BattleUI/ShellMargin/ModalPanel/PanelMargin/RootVBox/ActionBar/CommandStripScroll/CommandStrip/ItemCardRack/ItemCardA/ItemCardAMargin/ItemCardAVBox"]
+layout_mode = 2
+theme_override_constants/separation = 6
+
+[node name="ItemCardAMeta" type="Label" parent="BattleUI/ShellMargin/ModalPanel/PanelMargin/RootVBox/ActionBar/CommandStripScroll/CommandStrip/ItemCardRack/ItemCardA/ItemCardAMargin/ItemCardAVBox/ItemCardAMetaRow"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_font_sizes/font_size = 11
+text = "数量 x0 | 目标 -"
+
+[node name="ItemCardAUseButton" type="Button" parent="BattleUI/ShellMargin/ModalPanel/PanelMargin/RootVBox/ActionBar/CommandStripScroll/CommandStrip/ItemCardRack/ItemCardA/ItemCardAMargin/ItemCardAVBox/ItemCardAMetaRow"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(56, 28)
+layout_mode = 2
+theme_override_font_sizes/font_size = 13
+text = "使用"
+
+[node name="ItemCardB" type="PanelContainer" parent="BattleUI/ShellMargin/ModalPanel/PanelMargin/RootVBox/ActionBar/CommandStripScroll/CommandStrip/ItemCardRack"]
+unique_name_in_owner = true
+layout_mode = 2
+custom_minimum_size = Vector2(190, 0)
+
+[node name="ItemCardBMargin" type="MarginContainer" parent="BattleUI/ShellMargin/ModalPanel/PanelMargin/RootVBox/ActionBar/CommandStripScroll/CommandStrip/ItemCardRack/ItemCardB"]
+layout_mode = 2
+theme_override_constants/margin_left = 10
+theme_override_constants/margin_top = 8
+theme_override_constants/margin_right = 10
+theme_override_constants/margin_bottom = 8
+
+[node name="ItemCardBVBox" type="VBoxContainer" parent="BattleUI/ShellMargin/ModalPanel/PanelMargin/RootVBox/ActionBar/CommandStripScroll/CommandStrip/ItemCardRack/ItemCardB/ItemCardBMargin"]
+layout_mode = 2
+theme_override_constants/separation = 4
+
+[node name="ItemCardBHeadRow" type="HBoxContainer" parent="BattleUI/ShellMargin/ModalPanel/PanelMargin/RootVBox/ActionBar/CommandStripScroll/CommandStrip/ItemCardRack/ItemCardB/ItemCardBMargin/ItemCardBVBox"]
+layout_mode = 2
+theme_override_constants/separation = 8
+
+[node name="ItemCardBIcon" type="TextureRect" parent="BattleUI/ShellMargin/ModalPanel/PanelMargin/RootVBox/ActionBar/CommandStripScroll/CommandStrip/ItemCardRack/ItemCardB/ItemCardBMargin/ItemCardBVBox/ItemCardBHeadRow"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(24, 24)
+layout_mode = 2
+expand_mode = 1
+stretch_mode = 5
+
+[node name="ItemCardBTitle" type="Label" parent="BattleUI/ShellMargin/ModalPanel/PanelMargin/RootVBox/ActionBar/CommandStripScroll/CommandStrip/ItemCardRack/ItemCardB/ItemCardBMargin/ItemCardBVBox/ItemCardBHeadRow"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(0, 38)
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_font_sizes/font_size = 16
+text = "道具槽 B"
+
+[node name="ItemCardBDesc" type="Label" parent="BattleUI/ShellMargin/ModalPanel/PanelMargin/RootVBox/ActionBar/CommandStripScroll/CommandStrip/ItemCardRack/ItemCardB/ItemCardBMargin/ItemCardBVBox"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_font_sizes/font_size = 12
+text = "暂无可用道具。"
+
+[node name="ItemCardBMetaRow" type="HBoxContainer" parent="BattleUI/ShellMargin/ModalPanel/PanelMargin/RootVBox/ActionBar/CommandStripScroll/CommandStrip/ItemCardRack/ItemCardB/ItemCardBMargin/ItemCardBVBox"]
+layout_mode = 2
+theme_override_constants/separation = 6
+
+[node name="ItemCardBMeta" type="Label" parent="BattleUI/ShellMargin/ModalPanel/PanelMargin/RootVBox/ActionBar/CommandStripScroll/CommandStrip/ItemCardRack/ItemCardB/ItemCardBMargin/ItemCardBVBox/ItemCardBMetaRow"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_font_sizes/font_size = 11
+text = "数量 x0 | 目标 -"
+
+[node name="ItemCardBUseButton" type="Button" parent="BattleUI/ShellMargin/ModalPanel/PanelMargin/RootVBox/ActionBar/CommandStripScroll/CommandStrip/ItemCardRack/ItemCardB/ItemCardBMargin/ItemCardBVBox/ItemCardBMetaRow"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(56, 28)
+layout_mode = 2
+theme_override_font_sizes/font_size = 13
+text = "使用"
+
+[node name="WaitButton" type="Button" parent="BattleUI/ShellMargin/ModalPanel/PanelMargin/RootVBox/ActionBar/CommandStripScroll/CommandStrip"]
 unique_name_in_owner = true
 custom_minimum_size = Vector2(116, 56)
 layout_mode = 2
 theme_override_font_sizes/font_size = 16
 text = "结束回合"
 
-[node name="ItemButton" type="Button" parent="BattleUI/ShellMargin/ModalPanel/PanelMargin/RootVBox/ActionBar/CommandStrip"]
+[node name="ItemButton" type="Button" parent="BattleUI/ShellMargin/ModalPanel/PanelMargin/RootVBox/ActionBar/CommandStripScroll/CommandStrip"]
 unique_name_in_owner = true
 custom_minimum_size = Vector2(146, 56)
 layout_mode = 2
 theme_override_font_sizes/font_size = 16
-text = "选择道具"
+text = "更多道具"
 
-[node name="ItemPopupPanel" type="PopupPanel" parent="BattleUI/ShellMargin/ModalPanel/PanelMargin/RootVBox/ActionBar/CommandStrip/ItemButton"]
+[node name="ItemPopupPanel" type="PopupPanel" parent="BattleUI/ShellMargin/ModalPanel/PanelMargin/RootVBox/ActionBar/CommandStripScroll/CommandStrip/ItemButton"]
 unique_name_in_owner = true
 
-[node name="ItemPopupMargin" type="MarginContainer" parent="BattleUI/ShellMargin/ModalPanel/PanelMargin/RootVBox/ActionBar/CommandStrip/ItemButton/ItemPopupPanel"]
+[node name="ItemPopupMargin" type="MarginContainer" parent="BattleUI/ShellMargin/ModalPanel/PanelMargin/RootVBox/ActionBar/CommandStripScroll/CommandStrip/ItemButton/ItemPopupPanel"]
 layout_mode = 2
 theme_override_constants/margin_left = 14
 theme_override_constants/margin_top = 12
 theme_override_constants/margin_right = 14
 theme_override_constants/margin_bottom = 12
 
-[node name="ItemPopupVBox" type="VBoxContainer" parent="BattleUI/ShellMargin/ModalPanel/PanelMargin/RootVBox/ActionBar/CommandStrip/ItemButton/ItemPopupPanel/ItemPopupMargin"]
+[node name="ItemPopupVBox" type="VBoxContainer" parent="BattleUI/ShellMargin/ModalPanel/PanelMargin/RootVBox/ActionBar/CommandStripScroll/CommandStrip/ItemButton/ItemPopupPanel/ItemPopupMargin"]
 layout_mode = 2
 custom_minimum_size = Vector2(320, 0)
 theme_override_constants/separation = 8
 
-[node name="ItemPopupTitle" type="Label" parent="BattleUI/ShellMargin/ModalPanel/PanelMargin/RootVBox/ActionBar/CommandStrip/ItemButton/ItemPopupPanel/ItemPopupMargin/ItemPopupVBox"]
+[node name="ItemPopupTitle" type="Label" parent="BattleUI/ShellMargin/ModalPanel/PanelMargin/RootVBox/ActionBar/CommandStripScroll/CommandStrip/ItemButton/ItemPopupPanel/ItemPopupMargin/ItemPopupVBox"]
 layout_mode = 2
 theme_override_font_sizes/font_size = 16
 text = "选择战斗道具"
 
-[node name="ItemListVBox" type="VBoxContainer" parent="BattleUI/ShellMargin/ModalPanel/PanelMargin/RootVBox/ActionBar/CommandStrip/ItemButton/ItemPopupPanel/ItemPopupMargin/ItemPopupVBox"]
+[node name="ItemListVBox" type="VBoxContainer" parent="BattleUI/ShellMargin/ModalPanel/PanelMargin/RootVBox/ActionBar/CommandStripScroll/CommandStrip/ItemButton/ItemPopupPanel/ItemPopupMargin/ItemPopupVBox"]
 unique_name_in_owner = true
 layout_mode = 2
 theme_override_constants/separation = 8

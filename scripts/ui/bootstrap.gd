@@ -131,6 +131,10 @@ var _creator_item_loot_table_select: OptionButton
 var _creator_item_link_count_spin: SpinBox
 var _creator_item_link_weight_spin: SpinBox
 var _creator_item_link_prob_spin: SpinBox
+var _creator_item_reward_event_select: OptionButton
+var _creator_item_reward_target_select: OptionButton
+var _creator_item_reward_loot_table_select: OptionButton
+var _creator_item_reward_rolls_spin: SpinBox
 var _creator_enemy_battle_select: OptionButton
 var _creator_enemy_link_count_spin: SpinBox
 var _creator_enemy_link_min_spin: SpinBox
@@ -2241,6 +2245,83 @@ func _build_item_reference_tools() -> Control:
 	labels.add_child(_build_reference_small_label("数量"))
 	labels.add_child(_build_reference_small_label("权重"))
 	labels.add_child(_build_reference_small_label("概率"))
+
+	var divider := HSeparator.new()
+	vbox.add_child(divider)
+
+	var reward_title := Label.new()
+	reward_title.text = "引用挂载：追加到事件奖励"
+	reward_title.add_theme_font_size_override("font_size", 16)
+	vbox.add_child(reward_title)
+
+	var reward_hint := Label.new()
+	reward_hint.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	reward_hint.text = "将指定 loot table 挂入事件主奖励或叙事选项奖励（运行时覆盖，不改 data/*.json 原始文件）。"
+	reward_hint.add_theme_font_size_override("font_size", 13)
+	reward_hint.modulate = Color(0.72, 0.78, 0.9, 0.92)
+	vbox.add_child(reward_hint)
+
+	var reward_row := HBoxContainer.new()
+	reward_row.add_theme_constant_override("separation", 8)
+	vbox.add_child(reward_row)
+
+	_creator_item_reward_event_select = OptionButton.new()
+	_creator_item_reward_event_select.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	_creator_item_reward_event_select.custom_minimum_size = Vector2(260, 40)
+	_creator_item_reward_event_select.item_selected.connect(_on_creator_reward_event_selected)
+	reward_row.add_child(_creator_item_reward_event_select)
+
+	_creator_item_reward_target_select = OptionButton.new()
+	_creator_item_reward_target_select.custom_minimum_size = Vector2(180, 40)
+	reward_row.add_child(_creator_item_reward_target_select)
+
+	_creator_item_reward_loot_table_select = OptionButton.new()
+	_creator_item_reward_loot_table_select.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	_creator_item_reward_loot_table_select.custom_minimum_size = Vector2(260, 40)
+	reward_row.add_child(_creator_item_reward_loot_table_select)
+
+	_creator_item_reward_rolls_spin = _build_reference_spinbox(0, 10, 1, 1)
+	reward_row.add_child(_creator_item_reward_rolls_spin)
+
+	var reward_apply_button := Button.new()
+	reward_apply_button.custom_minimum_size = Vector2(152, 40)
+	reward_apply_button.text = "挂入事件奖励"
+	reward_apply_button.pressed.connect(_on_creator_link_loot_to_event_reward_pressed)
+	reward_row.add_child(reward_apply_button)
+
+	var reward_labels := HBoxContainer.new()
+	reward_labels.add_theme_constant_override("separation", 8)
+	vbox.add_child(reward_labels)
+
+	var reward_label_event := Label.new()
+	reward_label_event.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	reward_label_event.text = "事件"
+	reward_label_event.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	reward_label_event.add_theme_font_size_override("font_size", 12)
+	reward_label_event.modulate = Color(0.72, 0.78, 0.9, 0.88)
+	reward_labels.add_child(reward_label_event)
+
+	var reward_label_target := Label.new()
+	reward_label_target.custom_minimum_size = Vector2(180, 18)
+	reward_label_target.text = "奖励目标"
+	reward_label_target.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	reward_label_target.add_theme_font_size_override("font_size", 12)
+	reward_label_target.modulate = Color(0.72, 0.78, 0.9, 0.88)
+	reward_labels.add_child(reward_label_target)
+
+	var reward_label_loot := Label.new()
+	reward_label_loot.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	reward_label_loot.text = "Loot 表"
+	reward_label_loot.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	reward_label_loot.add_theme_font_size_override("font_size", 12)
+	reward_label_loot.modulate = Color(0.72, 0.78, 0.9, 0.88)
+	reward_labels.add_child(reward_label_loot)
+
+	reward_labels.add_child(_build_reference_small_label("抽取"))
+
+	var reward_spacer := Control.new()
+	reward_spacer.custom_minimum_size = Vector2(152, 18)
+	reward_labels.add_child(reward_spacer)
 	return card
 
 
@@ -2555,6 +2636,55 @@ func _refresh_creator_reference_options() -> void:
 				"label": "%s（%s）" % [table_name, table_id]
 			})
 		_populate_selector(_creator_item_loot_table_select, table_entries, _selector_metadata(_creator_item_loot_table_select), false, "无可用 Loot")
+		if _creator_item_reward_loot_table_select != null:
+			_populate_selector(_creator_item_reward_loot_table_select, table_entries, _selector_metadata(_creator_item_reward_loot_table_select), false, "无可用 Loot")
+	if _creator_item_reward_event_select != null:
+		var event_entries: Array = []
+		for event_value in content.data.get("events", []):
+			if typeof(event_value) != TYPE_DICTIONARY:
+				continue
+			var event_def: Dictionary = event_value
+			var event_id: String = String(event_def.get("id", ""))
+			if event_id.is_empty():
+				continue
+			var event_title: String = String(event_def.get("title", event_id))
+			event_entries.append({
+				"id": event_id,
+				"label": "%s（%s）" % [event_title, event_id]
+			})
+		_populate_selector(_creator_item_reward_event_select, event_entries, _selector_metadata(_creator_item_reward_event_select), false, "无可用事件")
+		_refresh_creator_event_reward_target_options()
+
+
+func _refresh_creator_event_reward_target_options() -> void:
+	if _creator_item_reward_target_select == null:
+		return
+	var event_id: String = _selector_metadata(_creator_item_reward_event_select)
+	var entries: Array = []
+	var content := _content_db()
+	if content != null and not event_id.is_empty():
+		var event_def: Dictionary = content.get_event(event_id)
+		if not event_def.is_empty():
+			entries.append({"id": "root", "label": "主奖励包"})
+			var option_list: Array = event_def.get("option_list", [])
+			for option_index: int in range(option_list.size()):
+				if typeof(option_list[option_index]) != TYPE_DICTIONARY:
+					continue
+				var option_def: Dictionary = option_list[option_index]
+				var option_text: String = String(option_def.get("text", "选项 %d" % [option_index + 1]))
+				entries.append({
+					"id": "option.%d" % option_index,
+					"label": "选项 %d：%s" % [option_index + 1, option_text]
+				})
+	_populate_selector(_creator_item_reward_target_select, entries, _selector_metadata(_creator_item_reward_target_select), false, "无奖励目标")
+
+
+func _creator_reward_target_option_index(target_id: String) -> int:
+	if target_id.begins_with("option."):
+		var index_text := target_id.trim_prefix("option.")
+		if index_text.is_valid_int():
+			return max(0, int(index_text))
+	return -1
 
 
 func _creator_line_value(field_store: Dictionary, key: String) -> String:
@@ -2950,6 +3080,7 @@ func _on_creator_link_enemy_pressed() -> void:
 		return
 	_set_creator_status("enemy", "已挂入 Battle：%s -> %s（%s）" % [unit_id, battle_id, String(result.get("mode", "create"))])
 	_append_log("内容挂载：敌人 %s -> battle %s（%s）。" % [unit_id, battle_id, String(result.get("mode", "create"))])
+	_refresh_creator_lists()
 	_refresh_all()
 
 
@@ -2977,6 +3108,44 @@ func _on_creator_link_item_pressed() -> void:
 		return
 	_set_creator_status("item", "已挂入 Loot：%s -> %s（%s）" % [item_id, loot_table_id, String(result.get("mode", "create"))])
 	_append_log("内容挂载：道具 %s -> loot %s（%s）。" % [item_id, loot_table_id, String(result.get("mode", "create"))])
+	_refresh_creator_lists()
+	_refresh_all()
+
+
+func _on_creator_reward_event_selected(_index: int) -> void:
+	_refresh_creator_event_reward_target_options()
+
+
+func _on_creator_link_loot_to_event_reward_pressed() -> void:
+	var balance := _balance_state()
+	if balance == null:
+		return
+	var event_id: String = _selector_metadata(_creator_item_reward_event_select)
+	if event_id.is_empty():
+		_set_creator_status("item", "当前没有可用事件目标。", true)
+		return
+	var target_id: String = _selector_metadata(_creator_item_reward_target_select)
+	if target_id.is_empty():
+		_set_creator_status("item", "当前事件没有可挂载的奖励目标。", true)
+		return
+	var loot_table_id: String = _selector_metadata(_creator_item_reward_loot_table_select)
+	if loot_table_id.is_empty():
+		_set_creator_status("item", "当前没有可用 Loot 表目标。", true)
+		return
+	var option_index: int = _creator_reward_target_option_index(target_id)
+	var result: Dictionary = balance.call("link_loot_table_to_event_reward", {
+		"event_id": event_id,
+		"option_index": option_index,
+		"loot_table_id": loot_table_id,
+		"rolls": int(_creator_item_reward_rolls_spin.value) if _creator_item_reward_rolls_spin != null else 1
+	})
+	if not bool(result.get("ok", false)):
+		_set_creator_status("item", "挂载失败：请确认事件、奖励目标与 Loot 表都有效。", true)
+		return
+	var target_text := "主奖励包" if option_index < 0 else "选项 %d" % [option_index + 1]
+	_set_creator_status("item", "已挂入事件奖励：%s -> %s（%s）" % [event_id, loot_table_id, target_text])
+	_append_log("内容挂载：事件 %s 的%s -> loot %s（%s）。" % [event_id, target_text, loot_table_id, String(result.get("mode", "create"))])
+	_refresh_creator_lists()
 	_refresh_all()
 
 

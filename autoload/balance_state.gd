@@ -10,7 +10,8 @@ const DEFAULT_CREATED_CONTENT := {
 	"units": [],
 	"links": {
 		"battle_enemy_groups": [],
-		"loot_table_entries": []
+		"loot_table_entries": [],
+		"event_reward_loot_tables": []
 	}
 }
 
@@ -315,6 +316,46 @@ func link_item_to_loot_table(payload: Dictionary) -> Dictionary:
 		"link_key": link_key,
 		"loot_table_id": loot_table_id,
 		"item_id": item_id
+	}
+
+
+func link_loot_table_to_event_reward(payload: Dictionary) -> Dictionary:
+	_ensure_link_container()
+	var event_id: String = String(payload.get("event_id", "")).strip_edges()
+	var loot_table_id: String = String(payload.get("loot_table_id", "")).strip_edges()
+	if event_id.is_empty() or loot_table_id.is_empty():
+		return {"ok": false, "error": "missing_id"}
+	var content := _content_db()
+	if content == null:
+		return {"ok": false, "error": "missing_content_db"}
+	var event_def: Dictionary = content.get_event(event_id)
+	if event_def.is_empty():
+		return {"ok": false, "error": "missing_event", "event_id": event_id}
+	if content.get_loot_table(loot_table_id).is_empty():
+		return {"ok": false, "error": "missing_loot_table", "loot_table_id": loot_table_id}
+	var option_index: int = max(-1, int(payload.get("option_index", -1)))
+	if option_index >= 0:
+		var option_list: Array = event_def.get("option_list", [])
+		if option_index >= option_list.size() or typeof(option_list[option_index]) != TYPE_DICTIONARY:
+			return {"ok": false, "error": "missing_option", "event_id": event_id, "option_index": option_index}
+	var target_key := "root" if option_index < 0 else "option.%d" % option_index
+	var link_key := "%s::%s::%s" % [event_id, target_key, loot_table_id]
+	var link_entry := {
+		"link_key": link_key,
+		"event_id": event_id,
+		"option_index": option_index,
+		"loot_table_id": loot_table_id,
+		"rolls": max(0, int(payload.get("rolls", 1)))
+	}
+	var mode := _upsert_link_entry("event_reward_loot_tables", link_key, link_entry)
+	_persist_created_content()
+	return {
+		"ok": true,
+		"mode": mode,
+		"link_key": link_key,
+		"event_id": event_id,
+		"option_index": option_index,
+		"loot_table_id": loot_table_id
 	}
 
 
@@ -1010,18 +1051,41 @@ func _normalize_created_content(payload: Dictionary) -> Dictionary:
 				"weight": max(0, int(link.get("weight", 5))),
 				"prob": clampf(float(link.get("prob", 1.0)), 0.0, 1.0)
 			})
+		for link_value in links_payload.get("event_reward_loot_tables", []):
+			if typeof(link_value) != TYPE_DICTIONARY:
+				continue
+			var link: Dictionary = link_value
+			var event_id: String = String(link.get("event_id", "")).strip_edges()
+			var loot_table_id: String = String(link.get("loot_table_id", "")).strip_edges()
+			if event_id.is_empty() or loot_table_id.is_empty():
+				continue
+			var option_index: int = max(-1, int(link.get("option_index", -1)))
+			var target_key := "root" if option_index < 0 else "option.%d" % option_index
+			normalized["links"]["event_reward_loot_tables"].append({
+				"link_key": "%s::%s::%s" % [event_id, target_key, loot_table_id],
+				"event_id": event_id,
+				"option_index": option_index,
+				"loot_table_id": loot_table_id,
+				"rolls": max(0, int(link.get("rolls", 1)))
+			})
 	return normalized
 
 
 func _ensure_link_container() -> void:
 	if typeof(_created_content.get("links", {})) != TYPE_DICTIONARY:
-		_created_content["links"] = {"battle_enemy_groups": [], "loot_table_entries": []}
+		_created_content["links"] = {
+			"battle_enemy_groups": [],
+			"loot_table_entries": [],
+			"event_reward_loot_tables": []
+		}
 		return
 	var links: Dictionary = _created_content.get("links", {})
 	if typeof(links.get("battle_enemy_groups", [])) != TYPE_ARRAY:
 		links["battle_enemy_groups"] = []
 	if typeof(links.get("loot_table_entries", [])) != TYPE_ARRAY:
 		links["loot_table_entries"] = []
+	if typeof(links.get("event_reward_loot_tables", [])) != TYPE_ARRAY:
+		links["event_reward_loot_tables"] = []
 	_created_content["links"] = links
 
 

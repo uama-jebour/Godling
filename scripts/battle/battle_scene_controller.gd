@@ -5,6 +5,21 @@ signal interactive_battle_finished(result: Dictionary)
 const BATTLE_SIMULATOR := preload("res://systems/battle/battle_simulator.gd")
 const UNIT_TOKEN_SCENE := preload("res://scenes/battle/unit_token.tscn")
 const DRAG_START_DISTANCE := 12.0
+const DRAG_ATTACK_CURVE_ARC_MULTIPLIER := 0.24
+const DRAG_ATTACK_CURVE_ARC_MIN := 46.0
+const DRAG_ATTACK_CURVE_ARC_MAX := 128.0
+const DRAG_ATTACK_CURVE_SAMPLE_DENSITY := 18.0
+const DRAG_ATTACK_LINE_WIDTH := 7.2
+const DRAG_ATTACK_ARROW_SCALE := 1.46
+const DRAG_ATTACK_ARROW_GLOW_SCALE := 1.84
+const ACTION_CARD_SIZE := Vector2(172, 178)
+const ACTION_CARD_MIN_WIDTH := 92.0
+const ACTION_CARD_MAX_WIDTH := 176.0
+const ACTION_CARD_CORNER_RADIUS := 14
+const MAIN_ITEM_CARD_LIMIT := 2
+const ACTION_INFO_WIDTH_RATIO := 0.15
+const ACTION_INFO_MIN_WIDTH := 180.0
+const ACTION_INFO_MAX_WIDTH := 260.0
 
 @onready var battle_arena: Control = %BattleArena
 @onready var hero_lane: ColorRect = get_node_or_null("%HeroLane")
@@ -25,9 +40,10 @@ const DRAG_START_DISTANCE := 12.0
 @onready var root_vbox: VBoxContainer = $"../BattleUI/ShellMargin/ModalPanel/PanelMargin/RootVBox"
 @onready var action_bar: HBoxContainer = $"../BattleUI/ShellMargin/ModalPanel/PanelMargin/RootVBox/ActionBar"
 @onready var action_info_box: VBoxContainer = $"../BattleUI/ShellMargin/ModalPanel/PanelMargin/RootVBox/ActionBar/ActionInfo"
-@onready var command_strip: HBoxContainer = $"../BattleUI/ShellMargin/ModalPanel/PanelMargin/RootVBox/ActionBar/CommandStrip"
-@onready var attack_button: Button = get_node_or_null("%AttackButton")
-@onready var defend_button: Button = get_node_or_null("%DefendButton")
+@onready var command_strip_scroll: ScrollContainer = get_node_or_null("%CommandStripScroll")
+@onready var command_strip: HBoxContainer = get_node_or_null("%CommandStrip")
+@onready var attack_button: Label = get_node_or_null("%AttackButton")
+@onready var defend_button: Label = get_node_or_null("%DefendButton")
 @onready var wait_button: Button = get_node_or_null("%WaitButton")
 @onready var item_button: Button = get_node_or_null("%ItemButton")
 @onready var attack_skill_card: Control = get_node_or_null("%AttackSkillCard")
@@ -37,18 +53,37 @@ var burst_skill_card: Control
 var burst_skill_icon: TextureRect
 var burst_cooldown_mask: ColorRect
 var burst_meta_label: Label
+var burst_cooldown_tag: Label
 var burst_cooldown_bar: ProgressBar
+var burst_resource_tag: Label
 var burst_resource_bar: ProgressBar
 @onready var attack_skill_icon: TextureRect = get_node_or_null("%AttackSkillIcon")
 @onready var defend_skill_icon: TextureRect = get_node_or_null("%DefendSkillIcon")
 @onready var attack_cooldown_mask: ColorRect = get_node_or_null("%AttackCooldownMask")
 @onready var defend_cooldown_mask: ColorRect = get_node_or_null("%DefendCooldownMask")
 @onready var attack_meta_label: Label = get_node_or_null("%AttackMetaLabel")
+@onready var attack_cooldown_tag: Label = get_node_or_null("%AttackCooldownTag")
 @onready var attack_cooldown_bar: ProgressBar = get_node_or_null("%AttackCooldownBar")
+@onready var attack_resource_tag: Label = get_node_or_null("%AttackResourceTag")
 @onready var attack_resource_bar: ProgressBar = get_node_or_null("%AttackResourceBar")
 @onready var defend_meta_label: Label = get_node_or_null("%DefendMetaLabel")
+@onready var defend_cooldown_tag: Label = get_node_or_null("%DefendCooldownTag")
 @onready var defend_cooldown_bar: ProgressBar = get_node_or_null("%DefendCooldownBar")
+@onready var defend_resource_tag: Label = get_node_or_null("%DefendResourceTag")
 @onready var defend_resource_bar: ProgressBar = get_node_or_null("%DefendResourceBar")
+@onready var item_card_rack: HBoxContainer = get_node_or_null("%ItemCardRack")
+@onready var item_card_a: PanelContainer = get_node_or_null("%ItemCardA")
+@onready var item_card_b: PanelContainer = get_node_or_null("%ItemCardB")
+@onready var item_card_a_icon: TextureRect = get_node_or_null("%ItemCardAIcon")
+@onready var item_card_b_icon: TextureRect = get_node_or_null("%ItemCardBIcon")
+@onready var item_card_a_title: Label = get_node_or_null("%ItemCardATitle")
+@onready var item_card_b_title: Label = get_node_or_null("%ItemCardBTitle")
+@onready var item_card_a_desc: Label = get_node_or_null("%ItemCardADesc")
+@onready var item_card_b_desc: Label = get_node_or_null("%ItemCardBDesc")
+@onready var item_card_a_meta: Label = get_node_or_null("%ItemCardAMeta")
+@onready var item_card_b_meta: Label = get_node_or_null("%ItemCardBMeta")
+@onready var item_card_a_use_button: Button = get_node_or_null("%ItemCardAUseButton")
+@onready var item_card_b_use_button: Button = get_node_or_null("%ItemCardBUseButton")
 @onready var item_popup_panel: PopupPanel = get_node_or_null("%ItemPopupPanel")
 @onready var item_list_vbox: VBoxContainer = get_node_or_null("%ItemListVBox")
 
@@ -81,6 +116,11 @@ var _last_drag_payload: Dictionary = {}
 var _pending_drag_source: Control
 var _pending_drag_payload: Dictionary = {}
 var _pending_drag_anchor := Vector2.ZERO
+var _drag_source_position: Vector2 = Vector2.ZERO
+var _item_card_item_ids := ["", ""]
+var _recent_item_ids: Array[String] = []
+var _card_noise_textures: Dictionary = {}
+var _current_action_card_width := ACTION_CARD_SIZE.x
 
 const DEFAULT_SKILL_ICON := preload("res://icon.svg")
 
@@ -89,10 +129,6 @@ func _ready() -> void:
 	set_process(true)
 	if battle_arena != null and not battle_arena.resized.is_connected(_on_battle_arena_resized):
 		battle_arena.resized.connect(_on_battle_arena_resized)
-	if attack_button != null and not attack_button.pressed.is_connected(_on_attack_pressed):
-		attack_button.pressed.connect(_on_attack_pressed)
-	if defend_button != null and not defend_button.pressed.is_connected(_on_defend_pressed):
-		defend_button.pressed.connect(_on_defend_pressed)
 	if wait_button != null and not wait_button.pressed.is_connected(_on_wait_pressed):
 		wait_button.pressed.connect(_on_wait_pressed)
 	if item_button != null and not item_button.pressed.is_connected(_on_item_pressed):
@@ -104,6 +140,7 @@ func _ready() -> void:
 
 
 func _process(_delta: float) -> void:
+	_update_drag_hover_feedback()
 	if not _drag_in_progress:
 		return
 	var viewport := get_viewport()
@@ -119,6 +156,138 @@ func _process(_delta: float) -> void:
 		_show_drop_rejected_status(_last_drag_payload)
 	_drag_in_progress = false
 	_last_drag_payload = {}
+	_drag_source_position = Vector2.ZERO
+	_clear_all_drop_hovers()
+	_hide_attack_line()
+
+
+func _update_drag_hover_feedback() -> void:
+	if not _drag_in_progress or _last_drag_payload.is_empty():
+		_clear_all_drop_hovers()
+		_hide_attack_line()
+		return
+	var viewport := get_viewport()
+	if viewport == null:
+		return
+	var mouse_pos := viewport.get_mouse_position()
+	var hovered_entity_id := ""
+	for entity_id: String in _arena_nodes.keys():
+		var token: Control = _arena_nodes[entity_id]
+		if token == null:
+			continue
+		var token_rect := token.get_global_rect()
+		token_rect = token_rect.grow(12.0)
+		if token_rect.has_point(mouse_pos):
+			hovered_entity_id = entity_id
+			break
+	var can_accept := false
+	if not hovered_entity_id.is_empty():
+		can_accept = _can_drop_payload_on_entity(hovered_entity_id, _last_drag_payload)
+		# Draw attack line for any valid target during drag (both enemy and hero)
+		if can_accept:
+			_update_drag_attack_line(hovered_entity_id)
+		else:
+			_hide_attack_line()
+	else:
+		_hide_attack_line()
+	for entity_id: String in _arena_nodes.keys():
+		var token: Control = _arena_nodes[entity_id]
+		if token == null or not token.has_method("notify_drag_hover"):
+			continue
+		var is_hovered := entity_id == hovered_entity_id
+		token.call("notify_drag_hover", is_hovered, can_accept if is_hovered else false)
+
+
+func _clear_all_drop_hovers() -> void:
+	for entity_id: String in _arena_nodes.keys():
+		var token: Control = _arena_nodes[entity_id]
+		if token == null or not token.has_method("notify_drag_hover"):
+			continue
+		token.call("notify_drag_hover", false, false)
+
+
+func _update_drag_attack_line(entity_id: String) -> void:
+	if battle_arena == null:
+		_hide_attack_line()
+		return
+	var target_token: Control = _arena_nodes.get(entity_id)
+	if target_token == null:
+		_hide_attack_line()
+		return
+	
+	# Get source position (from saved drag source position)
+	var source_global: Vector2 = _drag_source_position
+	if source_global == Vector2.ZERO:
+		_hide_attack_line()
+		return
+	
+	# Get target position (token center)
+	var target_global: Vector2 = target_token.get_global_rect().get_center()
+	
+	# Convert to battle_arena local coordinates
+	var arena_rect: Rect2 = battle_arena.get_global_rect()
+	var source_pos: Vector2 = source_global - arena_rect.position
+	var target_pos: Vector2 = target_global - arena_rect.position
+	
+	# Create or ensure attack line exists
+	_ensure_attack_line()
+	
+	# Build a more cinematic drag curve: higher arc + denser samples.
+	var curve_points: PackedVector2Array = _build_attack_curve_points(
+		source_pos,
+		target_pos,
+		DRAG_ATTACK_CURVE_ARC_MULTIPLIER,
+		DRAG_ATTACK_CURVE_ARC_MIN,
+		DRAG_ATTACK_CURVE_ARC_MAX,
+		DRAG_ATTACK_CURVE_SAMPLE_DENSITY
+	)
+	_attack_curve_points = curve_points
+	
+	# Draw the line with skill-specific color
+	var kind: String = String(_last_drag_payload.get("kind", ""))
+	var slot: String = String(_last_drag_payload.get("slot", ""))
+	var line_color: Color = Color(0.98, 0.72, 0.28, 0.95)  # Default: primary (orange)
+	if kind == "skill":
+		match slot:
+			"guard":
+				line_color = Color(0.34, 0.62, 0.94, 0.95)  # Guard: blue
+			"burst":
+				line_color = Color(0.92, 0.36, 0.22, 0.95)  # Burst: red
+	_attack_line.default_color = line_color
+	_attack_line.width = DRAG_ATTACK_LINE_WIDTH
+	_attack_line.points = curve_points
+	# Reuse node with combat cue line: ensure previous fade-out alpha does not hide drag indicator.
+	_attack_line.modulate.a = 1.0
+	_attack_line.visible = true
+	
+	# Position arrow at target
+	var direction: Vector2 = Vector2.RIGHT
+	if curve_points.size() >= 2:
+		direction = (curve_points[curve_points.size() - 1] - curve_points[curve_points.size() - 2]).normalized()
+	if direction == Vector2.ZERO:
+		direction = (target_pos - source_pos).normalized()
+	if direction == Vector2.ZERO:
+		direction = Vector2.RIGHT
+	if _attack_arrow != null:
+		_attack_arrow.position = target_pos
+		_attack_arrow.rotation = direction.angle()
+		_attack_arrow.scale = Vector2.ONE * DRAG_ATTACK_ARROW_SCALE
+		_attack_arrow.color = Color(1.0, 0.99, 0.94, 1.0)
+		_attack_arrow.modulate.a = 1.0
+		_attack_arrow.visible = true
+	if _attack_arrow_glow != null:
+		_attack_arrow_glow.position = target_pos
+		_attack_arrow_glow.rotation = direction.angle()
+		_attack_arrow_glow.scale = Vector2.ONE * DRAG_ATTACK_ARROW_GLOW_SCALE
+		_attack_arrow_glow.color = Color(line_color.r, line_color.g, line_color.b, 0.72)
+		_attack_arrow_glow.modulate.a = 1.0
+		_attack_arrow_glow.visible = true
+
+
+func _ensure_attack_line() -> void:
+	if _attack_line != null:
+		return
+	_ensure_fx_nodes()
 
 
 func execute_battle(request: Dictionary, battle_def: Dictionary, context: Dictionary = {}) -> Dictionary:
@@ -266,10 +435,10 @@ func _update_interaction_hud(state: Dictionary) -> void:
 	if not _interactive_mode:
 		status_label.text = "这是自动演示层，用来快速预览战斗表现。"
 		selected_target_label.text = ""
-		attack_button.disabled = true
+		attack_button.modulate = Color(0.5, 0.5, 0.5, 1.0)
 		attack_button.text = "技能·斩击"
 		if defend_button != null:
-			defend_button.disabled = true
+			defend_button.modulate = Color(0.5, 0.5, 0.5, 1.0)
 			defend_button.text = "技能·架盾"
 		if burst_button != null:
 			burst_button.disabled = true
@@ -279,10 +448,11 @@ func _update_interaction_hud(state: Dictionary) -> void:
 			wait_button.text = "结束回合"
 		if item_button != null:
 			item_button.disabled = true
-			item_button.text = "选择道具"
-		_update_skill_card({}, attack_skill_card, attack_skill_icon, attack_meta_label, attack_cooldown_bar, attack_resource_bar, attack_cooldown_mask, 0, 0)
-		_update_skill_card({}, defend_skill_card, defend_skill_icon, defend_meta_label, defend_cooldown_bar, defend_resource_bar, defend_cooldown_mask, 0, 0)
-		_update_skill_card({}, burst_skill_card, burst_skill_icon, burst_meta_label, burst_cooldown_bar, burst_resource_bar, burst_cooldown_mask, 0, 0)
+			item_button.text = "更多道具"
+		_refresh_main_item_cards([])
+		_update_skill_card({}, attack_skill_card, attack_skill_icon, attack_meta_label, attack_cooldown_tag, attack_resource_tag, attack_cooldown_bar, attack_resource_bar, attack_cooldown_mask, 0, 0)
+		_update_skill_card({}, defend_skill_card, defend_skill_icon, defend_meta_label, defend_cooldown_tag, defend_resource_tag, defend_cooldown_bar, defend_resource_bar, defend_cooldown_mask, 0, 0)
+		_update_skill_card({}, burst_skill_card, burst_skill_icon, burst_meta_label, burst_cooldown_tag, burst_resource_tag, burst_cooldown_bar, burst_resource_bar, burst_cooldown_mask, 0, 0)
 		return
 
 	var phase: String = String(state.get("turn_phase", "player"))
@@ -314,8 +484,7 @@ func _update_interaction_hud(state: Dictionary) -> void:
 		selected_name if not selected_name.is_empty() else "未选择",
 		target_hp_text
 	]
-	attack_button.disabled = not can_player_input or _selected_target_id.is_empty() or not slash_block_reason.is_empty()
-	attack_button.tooltip_text = "攻击当前锁定目标并消耗灵势。"
+	attack_button.modulate = Color(0.5, 0.5, 0.5, 1.0) if not can_player_input or _selected_target_id.is_empty() or not slash_block_reason.is_empty() else Color.WHITE
 	if not can_player_input:
 		attack_button.text = "敌方行动中"
 	elif _selected_target_id.is_empty():
@@ -325,8 +494,7 @@ func _update_interaction_hud(state: Dictionary) -> void:
 	else:
 		attack_button.text = "技能1·%s" % slash_name
 	if defend_button != null:
-		defend_button.disabled = not can_player_input or not guard_block_reason.is_empty()
-		defend_button.tooltip_text = "降低本轮即将承受的敌方伤害。"
+		defend_button.modulate = Color(0.5, 0.5, 0.5, 1.0) if not can_player_input or not guard_block_reason.is_empty() else Color.WHITE
 		if not can_player_input:
 			defend_button.text = "敌方行动中"
 		elif not guard_block_reason.is_empty():
@@ -344,20 +512,21 @@ func _update_interaction_hud(state: Dictionary) -> void:
 			burst_button.text = "技能3·%s" % burst_name
 	if wait_button != null:
 		wait_button.disabled = not can_player_input
-		wait_button.text = "蓄势待机"
-		wait_button.tooltip_text = "不出手，恢复灵势并进入敌方回合。"
+		wait_button.text = "结束回合"
+		wait_button.tooltip_text = "结束我方回合，恢复灵势并进入敌方回合。"
 	if item_button != null:
 		if battle_items.is_empty():
 			item_button.text = "无可用道具"
 			item_button.disabled = true
 			item_button.tooltip_text = "当前没有可在战斗中使用的道具。"
 		else:
-			item_button.text = "道具 x%d" % battle_items.size()
+			item_button.text = "更多道具"
 			item_button.disabled = not can_player_input
-			item_button.tooltip_text = "使用战斗道具后会立即进入敌方回合。"
-	_update_skill_card(slash_skill, attack_skill_card, attack_skill_icon, attack_meta_label, attack_cooldown_bar, attack_resource_bar, attack_cooldown_mask, hero_resolve, hero_resolve_max)
-	_update_skill_card(guard_skill, defend_skill_card, defend_skill_icon, defend_meta_label, defend_cooldown_bar, defend_resource_bar, defend_cooldown_mask, hero_resolve, hero_resolve_max)
-	_update_skill_card(burst_skill, burst_skill_card, burst_skill_icon, burst_meta_label, burst_cooldown_bar, burst_resource_bar, burst_cooldown_mask, hero_resolve, hero_resolve_max)
+			item_button.tooltip_text = "打开完整道具卡列表。"
+	_refresh_main_item_cards(battle_items)
+	_update_skill_card(slash_skill, attack_skill_card, attack_skill_icon, attack_meta_label, attack_cooldown_tag, attack_resource_tag, attack_cooldown_bar, attack_resource_bar, attack_cooldown_mask, hero_resolve, hero_resolve_max)
+	_update_skill_card(guard_skill, defend_skill_card, defend_skill_icon, defend_meta_label, defend_cooldown_tag, defend_resource_tag, defend_cooldown_bar, defend_resource_bar, defend_cooldown_mask, hero_resolve, hero_resolve_max)
+	_update_skill_card(burst_skill, burst_skill_card, burst_skill_icon, burst_meta_label, burst_cooldown_tag, burst_resource_tag, burst_cooldown_bar, burst_resource_bar, burst_cooldown_mask, hero_resolve, hero_resolve_max)
 	_refresh_item_popup(battle_items)
 
 
@@ -676,13 +845,25 @@ func _ensure_fx_nodes() -> void:
 func _hide_attack_line() -> void:
 	if _attack_line != null:
 		_attack_line.visible = false
+		_attack_line.modulate.a = 1.0
 	if _attack_arrow != null:
 		_attack_arrow.visible = false
+		_attack_arrow.modulate.a = 1.0
+		_attack_arrow.scale = Vector2.ONE
 	if _attack_arrow_glow != null:
 		_attack_arrow_glow.visible = false
+		_attack_arrow_glow.modulate.a = 1.0
+		_attack_arrow_glow.scale = Vector2.ONE
 
 
-func _build_attack_curve_points(source_point: Vector2, target_point: Vector2) -> PackedVector2Array:
+func _build_attack_curve_points(
+	source_point: Vector2,
+	target_point: Vector2,
+	arc_multiplier: float = 0.16,
+	arc_min: float = 30.0,
+	arc_max: float = 74.0,
+	sample_density: float = 24.0
+) -> PackedVector2Array:
 	var points: PackedVector2Array = PackedVector2Array()
 	var direction: Vector2 = target_point - source_point
 	var distance: float = direction.length()
@@ -694,9 +875,9 @@ func _build_attack_curve_points(source_point: Vector2, target_point: Vector2) ->
 	var normal: Vector2 = Vector2(-forward.y, forward.x)
 	if normal.y > 0.0:
 		normal *= -1.0
-	var arc_height: float = clampf(distance * 0.16, 30.0, 74.0)
+	var arc_height: float = clampf(distance * arc_multiplier, arc_min, arc_max)
 	var control: Vector2 = source_point.lerp(target_point, 0.5) + (normal * arc_height)
-	var sample_count: int = maxi(14, int(distance / 24.0))
+	var sample_count: int = maxi(14, int(distance / max(6.0, sample_density)))
 	for i in range(sample_count + 1):
 		var t: float = float(i) / float(sample_count)
 		var a: Vector2 = source_point.lerp(control, t)
@@ -1027,10 +1208,8 @@ func _set_interaction_enabled(enabled: bool) -> void:
 		selected_target_label.visible = enabled
 	if attack_button != null:
 		attack_button.visible = enabled
-		attack_button.disabled = not enabled
 	if defend_button != null:
 		defend_button.visible = enabled
-		defend_button.disabled = not enabled
 	if burst_button != null:
 		burst_button.visible = enabled
 		burst_button.disabled = not enabled
@@ -1115,14 +1294,11 @@ func _on_item_pressed() -> void:
 		if status_label != null:
 			status_label.text = "当前没有可在战斗中使用的道具。"
 		return
-	if battle_items.size() == 1:
-		_use_item_and_continue(String(battle_items[0].get("id", "")))
-		return
 	if item_popup_panel != null:
-		var popup_target := Vector2(item_button.global_position.x - 188.0, item_button.global_position.y - 12.0)
+		var popup_target := Vector2(item_button.global_position.x - 236.0, item_button.global_position.y - 12.0)
 		var viewport_rect := get_viewport().get_visible_rect()
-		var popup_width := 348.0
-		var popup_height: float = float(clamp((float(battle_items.size()) * 92.0) + 70.0, 140.0, 460.0))
+		var popup_width := _current_action_card_width + 72.0
+		var popup_height: float = float(clamp((float(battle_items.size()) * 128.0) + 88.0, 180.0, 640.0))
 		popup_target.x = clamp(popup_target.x, 10.0, max(10.0, viewport_rect.size.x - popup_width - 10.0))
 		popup_target.y = clamp(popup_target.y, 10.0, max(10.0, viewport_rect.size.y - popup_height - 10.0))
 		item_popup_panel.position = Vector2i(int(popup_target.x), int(popup_target.y))
@@ -1146,7 +1322,30 @@ func _resolve_enemy_phase_async() -> void:
 			_finish_interactive_battle(_decorate_result(_sim().build_result(_interactive_state, _interactive_context, "scene"), _interactive_state))
 			return
 	_resolving_enemy_phase = false
+	_clear_pending_drag()
+	_drag_in_progress = false
+	_drag_source_position = Vector2.ZERO
+	_refresh_drag_bindings()
 	_update_interaction_hud(_interactive_state)
+
+
+func _refresh_drag_bindings() -> void:
+	# Only reset mouse filters, don't rebind signals to avoid connection issues
+	if attack_skill_card != null:
+		attack_skill_card.mouse_filter = Control.MOUSE_FILTER_STOP
+		_set_descendants_mouse_filter(attack_skill_card)
+	if defend_skill_card != null:
+		defend_skill_card.mouse_filter = Control.MOUSE_FILTER_STOP
+		_set_descendants_mouse_filter(defend_skill_card)
+	if burst_skill_card != null:
+		burst_skill_card.mouse_filter = Control.MOUSE_FILTER_STOP
+		_set_descendants_mouse_filter(burst_skill_card)
+	if item_card_a != null:
+		item_card_a.mouse_filter = Control.MOUSE_FILTER_STOP
+		_configure_main_item_card_drag_surface(item_card_a, item_card_a_use_button)
+	if item_card_b != null:
+		item_card_b.mouse_filter = Control.MOUSE_FILTER_STOP
+		_configure_main_item_card_drag_surface(item_card_b, item_card_b_use_button)
 
 
 func _finish_interactive_battle(result: Dictionary) -> void:
@@ -1172,12 +1371,14 @@ func _queue_enemy_phase_or_finish() -> void:
 func _on_battle_arena_resized() -> void:
 	_layout_arena_regions()
 	_refresh_arena_entities()
+	_layout_action_bar()
 
 
 func _refresh_layout_after_frame() -> void:
 	await get_tree().process_frame
 	_layout_arena_regions()
 	_refresh_arena_entities()
+	_layout_action_bar()
 
 
 func _refresh_arena_entities() -> void:
@@ -1209,21 +1410,92 @@ func _refresh_item_popup(battle_items: Array) -> void:
 		return
 	for child: Node in item_list_vbox.get_children():
 		child.queue_free()
-	if battle_items.is_empty():
+	var ranked_items: Array = _ranked_battle_items(battle_items)
+	if ranked_items.is_empty():
 		var empty_label := Label.new()
 		empty_label.text = "当前没有可用战斗道具。"
 		item_list_vbox.add_child(empty_label)
 		return
-	for stack_value in battle_items:
+	for stack_value in ranked_items:
 		if typeof(stack_value) != TYPE_DICTIONARY:
 			continue
 		var stack: Dictionary = stack_value
-		item_list_vbox.add_child(_build_item_row(stack))
+		item_list_vbox.add_child(_build_item_popup_card(stack))
+
+
+func _refresh_main_item_cards(battle_items: Array) -> void:
+	var ranked_items: Array = _ranked_battle_items(battle_items)
+	var item_count: int = ranked_items.size()
+	var visible_slot_count: int = clampi(item_count, 1, MAIN_ITEM_CARD_LIMIT)
+	for slot_index in range(MAIN_ITEM_CARD_LIMIT):
+		var should_show_slot: bool = slot_index < visible_slot_count
+		var has_item: bool = slot_index < item_count and typeof(ranked_items[slot_index]) == TYPE_DICTIONARY
+		var stack: Dictionary = ranked_items[slot_index] if has_item else {}
+		var item_id: String = String(stack.get("id", "")) if has_item else ""
+		_item_card_item_ids[slot_index] = item_id
+		var card: PanelContainer = _item_card_panel(slot_index)
+		if card != null:
+			card.visible = should_show_slot
+		if not should_show_slot:
+			_set_main_item_card_interactive(slot_index, false)
+			continue
+		_update_main_item_card(slot_index, stack)
+		_set_main_item_card_interactive(slot_index, has_item and _can_accept_drag_drop_input())
+	_apply_dynamic_action_card_width()
+
+
+func _update_main_item_card(slot_index: int, stack: Dictionary) -> void:
+	var card: PanelContainer = _item_card_panel(slot_index)
+	var icon: TextureRect = _item_card_icon(slot_index)
+	var title: Label = _item_card_title(slot_index)
+	var desc: Label = _item_card_desc(slot_index)
+	var meta: Label = _item_card_meta(slot_index)
+	var use_button: Button = _item_card_use_button(slot_index)
+	if card == null or icon == null or title == null or desc == null or meta == null or use_button == null:
+		return
+	var has_item := not stack.is_empty()
+	card.visible = true
+	card.modulate = Color.WHITE if has_item else Color(0.74, 0.74, 0.78, 0.72)
+	icon.texture = _load_item_icon(String(stack.get("icon_path", ""))) if has_item else DEFAULT_SKILL_ICON
+	icon.modulate = Color(0.70, 0.92, 0.66, 1.0) if has_item else Color(0.52, 0.52, 0.56, 0.94)
+	if has_item:
+		var item_name: String = String(stack.get("name_cn", stack.get("id", "道具")))
+		var item_desc: String = String(stack.get("description", ""))
+		var target_text: String = String(stack.get("target_type", "目标：即时生效"))
+		var effect_text: String = _item_effect_summary(stack.get("effect", {}))
+		title.text = item_name
+		title.tooltip_text = item_name
+		desc.text = item_desc
+		desc.tooltip_text = item_desc
+		desc.clip_text = true
+		desc.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
+		meta.text = "数量 x%d | %s | %s" % [int(stack.get("count", 0)), target_text, effect_text]
+		meta.tooltip_text = meta.text
+		meta.clip_text = true
+		meta.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
+		use_button.disabled = not _can_accept_drag_drop_input()
+		use_button.text = "使用"
+		use_button.visible = true
+	else:
+		title.text = "暂无道具"
+		title.tooltip_text = "暂无道具"
+		desc.text = "继续推进事件可获取新道具。"
+		desc.tooltip_text = desc.text
+		desc.clip_text = true
+		desc.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
+		meta.text = "数量 x0 | 目标 - | 效果 -"
+		meta.tooltip_text = meta.text
+		meta.clip_text = true
+		meta.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
+		use_button.disabled = true
+		use_button.text = "空槽"
+		use_button.visible = true
 
 
 func _use_item_and_continue(item_id: String) -> void:
 	if item_id.is_empty():
 		return
+	_mark_item_recent(item_id)
 	if item_popup_panel != null:
 		item_popup_panel.hide()
 	_interactive_state = _sim().apply_player_item(_interactive_state, item_id)
@@ -1268,13 +1540,39 @@ func _skill_unavailable_reason(skill: Dictionary, hero_resolve: int) -> String:
 	return ""
 
 
-func _update_skill_card(skill: Dictionary, card: Control, icon_node: TextureRect, meta_label: Label, cooldown_bar: ProgressBar, resource_bar: ProgressBar, cooldown_mask: ColorRect, hero_resolve: int, hero_resolve_max: int) -> void:
-	if meta_label == null or cooldown_bar == null or resource_bar == null:
+func _update_skill_card(
+	skill: Dictionary,
+	card: Control,
+	icon_node: TextureRect,
+	meta_label: Label,
+	cooldown_tag: Label,
+	resource_tag: Label,
+	cooldown_bar: ProgressBar,
+	resource_bar: ProgressBar,
+	cooldown_mask: ColorRect,
+	hero_resolve: int,
+	hero_resolve_max: int
+) -> void:
+	if meta_label == null or cooldown_tag == null or resource_tag == null or cooldown_bar == null or resource_bar == null:
 		return
+	meta_label.clip_text = true
+	meta_label.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
+	cooldown_tag.clip_text = true
+	cooldown_tag.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
+	resource_tag.clip_text = true
+	resource_tag.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
 	if skill.is_empty():
 		meta_label.text = "技能未配置"
+		meta_label.tooltip_text = "技能未配置"
+		cooldown_tag.text = "CD -/-"
+		cooldown_tag.tooltip_text = cooldown_tag.text
+		resource_tag.text = "消耗 - | 不可用"
+		resource_tag.tooltip_text = resource_tag.text
+		meta_label.modulate = Color(0.68, 0.70, 0.76, 1.0)
+		cooldown_tag.modulate = Color(0.68, 0.70, 0.76, 1.0)
+		resource_tag.modulate = Color(0.68, 0.70, 0.76, 1.0)
 		if card != null:
-			card.modulate = Color(1, 1, 1, 1)
+			card.modulate = Color(0.82, 0.82, 0.86, 0.92)
 		if icon_node != null:
 			icon_node.texture = DEFAULT_SKILL_ICON
 			icon_node.modulate = Color(0.72, 0.72, 0.72, 1.0)
@@ -1288,18 +1586,30 @@ func _update_skill_card(skill: Dictionary, card: Control, icon_node: TextureRect
 	var cooldown_max: int = max(1, int(skill.get("cooldown_max", 1)))
 	var cooldown_remaining: int = int(skill.get("cooldown_remaining", 0))
 	var resource_cost: int = max(1, int(skill.get("resource_cost", 1)))
+	var skill_ready: bool = cooldown_remaining <= 0
 	var enough_resource: bool = hero_resolve >= resource_cost
-	meta_label.text = "冷却 %d/%d | 灵势 %d/%d | %s" % [
+	var available_now: bool = skill_ready and enough_resource and _can_accept_drag_drop_input()
+	var description: String = String(skill.get("description", "")).replace("\n", " ")
+	if description.is_empty():
+		description = "暂无技能说明。"
+	meta_label.text = description
+	meta_label.tooltip_text = "%s\nCD %d/%d | 消耗 %d | 可用 %s" % [
+		description,
 		cooldown_remaining,
 		cooldown_max,
-		hero_resolve,
 		resource_cost,
-		String(skill.get("description", ""))
+		"是" if available_now else "否"
 	]
-	meta_label.modulate = Color(1.0, 0.52, 0.52, 1.0) if not enough_resource else Color(0.86, 0.88, 0.94, 1.0)
+	cooldown_tag.text = "CD %d/%d" % [cooldown_remaining, cooldown_max]
+	cooldown_tag.tooltip_text = cooldown_tag.text
+	resource_tag.text = "消耗 %d | %s" % [resource_cost, "可用" if available_now else "不可用"]
+	resource_tag.tooltip_text = resource_tag.text
+	meta_label.modulate = Color(0.86, 0.88, 0.94, 1.0)
+	cooldown_tag.modulate = Color(0.62, 0.78, 1.0, 1.0) if skill_ready else Color(0.84, 0.62, 0.56, 1.0)
+	resource_tag.modulate = Color(0.88, 0.95, 0.70, 1.0) if available_now else Color(1.0, 0.62, 0.62, 1.0)
 	cooldown_bar.max_value = cooldown_max
 	cooldown_bar.value = max(0, cooldown_max - cooldown_remaining)
-	resource_bar.max_value = max(resource_cost, hero_resolve_max)
+	resource_bar.max_value = max(max(resource_cost, hero_resolve_max), 1)
 	resource_bar.value = hero_resolve
 	cooldown_bar.modulate = Color(0.62, 0.78, 1.0, 1.0)
 	resource_bar.modulate = Color(0.96, 0.74, 0.34, 1.0) if enough_resource else Color(1.0, 0.42, 0.42, 1.0)
@@ -1315,58 +1625,89 @@ func _update_skill_card(skill: Dictionary, card: Control, icon_node: TextureRect
 	if cooldown_mask != null:
 		cooldown_mask.color = Color(0.05, 0.07, 0.11, 0.42) if cooldown_remaining > 0 else Color(0.05, 0.07, 0.11, 0.0)
 	if card != null:
-		card.modulate = Color(1.0, 0.78, 0.78, 1.0) if not enough_resource else Color(1, 1, 1, 1)
+		card.modulate = Color(1.0, 0.78, 0.78, 1.0) if not available_now else Color(1, 1, 1, 1)
 
 
-func _build_item_row(stack: Dictionary) -> Control:
-	var row := PanelContainer.new()
-	row.custom_minimum_size = Vector2(0, 92)
-	row.mouse_filter = Control.MOUSE_FILTER_STOP
+func _build_item_popup_card(stack: Dictionary) -> Control:
+	var card := PanelContainer.new()
+	card.custom_minimum_size = _current_action_card_size()
+	card.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	card.mouse_filter = Control.MOUSE_FILTER_STOP
+	_apply_action_card_chrome(card, Color(0.56, 0.86, 0.48, 0.98), 212 + int(hash(String(stack.get("id", ""))) % 81))
+
 	var margin := MarginContainer.new()
 	margin.add_theme_constant_override("margin_left", 10)
 	margin.add_theme_constant_override("margin_top", 8)
 	margin.add_theme_constant_override("margin_right", 10)
 	margin.add_theme_constant_override("margin_bottom", 8)
-	row.add_child(margin)
-	var hbox := HBoxContainer.new()
-	hbox.add_theme_constant_override("separation", 10)
-	margin.add_child(hbox)
+	card.add_child(margin)
+
+	var vbox := VBoxContainer.new()
+	vbox.add_theme_constant_override("separation", 4)
+	margin.add_child(vbox)
+
+	var head_row := HBoxContainer.new()
+	head_row.add_theme_constant_override("separation", 8)
+	vbox.add_child(head_row)
+
 	var icon := TextureRect.new()
-	icon.custom_minimum_size = Vector2(40, 40)
+	icon.custom_minimum_size = Vector2(24, 24)
 	icon.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
 	icon.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
-	var icon_path: String = String(stack.get("icon_path", "res://icon.svg"))
-	if ResourceLoader.exists(icon_path):
-		var loaded: Resource = load(icon_path)
-		if loaded is Texture2D:
-			icon.texture = loaded
-	hbox.add_child(icon)
-	var text_box := VBoxContainer.new()
-	text_box.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	text_box.add_theme_constant_override("separation", 2)
-	hbox.add_child(text_box)
+	icon.texture = _load_item_icon(String(stack.get("icon_path", "")))
+	icon.modulate = Color(0.70, 0.92, 0.66, 1.0)
+	head_row.add_child(icon)
+
 	var title := Label.new()
-	title.text = "%s x%d" % [String(stack.get("name_cn", stack.get("id", ""))), int(stack.get("count", 0))]
-	title.add_theme_font_size_override("font_size", 15)
-	text_box.add_child(title)
+	title.custom_minimum_size = Vector2(0, 32)
+	title.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	title.add_theme_font_size_override("font_size", 16)
+	title.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	var item_name: String = String(stack.get("name_cn", stack.get("id", "道具")))
+	title.text = item_name
+	title.tooltip_text = item_name
+	title.clip_text = true
+	head_row.add_child(title)
+
 	var desc := Label.new()
-	desc.text = String(stack.get("description", ""))
-	desc.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	var item_desc: String = String(stack.get("description", ""))
+	desc.text = item_desc
+	desc.tooltip_text = item_desc
 	desc.add_theme_font_size_override("font_size", 12)
-	text_box.add_child(desc)
-	var target := Label.new()
-	target.text = String(stack.get("target_type", "目标：即时生效"))
-	target.add_theme_font_size_override("font_size", 12)
-	text_box.add_child(target)
+	desc.modulate = Color(0.86, 0.88, 0.94, 0.96)
+	desc.clip_text = true
+	desc.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
+	vbox.add_child(desc)
+
+	var meta_row := HBoxContainer.new()
+	meta_row.add_theme_constant_override("separation", 6)
+	vbox.add_child(meta_row)
+
+	var meta := Label.new()
+	meta.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	meta.add_theme_font_size_override("font_size", 11)
+	meta.text = "数量 x%d | %s | %s" % [
+		int(stack.get("count", 0)),
+		String(stack.get("target_type", "目标：即时生效")),
+		_item_effect_summary(stack.get("effect", {}))
+	]
+	meta.tooltip_text = meta.text
+	meta.clip_text = true
+	meta.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
+	meta_row.add_child(meta)
+
 	var use_button := Button.new()
-	use_button.custom_minimum_size = Vector2(76, 34)
+	use_button.custom_minimum_size = Vector2(56, 28)
 	use_button.text = "使用"
+	use_button.disabled = not _can_accept_drag_drop_input()
 	use_button.pressed.connect(func() -> void:
 		_use_item_and_continue(String(stack.get("id", "")))
 	)
-	hbox.add_child(use_button)
-	_bind_drag_source(row, Callable(self, "_item_drag_payload").bind(String(stack.get("id", ""))), use_button)
-	return row
+	meta_row.add_child(use_button)
+
+	_set_descendants_mouse_filter_except(card, [use_button])
+	_bind_drag_source(card, Callable(self, "_item_drag_payload").bind(String(stack.get("id", ""))), Callable(), false)
+	return card
 
 
 func _build_action_deck() -> void:
@@ -1396,21 +1737,108 @@ func _build_action_deck() -> void:
 	root_vbox.add_child(_action_deck_panel)
 	root_vbox.move_child(_action_deck_panel, old_index)
 
-	action_bar.add_theme_constant_override("separation", 20)
+	action_bar.add_theme_constant_override("separation", 8)
+	if command_strip_scroll != null:
+		command_strip_scroll.custom_minimum_size = Vector2(0, 198)
+		command_strip_scroll.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		command_strip_scroll.size_flags_vertical = Control.SIZE_FILL
 	if action_info_box != null:
 		action_info_box.add_theme_constant_override("separation", 8)
+		action_info_box.size_flags_horizontal = Control.SIZE_FILL
+		action_info_box.custom_minimum_size = Vector2(ACTION_INFO_MIN_WIDTH, 0)
 	if command_strip != null:
-		command_strip.add_theme_constant_override("separation", 12)
+		command_strip.add_theme_constant_override("separation", 8)
 		_ensure_burst_skill_card()
+	if item_card_rack != null:
+		item_card_rack.add_theme_constant_override("separation", 6)
 	if status_label != null:
 		status_label.add_theme_font_size_override("font_size", 16)
+		status_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		status_label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	if selected_target_label != null:
 		selected_target_label.add_theme_font_size_override("font_size", 16)
+		selected_target_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	if wait_button != null:
+		wait_button.custom_minimum_size = Vector2(92, 56)
+	if item_button != null:
+		item_button.custom_minimum_size = Vector2(96, 56)
 	_style_action_button(wait_button, Color(0.23, 0.27, 0.19, 1.0), Color(0.62, 0.74, 0.42, 1.0))
-	_style_action_button(item_button, Color(0.18, 0.22, 0.30, 1.0), Color(0.44, 0.62, 0.88, 1.0))
-	_style_skill_card(attack_skill_card, Color(0.24, 0.15, 0.12, 1.0), Color(0.72, 0.46, 0.22, 1.0))
-	_style_skill_card(defend_skill_card, Color(0.12, 0.18, 0.24, 1.0), Color(0.34, 0.56, 0.82, 1.0))
-	_style_skill_card(burst_skill_card, Color(0.26, 0.12, 0.10, 1.0), Color(0.90, 0.50, 0.18, 1.0))
+	_style_action_button(item_button, Color(0.17, 0.20, 0.28, 1.0), Color(0.50, 0.70, 0.94, 1.0))
+	_apply_skill_card_theme()
+	_apply_item_card_theme()
+	_bind_main_item_card_buttons()
+	_refresh_main_item_cards([])
+
+
+func _layout_action_bar() -> void:
+	if action_bar == null or action_info_box == null or command_strip_scroll == null:
+		return
+	var bar_width: float = action_bar.size.x
+	if bar_width <= 0.0:
+		return
+	var target_info_width: float = clampf(
+		bar_width * ACTION_INFO_WIDTH_RATIO,
+		ACTION_INFO_MIN_WIDTH,
+		ACTION_INFO_MAX_WIDTH
+	)
+	action_info_box.size_flags_horizontal = Control.SIZE_FILL
+	action_info_box.custom_minimum_size = Vector2(target_info_width, 0)
+	command_strip_scroll.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	_apply_dynamic_action_card_width()
+	if command_strip != null:
+		command_strip.custom_minimum_size = Vector2(maxf(0.0, command_strip_scroll.size.x), command_strip.custom_minimum_size.y)
+
+
+func _apply_dynamic_action_card_width() -> void:
+	if command_strip_scroll == null or command_strip == null:
+		return
+	var available_width: float = command_strip_scroll.size.x
+	if available_width <= 0.0:
+		return
+	var wait_width: float = 0.0
+	if wait_button != null:
+		wait_width = wait_button.custom_minimum_size.x
+	var item_button_width: float = 0.0
+	if item_button != null:
+		item_button_width = item_button.custom_minimum_size.x
+	var strip_gap: float = float(command_strip.get_theme_constant("separation"))
+	var strip_gap_count: float = maxf(0.0, float(max(0, command_strip.get_child_count() - 1)))
+	var rack_gap: float = 0.0
+	if item_card_rack != null:
+		rack_gap = float(item_card_rack.get_theme_constant("separation"))
+	var visible_main_item_cards: int = _visible_main_item_card_count()
+	var dynamic_card_slots: float = 3.0 + float(visible_main_item_cards)
+	var non_card_width: float = wait_width + item_button_width + (strip_gap * strip_gap_count) + rack_gap
+	var target_card_width: float = floor((available_width - non_card_width) / maxf(1.0, dynamic_card_slots))
+	_current_action_card_width = clampf(target_card_width, ACTION_CARD_MIN_WIDTH, ACTION_CARD_MAX_WIDTH)
+	_apply_current_action_card_size()
+
+
+func _current_action_card_size() -> Vector2:
+	return Vector2(_current_action_card_width, ACTION_CARD_SIZE.y)
+
+
+func _apply_current_action_card_size() -> void:
+	var card_size: Vector2 = _current_action_card_size()
+	if attack_skill_card != null:
+		attack_skill_card.custom_minimum_size = card_size
+	if defend_skill_card != null:
+		defend_skill_card.custom_minimum_size = card_size
+	if burst_skill_card != null:
+		burst_skill_card.custom_minimum_size = card_size
+	if item_card_a != null:
+		item_card_a.custom_minimum_size = card_size
+	if item_card_b != null:
+		item_card_b.custom_minimum_size = card_size
+
+
+func _visible_main_item_card_count() -> int:
+	var count := 0
+	if item_card_a != null and item_card_a.visible:
+		count += 1
+	if item_card_b != null and item_card_b.visible:
+		count += 1
+	return count
 
 
 func _style_action_button(button: Button, bg: Color, border: Color) -> void:
@@ -1435,19 +1863,241 @@ func _style_action_button(button: Button, bg: Color, border: Color) -> void:
 	button.add_theme_font_size_override("font_size", 17)
 
 
-func _style_skill_card(card: Control, bg: Color, border: Color) -> void:
-	if card == null or not (card is PanelContainer):
+func _apply_skill_card_theme() -> void:
+	_apply_action_card_chrome(attack_skill_card as PanelContainer, Color(0.86, 0.56, 0.24, 1.0), 11)
+	_apply_action_card_chrome(defend_skill_card as PanelContainer, Color(0.42, 0.62, 0.94, 1.0), 29)
+	_apply_action_card_chrome(burst_skill_card as PanelContainer, Color(0.94, 0.48, 0.24, 1.0), 53)
+	_apply_current_action_card_size()
+
+
+func _apply_item_card_theme() -> void:
+	_apply_action_card_chrome(item_card_a, Color(0.56, 0.86, 0.48, 0.98), 71)
+	_apply_action_card_chrome(item_card_b, Color(0.56, 0.86, 0.48, 0.98), 89)
+	_apply_current_action_card_size()
+
+
+func _apply_action_card_chrome(panel: PanelContainer, accent: Color, noise_seed: int) -> void:
+	if panel == null:
 		return
-	var panel := card as PanelContainer
-	var style := StyleBoxFlat.new()
-	style.bg_color = bg
-	style.border_color = border
-	style.set_border_width_all(2)
-	style.corner_radius_top_left = 14
-	style.corner_radius_top_right = 14
-	style.corner_radius_bottom_left = 14
-	style.corner_radius_bottom_right = 14
-	panel.add_theme_stylebox_override("panel", style)
+	var base := StyleBoxFlat.new()
+	base.bg_color = Color(0.10, 0.09, 0.07, 0.97)
+	base.border_color = accent
+	base.set_border_width_all(2)
+	base.corner_radius_top_left = ACTION_CARD_CORNER_RADIUS
+	base.corner_radius_top_right = ACTION_CARD_CORNER_RADIUS
+	base.corner_radius_bottom_left = ACTION_CARD_CORNER_RADIUS
+	base.corner_radius_bottom_right = ACTION_CARD_CORNER_RADIUS
+	base.shadow_color = Color(accent.r, accent.g, accent.b, 0.20)
+	base.shadow_size = 7
+	panel.add_theme_stylebox_override("panel", base)
+	_ensure_action_card_layers(panel, accent, noise_seed)
+
+
+func _ensure_action_card_layers(panel: PanelContainer, accent: Color, noise_seed: int) -> void:
+	var top_glow := panel.get_node_or_null("CardTopGlow") as ColorRect
+	if top_glow == null:
+		top_glow = ColorRect.new()
+		top_glow.name = "CardTopGlow"
+		top_glow.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		top_glow.anchor_right = 1.0
+		top_glow.offset_bottom = 34.0
+		panel.add_child(top_glow)
+		panel.move_child(top_glow, 0)
+	top_glow.color = Color(accent.r, accent.g, accent.b, 0.12)
+	var noise_layer := panel.get_node_or_null("CardNoise") as TextureRect
+	if noise_layer == null:
+		noise_layer = TextureRect.new()
+		noise_layer.name = "CardNoise"
+		noise_layer.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		noise_layer.anchor_right = 1.0
+		noise_layer.anchor_bottom = 1.0
+		noise_layer.stretch_mode = TextureRect.STRETCH_SCALE
+		panel.add_child(noise_layer)
+		panel.move_child(noise_layer, 1)
+	noise_layer.texture = _card_noise_texture(noise_seed)
+	noise_layer.modulate = Color(0.92, 0.86, 0.70, 0.13)
+	var rune_stripe := panel.get_node_or_null("CardRuneStripe") as ColorRect
+	if rune_stripe == null:
+		rune_stripe = ColorRect.new()
+		rune_stripe.name = "CardRuneStripe"
+		rune_stripe.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		rune_stripe.anchor_right = 1.0
+		rune_stripe.anchor_bottom = 1.0
+		rune_stripe.offset_left = 8.0
+		rune_stripe.offset_top = 8.0
+		rune_stripe.offset_right = -8.0
+		rune_stripe.offset_bottom = -8.0
+		panel.add_child(rune_stripe)
+		panel.move_child(rune_stripe, 2)
+	rune_stripe.color = Color(accent.r, accent.g, accent.b, 0.04)
+
+
+func _card_noise_texture(seed: int) -> Texture2D:
+	if _card_noise_textures.has(seed):
+		return _card_noise_textures[seed]
+	var noise := FastNoiseLite.new()
+	noise.seed = seed * 97 + 13
+	noise.frequency = 0.09
+	noise.fractal_octaves = 3
+	noise.fractal_gain = 0.52
+	noise.noise_type = FastNoiseLite.TYPE_SIMPLEX
+	var texture := NoiseTexture2D.new()
+	texture.width = 256
+	texture.height = 256
+	texture.in_3d_space = false
+	texture.seamless = true
+	texture.noise = noise
+	_card_noise_textures[seed] = texture
+	return texture
+
+
+func _bind_main_item_card_buttons() -> void:
+	if item_card_a_use_button != null and not item_card_a_use_button.pressed.is_connected(_on_main_item_use_pressed.bind(0)):
+		item_card_a_use_button.pressed.connect(_on_main_item_use_pressed.bind(0))
+	if item_card_b_use_button != null and not item_card_b_use_button.pressed.is_connected(_on_main_item_use_pressed.bind(1)):
+		item_card_b_use_button.pressed.connect(_on_main_item_use_pressed.bind(1))
+
+
+func _on_main_item_use_pressed(slot_index: int) -> void:
+	if slot_index < 0 or slot_index >= _item_card_item_ids.size():
+		return
+	var item_id: String = String(_item_card_item_ids[slot_index])
+	if item_id.is_empty() or not _can_accept_drag_drop_input():
+		return
+	_use_item_and_continue(item_id)
+
+
+func _item_card_panel(slot_index: int) -> PanelContainer:
+	match slot_index:
+		0:
+			return item_card_a
+		1:
+			return item_card_b
+	return null
+
+
+func _item_card_icon(slot_index: int) -> TextureRect:
+	match slot_index:
+		0:
+			return item_card_a_icon
+		1:
+			return item_card_b_icon
+	return null
+
+
+func _item_card_title(slot_index: int) -> Label:
+	match slot_index:
+		0:
+			return item_card_a_title
+		1:
+			return item_card_b_title
+	return null
+
+
+func _item_card_desc(slot_index: int) -> Label:
+	match slot_index:
+		0:
+			return item_card_a_desc
+		1:
+			return item_card_b_desc
+	return null
+
+
+func _item_card_meta(slot_index: int) -> Label:
+	match slot_index:
+		0:
+			return item_card_a_meta
+		1:
+			return item_card_b_meta
+	return null
+
+
+func _item_card_use_button(slot_index: int) -> Button:
+	match slot_index:
+		0:
+			return item_card_a_use_button
+		1:
+			return item_card_b_use_button
+	return null
+
+
+func _set_main_item_card_interactive(slot_index: int, interactive: bool) -> void:
+	var card: PanelContainer = _item_card_panel(slot_index)
+	var use_button: Button = _item_card_use_button(slot_index)
+	var has_item: bool = not String(_item_card_item_ids[slot_index]).is_empty()
+	if card != null:
+		if interactive:
+			card.modulate = Color(1, 1, 1, 1) if has_item else Color(0.74, 0.74, 0.78, 0.72)
+		else:
+			card.modulate = Color(0.72, 0.72, 0.76, 0.84) if has_item else Color(0.68, 0.68, 0.72, 0.68)
+	if use_button != null:
+		use_button.disabled = not interactive or not has_item
+
+
+func _item_slot_drag_payload(slot_index: int) -> Dictionary:
+	if slot_index < 0 or slot_index >= _item_card_item_ids.size():
+		return {}
+	var item_id: String = String(_item_card_item_ids[slot_index])
+	return _item_drag_payload(item_id)
+
+
+func _ranked_battle_items(battle_items: Array) -> Array:
+	var by_id: Dictionary = {}
+	var ordered_ids: Array[String] = []
+	for stack_value in battle_items:
+		if typeof(stack_value) != TYPE_DICTIONARY:
+			continue
+		var stack: Dictionary = stack_value
+		var item_id: String = String(stack.get("id", ""))
+		if item_id.is_empty() or int(stack.get("count", 0)) <= 0:
+			continue
+		by_id[item_id] = stack
+		ordered_ids.append(item_id)
+	var ranked: Array = []
+	var seen: Dictionary = {}
+	for recent_id: String in _recent_item_ids:
+		if recent_id.is_empty() or not by_id.has(recent_id) or seen.has(recent_id):
+			continue
+		ranked.append((by_id[recent_id] as Dictionary).duplicate(true))
+		seen[recent_id] = true
+	for item_id: String in ordered_ids:
+		if seen.has(item_id):
+			continue
+		ranked.append((by_id[item_id] as Dictionary).duplicate(true))
+		seen[item_id] = true
+	return ranked
+
+
+func _mark_item_recent(item_id: String, move_to_front: bool = true) -> void:
+	if item_id.is_empty():
+		return
+	var next_order: Array[String] = []
+	for existing_id: String in _recent_item_ids:
+		if existing_id == item_id:
+			continue
+		next_order.append(existing_id)
+	if move_to_front:
+		next_order.insert(0, item_id)
+	else:
+		next_order.append(item_id)
+	_recent_item_ids = next_order
+
+
+func _item_effect_summary(effect: Dictionary) -> String:
+	match String(effect.get("kind", "")):
+		"heal":
+			return "治疗 +%d" % int(round(float(effect.get("recover_hp", 0.0))))
+		_:
+			return "即时效果"
+
+
+func _load_item_icon(icon_path: String) -> Texture2D:
+	var path: String = icon_path if not icon_path.is_empty() else "res://icon.svg"
+	if ResourceLoader.exists(path):
+		var loaded: Resource = load(path)
+		if loaded is Texture2D:
+			return loaded
+	return DEFAULT_SKILL_ICON
 
 
 func _ensure_burst_skill_card() -> void:
@@ -1458,7 +2108,7 @@ func _ensure_burst_skill_card() -> void:
 		insert_index = command_strip.get_child_count()
 	var card := PanelContainer.new()
 	card.name = "BurstSkillCard"
-	card.custom_minimum_size = Vector2(190, 0)
+	card.custom_minimum_size = _current_action_card_size()
 	card.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	command_strip.add_child(card)
 	command_strip.move_child(card, insert_index)
@@ -1530,6 +2180,7 @@ func _ensure_burst_skill_card() -> void:
 	cooldown_tag.custom_minimum_size = Vector2(26, 0)
 	cooldown_tag.add_theme_font_size_override("font_size", 11)
 	cooldown_row.add_child(cooldown_tag)
+	burst_cooldown_tag = cooldown_tag
 
 	var cooldown_bar := ProgressBar.new()
 	cooldown_bar.name = "BurstCooldownBar"
@@ -1549,6 +2200,7 @@ func _ensure_burst_skill_card() -> void:
 	resource_tag.custom_minimum_size = Vector2(26, 0)
 	resource_tag.add_theme_font_size_override("font_size", 11)
 	resource_row.add_child(resource_tag)
+	burst_resource_tag = resource_tag
 
 	var resource_bar := ProgressBar.new()
 	resource_bar.name = "BurstResourceBar"
@@ -1560,51 +2212,85 @@ func _ensure_burst_skill_card() -> void:
 
 
 func _bind_drag_sources() -> void:
-	_bind_drag_source(attack_skill_card, Callable(self, "_skill_drag_payload").bind("primary"), attack_button)
-	_bind_drag_source(defend_skill_card, Callable(self, "_skill_drag_payload").bind("guard"), defend_button)
-	_bind_drag_source(burst_skill_card, Callable(self, "_skill_drag_payload").bind("burst"), burst_button)
+	_bind_drag_source(attack_skill_card, Callable(self, "_skill_drag_payload").bind("primary"), Callable(self, "_on_attack_pressed"))
+	_bind_drag_source(defend_skill_card, Callable(self, "_skill_drag_payload").bind("guard"), Callable(self, "_on_defend_pressed"))
+	_bind_drag_source(burst_skill_card, Callable(self, "_skill_drag_payload").bind("burst"), Callable(self, "_on_burst_pressed"))
+	_configure_main_item_card_drag_surface(item_card_a, item_card_a_use_button)
+	_configure_main_item_card_drag_surface(item_card_b, item_card_b_use_button)
+	_bind_drag_source(item_card_a, Callable(self, "_item_slot_drag_payload").bind(0), Callable(self, "_on_main_item_use_pressed").bind(0), false)
+	_bind_drag_source(item_card_b, Callable(self, "_item_slot_drag_payload").bind(1), Callable(self, "_on_main_item_use_pressed").bind(1), false)
 
 
-func _bind_drag_source(card: Control, payload_provider: Callable, exclude_button: Button = null) -> void:
+func _bind_drag_source(
+	card: Control,
+	payload_provider: Callable,
+	click_action: Callable = Callable(),
+	ignore_descendants: bool = true
+) -> void:
 	if card == null:
 		return
-	if bool(card.get_meta("_drag_bound", false)):
+	if not card.is_inside_tree():
+		# Defer binding until node is ready
+		card.ready.connect(func(): _bind_drag_source(card, payload_provider, click_action, ignore_descendants), CONNECT_ONE_SHOT)
 		return
 	card.mouse_filter = Control.MOUSE_FILTER_STOP
-	_set_descendants_mouse_filter(card, exclude_button)
-	var drag_handler := Callable(self, "_on_drag_source_gui_input").bind(card, payload_provider, exclude_button)
+	if ignore_descendants:
+		_set_descendants_mouse_filter(card)
+	# Bind drag handler (only once during initialization)
+	var drag_handler := Callable(self, "_on_drag_source_gui_input").bind(card, payload_provider, click_action)
 	if not card.gui_input.is_connected(drag_handler):
 		card.gui_input.connect(drag_handler)
-	card.set_meta("_drag_bound", true)
 
 
-func _set_descendants_mouse_filter(node: Node, exclude_button: Button) -> void:
+func _configure_main_item_card_drag_surface(card: Control, use_button: Button) -> void:
+	if card == null:
+		return
+	_set_descendants_mouse_filter_except(card, [use_button])
+
+
+func _set_descendants_mouse_filter(node: Node) -> void:
 	for child: Node in node.get_children():
-		if child == exclude_button:
-			continue
 		if child is Control:
 			var control := child as Control
 			control.mouse_filter = Control.MOUSE_FILTER_IGNORE
-		_set_descendants_mouse_filter(child, exclude_button)
+		_set_descendants_mouse_filter(child)
 
 
-func _on_drag_source_gui_input(event: InputEvent, source: Control, payload_provider: Callable, exclude_button: Button = null) -> void:
+func _set_descendants_mouse_filter_except(node: Node, exceptions: Array) -> void:
+	for child: Node in node.get_children():
+		if child is Control:
+			var control := child as Control
+			var should_ignore := true
+			for except in exceptions:
+				if except is Control and (control == except or (except as Control).is_ancestor_of(control)):
+					should_ignore = false
+					break
+			control.mouse_filter = Control.MOUSE_FILTER_IGNORE if should_ignore else Control.MOUSE_FILTER_STOP
+		_set_descendants_mouse_filter_except(child, exceptions)
+
+
+func _on_drag_source_gui_input(event: InputEvent, source: Control, payload_provider: Callable, click_action: Callable = Callable()) -> void:
+	if source == null:
+		return
+	var viewport := source.get_viewport()
+	if viewport == null:
+		return
+	var mouse_pos := viewport.get_mouse_position()
+	var inside_source: bool = source.get_global_rect().has_point(mouse_pos)
 	if event is InputEventMouseButton:
 		var mouse_button := event as InputEventMouseButton
 		if mouse_button.button_index != MOUSE_BUTTON_LEFT:
 			return
 		if mouse_button.pressed:
-			if exclude_button != null and exclude_button.get_global_rect().has_point(mouse_button.global_position):
-				_clear_pending_drag()
-				return
-			var payload := _drag_payload_from_provider(payload_provider)
-			if payload.is_empty():
-				_clear_pending_drag()
+			if not inside_source:
 				return
 			_pending_drag_source = source
-			_pending_drag_payload = payload
+			_pending_drag_payload = _drag_payload_from_provider(payload_provider)
 			_pending_drag_anchor = mouse_button.global_position
 			return
+		if _pending_drag_source == source and click_action.is_valid():
+			if mouse_button.global_position.distance_to(_pending_drag_anchor) < DRAG_START_DISTANCE:
+				click_action.call()
 		_clear_pending_drag()
 		return
 	if event is not InputEventMouseMotion:
@@ -1614,6 +2300,8 @@ func _on_drag_source_gui_input(event: InputEvent, source: Control, payload_provi
 		return
 	if (mouse_motion.button_mask & MOUSE_BUTTON_MASK_LEFT) == 0:
 		_clear_pending_drag()
+		return
+	if _pending_drag_payload.is_empty():
 		return
 	if mouse_motion.global_position.distance_to(_pending_drag_anchor) < DRAG_START_DISTANCE:
 		return
@@ -1628,6 +2316,7 @@ func _begin_drag_payload(source: Control, payload: Dictionary) -> void:
 	source.force_drag(payload, preview)
 	_drag_in_progress = true
 	_last_drag_payload = payload.duplicate(true)
+	_drag_source_position = source.get_global_rect().get_center()
 
 
 func _drag_payload_from_provider(payload_provider: Callable) -> Dictionary:
@@ -1649,30 +2338,112 @@ func _clear_pending_drag() -> void:
 
 
 func _build_drag_preview(payload: Dictionary) -> Control:
+	var kind := String(payload.get("kind", ""))
+	var is_skill := kind == "skill"
+	var is_item := kind == "item"
+	var root := Control.new()
+	root.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	root.custom_minimum_size = Vector2(180, 52)
+	
+	var shadow := PanelContainer.new()
+	shadow.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	shadow.custom_minimum_size = Vector2(180, 52)
+	shadow.position = Vector2(3, 3)
+	var shadow_style := StyleBoxFlat.new()
+	shadow_style.bg_color = Color(0.0, 0.0, 0.0, 0.42)
+	shadow_style.corner_radius_top_left = 12
+	shadow_style.corner_radius_top_right = 12
+	shadow_style.corner_radius_bottom_left = 12
+	shadow_style.corner_radius_bottom_right = 12
+	shadow.add_theme_stylebox_override("panel", shadow_style)
+	root.add_child(shadow)
+	
 	var panel := PanelContainer.new()
 	panel.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	panel.custom_minimum_size = Vector2(150, 34)
+	panel.custom_minimum_size = Vector2(180, 52)
 	var style := StyleBoxFlat.new()
-	style.bg_color = Color(0.12, 0.11, 0.08, 0.94)
-	style.border_color = Color(0.98, 0.82, 0.48, 0.95)
+	style.bg_color = Color(0.10, 0.09, 0.06, 0.96)
+	style.corner_radius_top_left = 12
+	style.corner_radius_top_right = 12
+	style.corner_radius_bottom_left = 12
+	style.corner_radius_bottom_right = 12
 	style.set_border_width_all(2)
-	style.corner_radius_top_left = 10
-	style.corner_radius_top_right = 10
-	style.corner_radius_bottom_left = 10
-	style.corner_radius_bottom_right = 10
+	if is_skill:
+		var slot := String(payload.get("slot", "primary"))
+		match slot:
+			"primary":
+				style.border_color = Color(0.98, 0.72, 0.28, 1.0)
+				style.shadow_color = Color(0.96, 0.58, 0.18, 0.48)
+			"guard":
+				style.border_color = Color(0.34, 0.62, 0.94, 1.0)
+				style.shadow_color = Color(0.28, 0.52, 0.88, 0.48)
+			"burst":
+				style.border_color = Color(0.94, 0.42, 0.22, 1.0)
+				style.shadow_color = Color(0.92, 0.36, 0.16, 0.48)
+			_:
+				style.border_color = Color(0.98, 0.82, 0.48, 0.95)
+				style.shadow_color = Color(0.88, 0.72, 0.38, 0.42)
+		style.shadow_size = 8
+	elif is_item:
+		style.border_color = Color(0.56, 0.86, 0.48, 1.0)
+		style.shadow_color = Color(0.42, 0.78, 0.34, 0.42)
+		style.shadow_size = 6
+	else:
+		style.border_color = Color(0.98, 0.82, 0.48, 0.95)
+		style.shadow_color = Color(0.88, 0.72, 0.38, 0.32)
+		style.shadow_size = 4
 	panel.add_theme_stylebox_override("panel", style)
+	root.add_child(panel)
+	
+	var glow := PanelContainer.new()
+	glow.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	glow.custom_minimum_size = Vector2(184, 56)
+	glow.position = Vector2(-2, -2)
+	var glow_style := StyleBoxFlat.new()
+	glow_style.bg_color = Color(0.0, 0.0, 0.0, 0.0)
+	if is_skill:
+		glow_style.border_color = Color(style.border_color.r, style.border_color.g, style.border_color.b, 0.22)
+	else:
+		glow_style.border_color = Color(style.border_color.r, style.border_color.g, style.border_color.b, 0.18)
+	glow_style.set_border_width_all(3)
+	glow_style.corner_radius_top_left = 14
+	glow_style.corner_radius_top_right = 14
+	glow_style.corner_radius_bottom_left = 14
+	glow_style.corner_radius_bottom_right = 14
+	glow.add_theme_stylebox_override("panel", glow_style)
+	root.add_child(glow)
+	
 	var margin := MarginContainer.new()
-	margin.add_theme_constant_override("margin_left", 10)
-	margin.add_theme_constant_override("margin_top", 6)
-	margin.add_theme_constant_override("margin_right", 10)
-	margin.add_theme_constant_override("margin_bottom", 6)
+	margin.add_theme_constant_override("margin_left", 14)
+	margin.add_theme_constant_override("margin_top", 8)
+	margin.add_theme_constant_override("margin_right", 14)
+	margin.add_theme_constant_override("margin_bottom", 8)
 	panel.add_child(margin)
+	
+	var hbox := HBoxContainer.new()
+	hbox.add_theme_constant_override("separation", 8)
+	margin.add_child(hbox)
+	
+	if is_skill or is_item:
+		var icon := TextureRect.new()
+		icon.custom_minimum_size = Vector2(20, 20)
+		icon.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+		icon.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+		icon.texture = DEFAULT_SKILL_ICON
+		if is_skill:
+			icon.modulate = style.border_color
+		else:
+			icon.modulate = Color(0.68, 0.92, 0.62, 1.0)
+		hbox.add_child(icon)
+	
 	var label := Label.new()
 	label.text = _drag_preview_text(payload)
-	label.modulate = Color(1.0, 0.96, 0.84, 1.0)
-	label.add_theme_font_size_override("font_size", 14)
-	margin.add_child(label)
-	return panel
+	label.modulate = Color(1.0, 0.98, 0.90, 1.0)
+	label.add_theme_font_size_override("font_size", 15)
+	label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	hbox.add_child(label)
+	
+	return root
 
 
 func _drag_preview_text(payload: Dictionary) -> String:
@@ -1803,6 +2574,7 @@ func _can_drop_item_payload(entity_id: String, payload: Dictionary) -> bool:
 
 
 func _apply_skill_drop(entity_id: String, payload: Dictionary) -> void:
+	_show_drop_success_fx(entity_id, payload)
 	match String(payload.get("slot", "")):
 		"primary":
 			_selected_target_id = entity_id
@@ -1815,6 +2587,7 @@ func _apply_skill_drop(entity_id: String, payload: Dictionary) -> void:
 
 
 func _apply_item_drop(_entity_id: String, payload: Dictionary) -> void:
+	_show_drop_success_fx(_entity_id, payload)
 	_use_item_and_continue(String(payload.get("item_id", "")))
 
 
@@ -1885,4 +2658,58 @@ func _build_reject_marker() -> Node2D:
 	slash.antialiased = true
 	slash.points = PackedVector2Array([Vector2(-9, 9), Vector2(9, -9)])
 	root.add_child(slash)
+	return root
+
+
+func _show_drop_success_fx(entity_id: String, payload: Dictionary) -> void:
+	if battle_arena == null:
+		return
+	var token: Control = _arena_nodes.get(entity_id)
+	if token == null:
+		return
+	var kind := String(payload.get("kind", ""))
+	var success_color := Color(0.42, 0.88, 0.58, 0.95)
+	if kind == "skill":
+		var slot := String(payload.get("slot", "primary"))
+		match slot:
+			"primary":
+				success_color = Color(0.98, 0.72, 0.28, 0.95)
+			"guard":
+				success_color = Color(0.34, 0.62, 0.94, 0.95)
+			"burst":
+				success_color = Color(0.94, 0.42, 0.22, 0.95)
+	elif kind == "item":
+		success_color = Color(0.56, 0.86, 0.48, 0.95)
+	
+	var origin := token.position + (token.size * 0.5)
+	for ring_index in range(3):
+		var ring := _build_success_ring(ring_index, success_color)
+		ring.position = origin
+		ring.z_index = 200
+		battle_arena.add_child(ring)
+		var delay := float(ring_index) * 0.08
+		var tween := create_tween()
+		tween.set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT)
+		tween.tween_interval(delay)
+		tween.parallel().tween_property(ring, "scale", Vector2(1.6 + float(ring_index) * 0.3, 1.6 + float(ring_index) * 0.3), 0.32)
+		tween.parallel().tween_property(ring, "modulate:a", 0.0, 0.32)
+		tween.tween_callback(ring.queue_free)
+
+
+func _build_success_ring(ring_index: int, color: Color) -> Node2D:
+	var root := Node2D.new()
+	root.scale = Vector2(1.8, 1.8)
+	var ring := Line2D.new()
+	ring.width = 3.0 - float(ring_index) * 0.5
+	ring.default_color = color
+	ring.closed = true
+	ring.antialiased = true
+	var ring_points := PackedVector2Array()
+	var segments := 24
+	var radius := 20.0 + float(ring_index) * 8.0
+	for i in range(segments):
+		var angle: float = (TAU * float(i)) / float(segments)
+		ring_points.append(Vector2(cos(angle), sin(angle)) * radius)
+	ring.points = ring_points
+	root.add_child(ring)
 	return root

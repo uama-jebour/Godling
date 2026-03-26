@@ -84,10 +84,37 @@ func set_drop_callbacks(validator: Callable, handler: Callable) -> void:
 	_drop_handler = handler
 
 
+const DROP_MARGIN_EXPAND := 16.0
+
+var _drop_hover_active := false
+var _drop_hover_tween: Tween
+
+
 func _can_drop_data(_at_position: Vector2, data: Variant) -> bool:
 	if _entity_id.is_empty() or not _drop_validator.is_valid():
 		return false
 	return bool(_drop_validator.call(_entity_id, data))
+
+
+func _get_minimum_size() -> Vector2:
+	return Vector2(80, 80) + Vector2(DROP_MARGIN_EXPAND, DROP_MARGIN_EXPAND)
+
+
+func notify_drag_hover(is_hovering: bool, can_accept: bool) -> void:
+	if _drop_hover_active == is_hovering and target_glow.color.a > 0.0:
+		return
+	_drop_hover_active = is_hovering
+	if _drop_hover_tween != null:
+		_drop_hover_tween.kill()
+	_drop_hover_tween = create_tween()
+	_drop_hover_tween.set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT)
+	if is_hovering and can_accept:
+		var hover_color := Color(0.36, 0.88, 0.56, 0.34)
+		_drop_hover_tween.parallel().tween_property(target_glow, "color", hover_color, 0.12)
+		_drop_hover_tween.parallel().tween_property(self, "scale", _base_scale * _battle_scale * Vector2(1.04, 1.04), 0.12)
+	else:
+		_drop_hover_tween.parallel().tween_property(target_glow, "color", Color(1, 0.95, 0.64, 0.0), 0.18)
+		_drop_hover_tween.parallel().tween_property(self, "scale", _base_scale * _battle_scale, 0.18)
 
 
 func _drop_data(_at_position: Vector2, data: Variant) -> void:

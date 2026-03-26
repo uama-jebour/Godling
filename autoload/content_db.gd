@@ -549,6 +549,10 @@ func _merge_runtime_links(links: Variant) -> void:
 		if typeof(link_value) != TYPE_DICTIONARY:
 			continue
 		_apply_runtime_loot_entry_link(link_value)
+	for link_value in links_dict.get("event_reward_loot_tables", []):
+		if typeof(link_value) != TYPE_DICTIONARY:
+			continue
+		_apply_runtime_event_reward_loot_link(link_value)
 
 
 func _apply_runtime_battle_enemy_link(link: Dictionary) -> void:
@@ -643,6 +647,67 @@ func _apply_runtime_loot_entry_link(link: Dictionary) -> void:
 	table_def["entries"] = entries
 	loot_tables[table_index] = table_def
 	data["loot_tables"] = loot_tables
+
+
+func _apply_runtime_event_reward_loot_link(link: Dictionary) -> void:
+	var event_id: String = String(link.get("event_id", "")).strip_edges()
+	var loot_table_id: String = String(link.get("loot_table_id", "")).strip_edges()
+	if event_id.is_empty() or loot_table_id.is_empty():
+		return
+	if not _data_array_has_id("events", event_id):
+		return
+	if not _data_array_has_id("loot_tables", loot_table_id):
+		return
+	var event_index := _find_data_array_index("events", event_id)
+	if event_index < 0:
+		return
+	var option_index: int = max(-1, int(link.get("option_index", -1)))
+	var target_key := "root" if option_index < 0 else "option.%d" % option_index
+	var link_key := String(link.get("link_key", "%s::%s::%s" % [event_id, target_key, loot_table_id]))
+	var runtime_ref := {
+		"runtime_link_key": link_key,
+		"id": loot_table_id,
+		"rolls": max(0, int(link.get("rolls", 1)))
+	}
+	var events: Array = data.get("events", [])
+	var event_def: Dictionary = _deep_copy_dict(events[event_index])
+	if option_index < 0:
+		var root_reward: Dictionary = event_def.get("reward_package", {}).duplicate(true)
+		event_def["reward_package"] = _upsert_runtime_reward_loot_ref(root_reward, runtime_ref)
+	else:
+		var option_list: Array = event_def.get("option_list", []).duplicate(true)
+		if option_index >= option_list.size():
+			return
+		if typeof(option_list[option_index]) != TYPE_DICTIONARY:
+			return
+		var option_def: Dictionary = _deep_copy_dict(option_list[option_index])
+		var option_reward: Dictionary = option_def.get("reward_package", {}).duplicate(true)
+		option_def["reward_package"] = _upsert_runtime_reward_loot_ref(option_reward, runtime_ref)
+		option_list[option_index] = option_def
+		event_def["option_list"] = option_list
+	events[event_index] = event_def
+	data["events"] = events
+
+
+func _upsert_runtime_reward_loot_ref(reward: Dictionary, runtime_ref: Dictionary) -> Dictionary:
+	var normalized_reward: Dictionary = reward.duplicate(true)
+	var loot_tables: Array = normalized_reward.get("loot_tables", []).duplicate(true)
+	var link_key: String = String(runtime_ref.get("runtime_link_key", ""))
+	var updated := false
+	for index: int in range(loot_tables.size()):
+		var loot_value: Variant = loot_tables[index]
+		if typeof(loot_value) != TYPE_DICTIONARY:
+			continue
+		var loot_ref: Dictionary = loot_value
+		if String(loot_ref.get("runtime_link_key", "")) != link_key:
+			continue
+		loot_tables[index] = runtime_ref.duplicate(true)
+		updated = true
+		break
+	if not updated:
+		loot_tables.append(runtime_ref.duplicate(true))
+	normalized_reward["loot_tables"] = loot_tables
+	return normalized_reward
 
 
 func _default_item_visual(_item_id: String) -> Dictionary:
