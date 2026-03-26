@@ -1,5 +1,118 @@
 [
 	{
+		"id": "event_a01_battle_bridge_patrol",
+		"title": "残桥巡逻战",
+		"spawn_mode": "random_slot",
+		"resolution_type": "battle",
+		"trigger_mode": "board",
+		"event_kind": "combat",
+		"map_ids": ["map_world_a_01_ruined_crossing"],
+		"conditions": ["turn>=1"],
+		"weight": 10,
+		"battle_id": "battle_a01_patrol",
+		"reward_package": {
+			"currencies": [{"id": "currency_lumen_mark", "count": 24}],
+			"items": [{"id": "resource_ash_herb", "count": 1}],
+			"relics": [],
+			"story_flags": [],
+			"unlock_flags": [],
+			"loot_tables": [{"id": "loot_table_a02_basic_field", "rolls": 1}]
+		},
+		"complete_task_id": ""
+	},
+	{
+		"id": "event_a01_battle_chokepoint",
+		"title": "断桥扼守遭遇",
+		"spawn_mode": "random_slot",
+		"resolution_type": "battle",
+		"trigger_mode": "board",
+		"event_kind": "combat",
+		"map_ids": ["map_world_a_01_ruined_crossing"],
+		"conditions": ["turn>=1"],
+		"weight": 9,
+		"battle_id": "battle_a01_bridgehold",
+		"reward_package": {
+			"currencies": [{"id": "currency_lumen_mark", "count": 20}],
+			"items": [{"id": "consumable_field_balm", "count": 1}],
+			"relics": [],
+			"story_flags": [],
+			"unlock_flags": [],
+			"loot_tables": [{"id": "loot_table_a02_basic_field", "rolls": 1}]
+		},
+		"complete_task_id": ""
+	},
+	{
+		"id": "event_a01_random_bridge_cache",
+		"title": "桥下补给残箱",
+		"spawn_mode": "random_slot",
+		"resolution_type": "random",
+		"trigger_mode": "board",
+		"event_kind": "random",
+		"map_ids": ["map_world_a_01_ruined_crossing"],
+		"conditions": ["turn>=1"],
+		"weight": 8,
+		"battle_id": "",
+		"reward_package": {
+			"currencies": [{"id": "currency_lumen_mark", "count": 14}],
+			"items": [{"id": "resource_ash_herb", "count": 1}],
+			"relics": [],
+			"story_flags": [],
+			"unlock_flags": [],
+			"loot_tables": []
+		},
+		"complete_task_id": ""
+	},
+	{
+		"id": "event_a01_fixed_crossing_log",
+		"title": "残桥日志：失落朝觐队",
+		"spawn_mode": "fixed_line",
+		"resolution_type": "narrative",
+		"trigger_mode": "board",
+		"event_kind": "side_narrative",
+		"line_id": "line_a01_crossing",
+		"map_ids": ["map_world_a_01_ruined_crossing"],
+		"conditions": ["turn>=1"],
+		"weight": 100,
+		"battle_id": "",
+		"reward_package": {
+			"currencies": [{"id": "currency_lumen_mark", "count": 8}],
+			"items": [{"id": "key_silent_litany_hint", "count": 1}],
+			"relics": [],
+			"story_flags": ["a01_crossing_log_read"],
+			"unlock_flags": [],
+			"loot_tables": []
+		},
+		"option_list": [
+			{
+				"id": "collect_clues",
+				"text": "抄录日志线索",
+				"preview_impact": "稳定补给并写入剧情标记。",
+				"reward_package": {
+					"currencies": [{"id": "currency_lumen_mark", "count": 6}],
+					"items": [{"id": "resource_sigil_shard", "count": 1}],
+					"relics": [],
+					"story_flags": ["a01_crossing_clue_collected"],
+					"unlock_flags": [],
+					"loot_tables": []
+				}
+			},
+			{
+				"id": "burn_pages",
+				"text": "焚毁污染残页",
+				"preview_impact": "降低风险但少拿线索。",
+				"reward_package": {
+					"currencies": [{"id": "currency_lumen_mark", "count": 12}],
+					"items": [],
+					"relics": [],
+					"story_flags": ["a01_crossing_log_purged"],
+					"unlock_flags": [],
+					"loot_tables": []
+				}
+			}
+		],
+		"complete_task_id": ""
+	},
+	{
 		"id": "event_a02_battle_patrol",
 		"title": "司祭巡逻队",
 		"spawn_mode": "random_slot",
@@ -128,7 +241,108 @@
 			"item_id": "key_silent_litany",
 			"grant_flag": "mainline_item_submitted"
 		},
+		"option_list": [
+			{
+				"id": "focus_listen",
+				"text": "静听祷词低语",
+				"preview_impact": "稳定推进主线线索。",
+				"reward_package": {
+					"currencies": [],
+					"items": [{"id": "key_silent_litany_hint", "count": 1}],
+					"relics": [],
+					"story_flags": ["mainline_started"],
+					"unlock_flags": [],
+					"loot_tables": []
+				}
+			},
+			{
+				"id": "force_probe",
+				"text": "强行搜检残页",
+				"preview_impact": "获得少量物资，但主线推进较粗暴。",
+				"reward_package": {
+					"currencies": [{"id": "currency_lumen_mark", "count": 12}],
+					"items": [{"id": "resource_ash_herb", "count": 1}],
+					"relics": [],
+					"story_flags": ["mainline_started"],
+					"unlock_flags": [],
+					"loot_tables": []
+				}
+			}
+		],
 		"complete_task_id": "task_a02_mainline_narrative"
+	},
+	{
+		"id": "event_a02_sidebranch_omen",
+		"title": "支线：灰烬刻印异动",
+		"spawn_mode": "fixed_line",
+		"resolution_type": "narrative",
+		"trigger_mode": "board",
+		"event_kind": "side_narrative",
+		"line_id": "line_a02_sidebranch",
+		"map_ids": ["map_world_a_02_ashen_sanctum"],
+		"conditions": ["flag:mainline_started", "turn>=2"],
+		"weight": 95,
+		"battle_id": "",
+		"reward_package": {
+			"currencies": [],
+			"items": [],
+			"relics": [],
+			"story_flags": [],
+			"unlock_flags": [],
+			"loot_tables": []
+		},
+		"option_list": [
+			{
+				"id": "track_marks",
+				"text": "沿着刻印追踪",
+				"preview_impact": "解锁支线战斗，并准备撤离补给奖励。",
+				"reward_package": {
+					"currencies": [],
+					"items": [{"id": "resource_sigil_shard", "count": 1}],
+					"relics": [],
+					"story_flags": ["sidebranch_trail"],
+					"unlock_flags": [],
+					"loot_tables": []
+				}
+			},
+			{
+				"id": "ignore_marks",
+				"text": "忽略异动，继续主线",
+				"preview_impact": "获得少量补给，但不会解锁支线战斗。",
+				"reward_package": {
+					"currencies": [{"id": "currency_lumen_mark", "count": 10}],
+					"items": [{"id": "resource_ash_herb", "count": 1}],
+					"relics": [],
+					"story_flags": [],
+					"unlock_flags": [],
+					"loot_tables": []
+				}
+			}
+		],
+		"complete_task_id": "task_a02_sidebranch_omen"
+	},
+	{
+		"id": "event_a02_sidebranch_battle",
+		"title": "支线：净化裂隙巡队",
+		"spawn_mode": "fixed_line",
+		"resolution_type": "battle",
+		"trigger_mode": "board",
+		"event_kind": "side_battle",
+		"line_id": "line_a02_sidebranch",
+		"map_ids": ["map_world_a_02_ashen_sanctum"],
+		"conditions": ["completed_task:task_a02_sidebranch_omen", "flag:sidebranch_trail", "turn>=3"],
+		"weight": 90,
+		"battle_id": "battle_a02_husk_chapel",
+		"reward_package": {
+			"currencies": [{"id": "currency_lumen_mark", "count": 28}],
+			"items": [{"id": "resource_sigil_shard", "count": 1}],
+			"relics": [],
+			"story_flags": [],
+			"unlock_flags": [],
+			"loot_tables": [{"id": "loot_table_a02_basic_field", "rolls": 1}]
+		},
+		"grant_story_flags": ["sidebranch_extract_bonus_ready"],
+		"complete_task_id": "task_a02_sidebranch_battle"
 	},
 	{
 		"id": "event_a02_forced_demon_ambush",
@@ -198,4 +412,3 @@
 		"complete_task_id": "task_a02_extract_success"
 	}
 ]
-

@@ -85,9 +85,43 @@ func _resolve_random_event(event_def: Dictionary, context: Dictionary) -> Dictio
 
 func _resolve_narrative_event(event_def: Dictionary, context: Dictionary) -> Dictionary:
 	var result: Dictionary = _build_base_result(event_def, context)
+	var options: Array = event_def.get("option_list", [])
+	var selected_option: Dictionary = {}
+	if not options.is_empty():
+		var selected_id: String = String(context.get("narrative_option_id", ""))
+		for option_value in options:
+			if typeof(option_value) != TYPE_DICTIONARY:
+				continue
+			var option_def: Dictionary = option_value
+			if String(option_def.get("id", "")) == selected_id:
+				selected_option = option_def
+				break
+		if selected_option.is_empty():
+			for option_value in options:
+				if typeof(option_value) != TYPE_DICTIONARY:
+					continue
+				selected_option = option_value
+				break
+	if not selected_option.is_empty():
+		var option_reward: Dictionary = selected_option.get("reward_package", {})
+		result["reward_package"] = _merge_reward_packages(result.get("reward_package", {}), option_reward)
+		result["grant_story_flags"] = _merge_string_arrays(
+			result.get("grant_story_flags", []),
+			selected_option.get("grant_story_flags", [])
+		)
+		result["grant_unlock_flags"] = _merge_string_arrays(
+			result.get("grant_unlock_flags", []),
+			selected_option.get("grant_unlock_flags", [])
+		)
+		var option_complete_task_id: String = String(selected_option.get("complete_task_id", ""))
+		if not option_complete_task_id.is_empty():
+			result["complete_task_id"] = option_complete_task_id
 	result["narrative_result"] = {
 		"status": "resolved_directly",
-		"submission_requirement": event_def.get("submission_requirement", {}).duplicate(true)
+		"submission_requirement": event_def.get("submission_requirement", {}).duplicate(true),
+		"selected_option_id": String(selected_option.get("id", "")),
+		"selected_option_text": String(selected_option.get("text", "")),
+		"selected_option_preview_impact": String(selected_option.get("preview_impact", ""))
 	}
 	return result
 
@@ -128,3 +162,46 @@ func _merge_string_arrays(primary: Array, secondary: Array) -> Array:
 		if not merged.has(item):
 			merged.append(item)
 	return merged
+
+
+func _merge_reward_packages(base_reward: Dictionary, option_reward: Dictionary) -> Dictionary:
+	var merged: Dictionary = base_reward.duplicate(true)
+	merged["currencies"] = merged.get("currencies", []).duplicate(true)
+	merged["items"] = merged.get("items", []).duplicate(true)
+	merged["relics"] = merged.get("relics", []).duplicate(true)
+	_add_reward_stacks(merged["currencies"], option_reward.get("currencies", []))
+	_add_reward_stacks(merged["items"], option_reward.get("items", []))
+	_add_reward_stacks(merged["relics"], option_reward.get("relics", []))
+	merged["story_flags"] = _merge_string_arrays(merged.get("story_flags", []), option_reward.get("story_flags", []))
+	merged["unlock_flags"] = _merge_string_arrays(merged.get("unlock_flags", []), option_reward.get("unlock_flags", []))
+	var base_tables: Array = merged.get("loot_tables", []).duplicate(true)
+	for table_value in option_reward.get("loot_tables", []):
+		if typeof(table_value) != TYPE_DICTIONARY:
+			continue
+		base_tables.append(table_value.duplicate(true))
+	merged["loot_tables"] = base_tables
+	return merged
+
+
+func _add_reward_stacks(target: Array, source: Array) -> void:
+	var index_by_id: Dictionary = {}
+	for i: int in target.size():
+		var stack_value: Variant = target[i]
+		if typeof(stack_value) != TYPE_DICTIONARY:
+			continue
+		var stack: Dictionary = stack_value
+		index_by_id[String(stack.get("id", ""))] = i
+	for source_value in source:
+		if typeof(source_value) != TYPE_DICTIONARY:
+			continue
+		var entry: Dictionary = source_value
+		var item_id: String = String(entry.get("id", ""))
+		var count: int = int(entry.get("count", 0))
+		if item_id.is_empty() or count <= 0:
+			continue
+		if index_by_id.has(item_id):
+			var idx: int = int(index_by_id[item_id])
+			target[idx]["count"] = int(target[idx].get("count", 0)) + count
+		else:
+			target.append({"id": item_id, "count": count})
+			index_by_id[item_id] = target.size() - 1

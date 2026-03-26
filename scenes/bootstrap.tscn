@@ -35,7 +35,7 @@ theme_override_constants/margin_top = 60
 theme_override_constants/margin_right = 26
 theme_override_constants/margin_bottom = 26
 
-[node name="MainRow" type="HBoxContainer" parent="Margin"]
+[node name="MainRow" type="BoxContainer" parent="Margin"]
 layout_mode = 2
 theme_override_constants/separation = 16
 
@@ -160,7 +160,7 @@ text = "点击地图上的事件点进入处理。"
 [node name="LineB" type="HSeparator" parent="Margin/MainRow/MapPanel/MapScroll/MapPadding/MapVBox"]
 layout_mode = 2
 
-[node name="BottomRow" type="HBoxContainer" parent="Margin/MainRow/MapPanel/MapScroll/MapPadding/MapVBox"]
+[node name="BottomRow" type="BoxContainer" parent="Margin/MainRow/MapPanel/MapScroll/MapPadding/MapVBox"]
 layout_mode = 2
 theme_override_constants/separation = 8
 
@@ -187,6 +187,14 @@ layout_mode = 2
 size_flags_horizontal = 3
 theme_override_font_sizes/font_size = 19
 text = "预览战斗演出"
+
+[node name="PreviewAndroidSizeButton" type="Button" parent="Margin/MainRow/MapPanel/MapScroll/MapPadding/MapVBox/BottomRow"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(0, 50)
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_font_sizes/font_size = 19
+text = "安卓横屏预览：1920x1080"
 
 [node name="DispatchPanel" type="PanelContainer" parent="Margin/MainRow"]
 custom_minimum_size = Vector2(530, 0)
@@ -247,7 +255,7 @@ bbcode_enabled = true
 theme_override_font_sizes/normal_font_size = 16
 scroll_active = true
 
-[node name="ActionRow" type="HBoxContainer" parent="Margin/MainRow/DispatchPanel/DispatchScroll/DispatchPadding/DispatchVBox"]
+[node name="ActionRow" type="BoxContainer" parent="Margin/MainRow/DispatchPanel/DispatchScroll/DispatchPadding/DispatchVBox"]
 layout_mode = 2
 theme_override_constants/separation = 8
 

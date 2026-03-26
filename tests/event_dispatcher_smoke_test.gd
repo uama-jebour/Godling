@@ -122,11 +122,19 @@ func _test_narrative_dispatch() -> void:
 	if selected.is_empty():
 		return
 
-	var result: Dictionary = _run_state().complete_selected_event(true)
+	var result: Dictionary = _run_state().complete_selected_event_with_option("force_probe")
 	var dispatch: Dictionary = result.get("dispatch_result", {})
 	_assert_true(not dispatch.is_empty(), "叙事事件应返回 dispatch_result")
 	_assert_true(String(dispatch.get("resolution_type", "")) == "narrative", "叙事事件应走 narrative 分发")
 	_assert_true(not dispatch.get("narrative_result", {}).is_empty(), "narrative 分发应包含 narrative_result")
+	_assert_true(
+		String(dispatch.get("narrative_result", {}).get("selected_option_id", "")) == "force_probe",
+		"叙事分发应记录所选选项ID"
+	)
+	_assert_true(
+		not dispatch.get("reward_package", {}).get("currencies", []).is_empty(),
+		"选中 force_probe 后应追加货币收益"
+	)
 
 
 func _test_forced_fail_keeps_no_rewards() -> void:

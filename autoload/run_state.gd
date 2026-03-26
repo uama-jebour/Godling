@@ -4,6 +4,7 @@ const EVENT_RESOLUTION_DISPATCHER := preload("res://systems/world/event_resoluti
 
 var active_run: Dictionary = {}
 var _event_dispatcher: RefCounted
+var _last_resolution_delta: Dictionary = {}
 
 
 func start_new_run(map_id: String, hero_id: String, carried_items: Array, equipped_relics: Array) -> void:
@@ -39,13 +40,48 @@ func start_new_run(map_id: String, hero_id: String, carried_items: Array, equipp
 		"unlock_flags_gained_this_run": [],
 		"triggered_forced_events": [],
 		"pending_forced_event": {},
+		"death_settlement_consumed": false,
 		"can_extract": false,
 		"is_dead": false,
 		"is_extracted": false
 	}
+	_last_resolution_delta = {
+		"stage": "run_started",
+		"headline": "已完成出发准备，进入地图。",
+		"turn_delta": 0,
+		"danger_delta": 0,
+		"items_delta": [],
+		"currencies_delta": [],
+		"relics_delta": [],
+		"task_delta": [],
+		"story_flags_delta": [],
+		"unlock_flags_delta": [],
+		"battle_card": {},
+		"warning": ""
+	}
 	_seed_carried_consumables()
 
 	generate_turn_board()
+
+
+func abandon_current_run() -> void:
+	if active_run.is_empty():
+		return
+	active_run = {}
+	_last_resolution_delta = {
+		"stage": "run_abandoned",
+		"headline": "已结束当前 run，返回家园整备。",
+		"turn_delta": 0,
+		"danger_delta": 0,
+		"items_delta": [],
+		"currencies_delta": [],
+		"relics_delta": [],
+		"task_delta": [],
+		"story_flags_delta": [],
+		"unlock_flags_delta": [],
+		"battle_card": {},
+		"warning": ""
+	}
 
 
 func generate_turn_board() -> void:
@@ -95,6 +131,13 @@ func complete_selected_event(success: bool = true) -> Dictionary:
 	return _complete_selected_event_internal(success, {})
 
 
+func complete_selected_event_with_option(option_id: String) -> Dictionary:
+	var context: Dictionary = {}
+	if not option_id.is_empty():
+		context["narrative_option_id"] = option_id
+	return _complete_selected_event_internal(true, context)
+
+
 func complete_selected_event_with_battle_result(battle_result: Dictionary) -> Dictionary:
 	if battle_result.is_empty():
 		return {}
@@ -117,6 +160,7 @@ func _complete_selected_event_internal(success: bool, extra_context: Dictionary)
 		event_def = selected_snapshot.duplicate(true)
 	if event_def.is_empty():
 		return {}
+	var before_snapshot: Dictionary = _capture_resolution_snapshot()
 
 	var dispatch_result: Dictionary = _resolve_event_dispatch(event_def, selected_snapshot, success, true, extra_context)
 	if dispatch_result.is_empty():
@@ -128,6 +172,15 @@ func _complete_selected_event_internal(success: bool, extra_context: Dictionary)
 
 	_clear_selected_event()
 	if active_run.get("is_dead", false):
+		var death_after_snapshot: Dictionary = _capture_resolution_snapshot()
+		_last_resolution_delta = _build_resolution_delta(
+			"board_event_failed",
+			event_def,
+			dispatch_result,
+			before_snapshot,
+			death_after_snapshot,
+			"事件处理失败，角色阵亡。"
+		)
 		return {
 			"selected_event": event_def,
 			"forced_event": {},
@@ -137,6 +190,18 @@ func _complete_selected_event_internal(success: bool, extra_context: Dictionary)
 	active_run["can_extract"] = true
 	var forced_event: Dictionary = _roll_forced_event()
 	_advance_turn()
+	var after_snapshot: Dictionary = _capture_resolution_snapshot()
+	var resolution_note := "事件处理完成，局内状态已更新。"
+	if not forced_event.is_empty():
+		resolution_note = "事件处理完成，并触发了额外强制袭击。"
+	_last_resolution_delta = _build_resolution_delta(
+		"board_event",
+		event_def,
+		dispatch_result,
+		before_snapshot,
+		after_snapshot,
+		resolution_note
+	)
 
 	return {
 		"selected_event": event_def,
@@ -155,6 +220,7 @@ func resolve_pending_forced_event(success: bool = true) -> Dictionary:
 	var pending: Dictionary = active_run.get("pending_forced_event", {})
 	if pending.is_empty():
 		return {}
+	var before_snapshot: Dictionary = _capture_resolution_snapshot()
 
 	var dispatch_result: Dictionary = _resolve_event_dispatch(pending, pending, success)
 	if dispatch_result.is_empty():
@@ -162,6 +228,15 @@ func resolve_pending_forced_event(success: bool = true) -> Dictionary:
 
 	_apply_dispatch_result(dispatch_result)
 	active_run["pending_forced_event"] = {}
+	var after_snapshot: Dictionary = _capture_resolution_snapshot()
+	_last_resolution_delta = _build_resolution_delta(
+		"forced_event",
+		pending,
+		dispatch_result,
+		before_snapshot,
+		after_snapshot,
+		"已处理额外强制袭击事件。"
+	)
 	return {"resolved_event": pending, "success": success, "dispatch_result": dispatch_result}
 
 
@@ -184,8 +259,18 @@ func resolve_extraction_event(success: bool = true) -> Dictionary:
 	var extraction_event: Dictionary = get_extraction_event()
 	if extraction_event.is_empty():
 		return {}
+	var before_snapshot: Dictionary = _capture_resolution_snapshot()
 	if not success:
 		active_run["is_dead"] = true
+		var after_failed_snapshot: Dictionary = _capture_resolution_snapshot()
+		_last_resolution_delta = _build_resolution_delta(
+			"extraction_failed",
+			extraction_event,
+			{},
+			before_snapshot,
+			after_failed_snapshot,
+			"撤离失败，角色阵亡。"
+		)
 		return {
 			"status": "failed",
 			"event": extraction_event
@@ -209,6 +294,18 @@ func resolve_extraction_event(success: bool = true) -> Dictionary:
 		"story_flags_applied": active_run["story_flags_gained_this_run"].duplicate(true),
 		"unlock_flags_applied": active_run["unlock_flags_gained_this_run"].duplicate(true)
 	}
+	if _has_story_flag("sidebranch_extract_bonus_ready"):
+		_add_stacks(extraction_result["saved_currencies"], [{"id": "currency_lumen_mark", "count": 35}])
+		extraction_result["bonus_note"] = "侧线净化完成：撤离补给额外获得辉印 x35。"
+	var after_snapshot: Dictionary = _capture_resolution_snapshot()
+	_last_resolution_delta = _build_resolution_delta(
+		"extraction_success",
+		extraction_event,
+		dispatch_result,
+		before_snapshot,
+		after_snapshot,
+		"撤离成功，临时战利品可写入永久存档。"
+	)
 
 	return {
 		"status": "success",
@@ -296,6 +393,128 @@ func get_progress_snapshot() -> Dictionary:
 		"story_flags": active_run.get("story_flags_gained_this_run", []).duplicate(true),
 		"unlock_flags": active_run.get("unlock_flags_gained_this_run", []).duplicate(true)
 	}
+
+
+func get_task_snapshot() -> Dictionary:
+	if active_run.is_empty():
+		return {}
+	var context: Dictionary = _build_condition_context()
+	var tasks: Array = _content_db().get_tasks_for_map(String(active_run.get("map_id", "")), context)
+	var completed_ids: Array = context.get("completed_tasks", [])
+	var board: Dictionary = get_board_snapshot()
+	var active_tasks: Array = []
+	var upcoming_tasks: Array = []
+	var completed_tasks: Array = []
+	for task_value in tasks:
+		if typeof(task_value) != TYPE_DICTIONARY:
+			continue
+		var task_def: Dictionary = task_value
+		var task_id: String = String(task_def.get("id", ""))
+		var event_ref: String = String(task_def.get("event_ref", ""))
+		var is_completed: bool = completed_ids.has(task_id)
+		var is_unlocked: bool = bool(task_def.get("is_unlocked", false))
+		var hydrated: Dictionary = {
+			"id": task_id,
+			"name_cn": String(task_def.get("name_cn", task_id)),
+			"task_type": String(task_def.get("task_type", "")),
+			"event_ref": event_ref,
+			"event_title": String(task_def.get("event_title", event_ref)),
+			"event_kind": String(task_def.get("event_kind", "")),
+			"resolution_type": String(task_def.get("resolution_type", "")),
+			"pool_type": String(task_def.get("pool_type", "")),
+			"objective_text": String(task_def.get("objective_text", "")),
+			"preview_impact": String(task_def.get("preview_impact", "")),
+			"entry_conditions": task_def.get("entry_conditions", []).duplicate(true),
+			"next_unlocks": task_def.get("next_unlocks", []).duplicate(true),
+			"is_unlocked": is_unlocked,
+			"is_completed": is_completed,
+			"is_visible_on_board": _is_event_on_board(event_ref, board)
+		}
+		if is_completed:
+			completed_tasks.append(hydrated)
+		elif is_unlocked:
+			active_tasks.append(hydrated)
+		else:
+			upcoming_tasks.append(hydrated)
+
+	return {
+		"map_id": String(active_run.get("map_id", "")),
+		"turn": int(active_run.get("turn", 1)),
+		"danger_level": int(active_run.get("danger_level", 0)),
+		"active_tasks": active_tasks,
+		"upcoming_tasks": upcoming_tasks,
+		"completed_tasks": completed_tasks
+	}
+
+
+func get_last_resolution_delta() -> Dictionary:
+	return _last_resolution_delta.duplicate(true)
+
+
+func get_forced_event_hint() -> Dictionary:
+	if active_run.is_empty():
+		return {}
+	var turn_value: int = int(active_run.get("turn", 1))
+	var pending: Dictionary = active_run.get("pending_forced_event", {})
+	if not pending.is_empty():
+		return {
+			"status": "pending",
+			"text": "强制袭击已触发：%s（额外处理，不占回合）。" % String(pending.get("title", "强制袭击")),
+			"turn": turn_value
+		}
+	if turn_value < 4:
+		return {
+			"status": "locked",
+			"text": "第4回合后才可能触发强制袭击事件。",
+			"turn": turn_value
+		}
+	var context: Dictionary = _build_condition_context()
+	var forced_candidates: Array = _content_db().get_forced_non_turn_events(
+		String(active_run.get("map_id", "")),
+		context,
+		active_run.get("triggered_forced_events", [])
+	)
+	if forced_candidates.is_empty():
+		return {
+			"status": "exhausted",
+			"text": "当前局内已无可触发的强制袭击事件。",
+			"turn": turn_value
+		}
+	var max_chance := 0.0
+	for event_value in forced_candidates:
+		if typeof(event_value) != TYPE_DICTIONARY:
+			continue
+		var event_def: Dictionary = event_value
+		max_chance = max(max_chance, float(event_def.get("chance", 0.0)))
+	return {
+		"status": "armed",
+		"text": "强制袭击监测中：当前回合可能触发额外战斗（参考概率 %.0f%%）。" % (max_chance * 100.0),
+		"turn": turn_value
+	}
+
+
+func consume_death_result() -> Dictionary:
+	if active_run.is_empty():
+		return {}
+	if not bool(active_run.get("is_dead", false)):
+		return {}
+	if bool(active_run.get("death_settlement_consumed", false)):
+		return {}
+	var result: Dictionary = {
+		"status": "dead",
+		"lost_items": active_run.get("temporary_inventory", []).duplicate(true),
+		"lost_currencies": active_run.get("temporary_currencies", []).duplicate(true),
+		"lost_relics": active_run.get("temporary_relics", []).duplicate(true),
+		"story_flags_preserved": active_run.get("story_flags_gained_this_run", []).duplicate(true),
+		"unlock_flags_preserved": active_run.get("unlock_flags_gained_this_run", []).duplicate(true),
+		"completed_tasks": active_run.get("completed_tasks", []).duplicate(true)
+	}
+	active_run["temporary_inventory"] = []
+	active_run["temporary_currencies"] = []
+	active_run["temporary_relics"] = []
+	active_run["can_extract"] = false
+	active_run["death_settlement_consumed"] = true
+	return result
 
 
 func has_item_for_requirement(item_id: String) -> bool:
@@ -719,6 +938,138 @@ func _consume_temp_item(item_id: String) -> bool:
 			active_run["temporary_inventory"][i]["count"] = count
 		return true
 	return false
+
+
+func _has_story_flag(flag_id: String) -> bool:
+	return active_run.get("story_flags_gained_this_run", []).has(flag_id)
+
+
+func _is_event_on_board(event_id: String, board: Dictionary) -> bool:
+	if event_id.is_empty():
+		return false
+	for event_value in board.get("random_slots", []):
+		if typeof(event_value) != TYPE_DICTIONARY:
+			continue
+		if String(event_value.get("id", "")) == event_id:
+			return true
+	for event_value in board.get("fixed_events", []):
+		if typeof(event_value) != TYPE_DICTIONARY:
+			continue
+		if String(event_value.get("id", "")) == event_id:
+			return true
+	var pending: Dictionary = active_run.get("pending_forced_event", {})
+	if String(pending.get("id", "")) == event_id:
+		return true
+	var extraction: Dictionary = get_extraction_event()
+	if String(extraction.get("id", "")) == event_id and bool(active_run.get("can_extract", false)):
+		return true
+	return false
+
+
+func _capture_resolution_snapshot() -> Dictionary:
+	return {
+		"turn": int(active_run.get("turn", 0)),
+		"danger": int(active_run.get("danger_level", 0)),
+		"items": active_run.get("temporary_inventory", []).duplicate(true),
+		"currencies": active_run.get("temporary_currencies", []).duplicate(true),
+		"relics": active_run.get("temporary_relics", []).duplicate(true),
+		"completed_tasks": active_run.get("completed_tasks", []).duplicate(true),
+		"story_flags": active_run.get("story_flags_gained_this_run", []).duplicate(true),
+		"unlock_flags": active_run.get("unlock_flags_gained_this_run", []).duplicate(true),
+		"is_dead": bool(active_run.get("is_dead", false)),
+		"is_extracted": bool(active_run.get("is_extracted", false))
+	}
+
+
+func _build_resolution_delta(
+	stage: String,
+	event_def: Dictionary,
+	dispatch_result: Dictionary,
+	before_snapshot: Dictionary,
+	after_snapshot: Dictionary,
+	headline: String
+) -> Dictionary:
+	var event_title: String = String(event_def.get("title", String(event_def.get("id", "未命名事件"))))
+	var battle_result: Dictionary = dispatch_result.get("battle_result", {})
+	var battle_card: Dictionary = {}
+	if not battle_result.is_empty():
+		battle_card = {
+			"victory": bool(battle_result.get("victory", false)),
+			"status": String(battle_result.get("status", "")),
+			"defeat_reason": String(battle_result.get("defeat_reason", "")),
+			"completed_objectives": battle_result.get("completed_objectives", []).duplicate(true),
+			"reward_package": battle_result.get("reward_package", {}).duplicate(true)
+		}
+	var narrative_result: Dictionary = dispatch_result.get("narrative_result", {})
+	var narrative_card: Dictionary = {}
+	if not narrative_result.is_empty():
+		narrative_card = {
+			"selected_option_id": String(narrative_result.get("selected_option_id", "")),
+			"selected_option_text": String(narrative_result.get("selected_option_text", "")),
+			"selected_option_preview_impact": String(narrative_result.get("selected_option_preview_impact", "")),
+			"submission_requirement": narrative_result.get("submission_requirement", {}).duplicate(true)
+		}
+	return {
+		"stage": stage,
+		"event_id": String(event_def.get("id", "")),
+		"event_title": event_title,
+		"headline": headline,
+		"turn_delta": int(after_snapshot.get("turn", 0)) - int(before_snapshot.get("turn", 0)),
+		"danger_delta": int(after_snapshot.get("danger", 0)) - int(before_snapshot.get("danger", 0)),
+		"items_delta": _stack_delta(before_snapshot.get("items", []), after_snapshot.get("items", [])),
+		"currencies_delta": _stack_delta(before_snapshot.get("currencies", []), after_snapshot.get("currencies", [])),
+		"relics_delta": _stack_delta(before_snapshot.get("relics", []), after_snapshot.get("relics", [])),
+		"task_delta": _added_strings(before_snapshot.get("completed_tasks", []), after_snapshot.get("completed_tasks", [])),
+		"story_flags_delta": _added_strings(before_snapshot.get("story_flags", []), after_snapshot.get("story_flags", [])),
+		"unlock_flags_delta": _added_strings(before_snapshot.get("unlock_flags", []), after_snapshot.get("unlock_flags", [])),
+		"battle_card": battle_card,
+		"narrative_card": narrative_card,
+		"warning": "角色阵亡" if bool(after_snapshot.get("is_dead", false)) else ""
+	}
+
+
+func _stack_delta(before_stacks: Array, after_stacks: Array) -> Array:
+	var before_index: Dictionary = _stacks_to_index(before_stacks)
+	var after_index: Dictionary = _stacks_to_index(after_stacks)
+	var all_ids: Dictionary = {}
+	for stack_id: String in before_index.keys():
+		all_ids[stack_id] = true
+	for stack_id: String in after_index.keys():
+		all_ids[stack_id] = true
+	var deltas: Array = []
+	for stack_id: String in all_ids.keys():
+		var before_count: int = int(before_index.get(stack_id, 0))
+		var after_count: int = int(after_index.get(stack_id, 0))
+		var diff: int = after_count - before_count
+		if diff == 0:
+			continue
+		deltas.append({"id": stack_id, "count": diff})
+	return deltas
+
+
+func _stacks_to_index(stacks: Array) -> Dictionary:
+	var index: Dictionary = {}
+	for stack_value in stacks:
+		if typeof(stack_value) != TYPE_DICTIONARY:
+			continue
+		var stack: Dictionary = stack_value
+		var stack_id: String = String(stack.get("id", ""))
+		if stack_id.is_empty():
+			continue
+		index[stack_id] = int(stack.get("count", 0))
+	return index
+
+
+func _added_strings(before_values: Array, after_values: Array) -> Array:
+	var added: Array = []
+	for value in after_values:
+		var entry: String = String(value)
+		if entry.is_empty():
+			continue
+		if before_values.has(entry):
+			continue
+		added.append(entry)
+	return added
 
 
 func _dispatcher() -> RefCounted:

@@ -6,7 +6,43 @@
 		"event_ref": "event_a02_mainline_narrative",
 		"pool_type": "fixed_line",
 		"entry_conditions": ["turn>=1"],
+		"objective_text": "读取圣坛线索，并确认静默祷词的位置。",
+		"preview_impact": "开启主线叙事并解锁后续提交步骤。",
+		"option_list": [
+			{"id": "focus_listen", "text": "静听祷词低语"},
+			{"id": "force_probe", "text": "强行搜检残页"}
+		],
+		"next_unlocks": ["task_a02_mainline_battle", "task_a02_sidebranch_omen"],
 		"reward_preview": [{"type": "story_flag", "id": "mainline_started"}]
+	},
+	{
+		"id": "task_a02_sidebranch_omen",
+		"name_cn": "支线：灰烬刻印异动",
+		"task_type": "side_narrative",
+		"event_ref": "event_a02_sidebranch_omen",
+		"pool_type": "fixed_line",
+		"entry_conditions": ["flag:mainline_started", "turn>=2"],
+		"objective_text": "调查地图边缘出现的灰烬刻印。",
+		"preview_impact": "若追踪成功，可解锁支线战斗并影响撤离收益。",
+		"option_list": [
+			{"id": "track_marks", "text": "沿着刻印追踪"},
+			{"id": "ignore_marks", "text": "忽略异动，继续主线"}
+		],
+		"next_unlocks": ["task_a02_sidebranch_battle"],
+		"reward_preview": [{"type": "story_flag", "id": "sidebranch_trail"}]
+	},
+	{
+		"id": "task_a02_sidebranch_battle",
+		"name_cn": "支线：净化裂隙巡队",
+		"task_type": "side_battle",
+		"event_ref": "event_a02_sidebranch_battle",
+		"pool_type": "fixed_line",
+		"entry_conditions": ["completed_task:task_a02_sidebranch_omen", "flag:sidebranch_trail", "turn>=3"],
+		"objective_text": "击退刻印尽头的巡队并回收补给路线。",
+		"preview_impact": "完成后在撤离时可获得额外辉印补给。",
+		"option_list": [],
+		"next_unlocks": ["task_a02_extract_success"],
+		"reward_preview": [{"type": "story_flag", "id": "sidebranch_extract_bonus_ready"}]
 	},
 	{
 		"id": "task_a02_mainline_battle",
@@ -15,6 +51,10 @@
 		"event_ref": "event_a02_mainline_battle",
 		"pool_type": "fixed_line",
 		"entry_conditions": ["flag:mainline_item_submitted", "turn>=6"],
+		"objective_text": "完成主线战斗并压制圣坛核心区域。",
+		"preview_impact": "推动主线完成，进入撤离阶段。",
+		"option_list": [],
+		"next_unlocks": ["task_a02_extract_success"],
 		"reward_preview": [{"type": "loot_table", "id": "loot_table_a02_mainline"}]
 	},
 	{
@@ -24,7 +64,10 @@
 		"event_ref": "event_a02_extraction_breakthrough",
 		"pool_type": "forced",
 		"entry_conditions": ["flag:mainline_completed"],
+		"objective_text": "完成撤离事件，将临时收益带回家园。",
+		"preview_impact": "成功后写入永久存档并保留本局推进。",
+		"option_list": [],
+		"next_unlocks": ["equipment_tab_enabled"],
 		"reward_preview": [{"type": "unlock_flag", "id": "equipment_tab_enabled"}]
 	}
 ]
-

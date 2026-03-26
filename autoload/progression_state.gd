@@ -91,6 +91,41 @@ func get_context_for_conditions() -> Dictionary:
 	}
 
 
+func build_run_settlement_snapshot(extraction_result: Dictionary = {}, death_result: Dictionary = {}) -> Dictionary:
+	var has_extract: bool = not extraction_result.is_empty()
+	var has_death: bool = not death_result.is_empty()
+	var status := "idle"
+	if has_extract:
+		status = "extracted"
+	elif has_death:
+		status = "dead"
+	var projected_items: Array = state.get("inventory_items", []).duplicate(true)
+	var projected_currencies: Array = state.get("currencies", []).duplicate(true)
+	var projected_relics: Array = state.get("relics", []).duplicate(true)
+	if has_extract:
+		_simulate_stack_merge(projected_items, extraction_result.get("saved_items", []))
+		_simulate_stack_merge(projected_currencies, extraction_result.get("saved_currencies", []))
+		_simulate_stack_merge(projected_relics, extraction_result.get("saved_relics", []))
+	return {
+		"status": status,
+		"saved_items": extraction_result.get("saved_items", []).duplicate(true),
+		"saved_currencies": extraction_result.get("saved_currencies", []).duplicate(true),
+		"saved_relics": extraction_result.get("saved_relics", []).duplicate(true),
+		"lost_items": death_result.get("lost_items", []).duplicate(true),
+		"lost_currencies": death_result.get("lost_currencies", []).duplicate(true),
+		"lost_relics": death_result.get("lost_relics", []).duplicate(true),
+		"story_flags_applied": extraction_result.get("story_flags_applied", []).duplicate(true),
+		"unlock_flags_applied": extraction_result.get("unlock_flags_applied", []).duplicate(true),
+		"story_flags_preserved": death_result.get("story_flags_preserved", []).duplicate(true),
+		"unlock_flags_preserved": death_result.get("unlock_flags_preserved", []).duplicate(true),
+		"completed_tasks": extraction_result.get("completed_tasks", []).duplicate(true),
+		"projected_inventory_items": projected_items,
+		"projected_currencies": projected_currencies,
+		"projected_relics": projected_relics,
+		"bonus_note": String(extraction_result.get("bonus_note", ""))
+	}
+
+
 func _add_stack_items(target_key: String, source: Array) -> void:
 	var target: Array = state.get(target_key, [])
 	var index_by_id: Dictionary = {}
@@ -112,6 +147,27 @@ func _add_stack_items(target_key: String, source: Array) -> void:
 			index_by_id[item_id] = target.size() - 1
 
 	state[target_key] = target
+
+
+func _simulate_stack_merge(target: Array, source: Array) -> void:
+	var index_by_id: Dictionary = {}
+	for i: int in target.size():
+		var item: Dictionary = target[i]
+		index_by_id[String(item.get("id", ""))] = i
+	for entry_value in source:
+		if typeof(entry_value) != TYPE_DICTIONARY:
+			continue
+		var entry: Dictionary = entry_value
+		var item_id: String = String(entry.get("id", ""))
+		var count: int = int(entry.get("count", 0))
+		if item_id.is_empty() or count <= 0:
+			continue
+		if index_by_id.has(item_id):
+			var idx: int = int(index_by_id[item_id])
+			target[idx]["count"] = int(target[idx].get("count", 0)) + count
+		else:
+			target.append({"id": item_id, "count": count})
+			index_by_id[item_id] = target.size() - 1
 
 
 func _merge_defaults(saved: Dictionary) -> Dictionary:

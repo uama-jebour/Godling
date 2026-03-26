@@ -5,6 +5,7 @@
 		"sequence": 1,
 		"name_cn": "残桥经行地",
 		"name_en": "Ruined Crossing",
+		"visual_profile": "ruined_crossing",
 		"random_slot_count_range": [4, 6],
 		"random_slot_anchors": [
 			{"id": "slot_a", "position": [120, 130]},
@@ -14,6 +15,13 @@
 			{"id": "slot_e", "position": [430, 350]},
 			{"id": "slot_f", "position": [700, 360]}
 		],
+		"fixed_slot_anchors": [
+			{"id": "fixed_a", "position": [206, 88]},
+			{"id": "fixed_b", "position": [676, 456]},
+			{"id": "fixed_c", "position": [760, 126]}
+		],
+		"forced_anchor": [786, 444],
+		"extraction_anchor": [94, 94],
 		"base_stats": {
 			"development": 0,
 			"public_reputation": 0,
@@ -30,6 +38,7 @@
 		"sequence": 2,
 		"name_cn": "灰烬圣坛外环",
 		"name_en": "Ashen Sanctum Outskirts",
+		"visual_profile": "ashen_sanctum",
 		"random_slot_count_range": [4, 6],
 		"random_slot_anchors": [
 			{"id": "slot_a", "position": [180, 140]},
@@ -39,6 +48,13 @@
 			{"id": "slot_e", "position": [520, 380]},
 			{"id": "slot_f", "position": [760, 420]}
 		],
+		"fixed_slot_anchors": [
+			{"id": "fixed_a", "position": [620, 94]},
+			{"id": "fixed_b", "position": [770, 146]},
+			{"id": "fixed_c", "position": [126, 462]}
+		],
+		"forced_anchor": [772, 112],
+		"extraction_anchor": [110, 468],
 		"base_stats": {
 			"development": 1,
 			"public_reputation": 0,
@@ -60,4 +76,3 @@
 		}
 	}
 ]
-

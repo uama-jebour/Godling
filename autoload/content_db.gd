@@ -101,8 +101,96 @@ func get_map(map_id: String) -> Dictionary:
 	return _deep_copy_dict(by_id.get("maps", {}).get(map_id, {}))
 
 
+func list_maps() -> Array:
+	var maps: Array = []
+	for map_value in data.get("maps", []):
+		if typeof(map_value) != TYPE_DICTIONARY:
+			continue
+		maps.append(_deep_copy_dict(map_value))
+	return maps
+
+
+func list_startable_maps(context: Dictionary = {}) -> Array:
+	var check_context: Dictionary = {
+		"turn": 1,
+		"danger_level": 0,
+		"story_flags": [],
+		"unlock_flags": [],
+		"completed_tasks": [],
+		"item_ids": []
+	}
+	for key in context.keys():
+		check_context[key] = context[key]
+
+	var startable_map_ids: Dictionary = {}
+	for event_value in data.get("events", []):
+		if typeof(event_value) != TYPE_DICTIONARY:
+			continue
+		var event_def: Dictionary = event_value
+		if String(event_def.get("trigger_mode", "board")) != "board":
+			continue
+		if not _conditions_match(event_def.get("conditions", []), check_context):
+			continue
+		for map_id_value in event_def.get("map_ids", []):
+			var map_id: String = String(map_id_value)
+			if map_id.is_empty():
+				continue
+			startable_map_ids[map_id] = true
+
+	var selected: Array = []
+	for map_value in data.get("maps", []):
+		if typeof(map_value) != TYPE_DICTIONARY:
+			continue
+		var map_def: Dictionary = map_value
+		var map_id: String = String(map_def.get("id", ""))
+		if map_id.is_empty():
+			continue
+		if not startable_map_ids.has(map_id):
+			continue
+		selected.append(_deep_copy_dict(map_def))
+	return selected
+
+
 func get_event(event_id: String) -> Dictionary:
 	return _deep_copy_dict(by_id.get("events", {}).get(event_id, {}))
+
+
+func get_task(task_id: String) -> Dictionary:
+	return _deep_copy_dict(by_id.get("tasks", {}).get(task_id, {}))
+
+
+func get_task_by_event_ref(event_id: String) -> Dictionary:
+	for task_value in data.get("tasks", []):
+		if typeof(task_value) != TYPE_DICTIONARY:
+			continue
+		var task_def: Dictionary = task_value
+		if String(task_def.get("event_ref", "")) == event_id:
+			return _deep_copy_dict(task_def)
+	return {}
+
+
+func get_tasks_for_map(map_id: String, context: Dictionary = {}) -> Array:
+	var selected: Array = []
+	for task_value in data.get("tasks", []):
+		if typeof(task_value) != TYPE_DICTIONARY:
+			continue
+		var task_def: Dictionary = task_value
+		var event_ref: String = String(task_def.get("event_ref", ""))
+		if event_ref.is_empty():
+			continue
+		var event_def: Dictionary = by_id.get("events", {}).get(event_ref, {})
+		if event_def.is_empty():
+			continue
+		if not _event_matches_map(event_def, map_id):
+			continue
+		var unlocked: bool = _conditions_match(task_def.get("entry_conditions", []), context)
+		var hydrated: Dictionary = _deep_copy_dict(task_def)
+		hydrated["is_unlocked"] = unlocked
+		hydrated["event_title"] = String(event_def.get("title", event_ref))
+		hydrated["event_kind"] = String(event_def.get("event_kind", ""))
+		hydrated["resolution_type"] = String(event_def.get("resolution_type", ""))
+		selected.append(hydrated)
+	return selected
 
 
 func get_item(item_id: String) -> Dictionary:

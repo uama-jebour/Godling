@@ -54,6 +54,8 @@ jobs:
       - name: Export Web build
         run: |
           "$HOME/godot/Godot_v${GODOT_RELEASE}_linux.x86_64" --headless --path . --export-release "Web" dist/web/index.html
+          BUILD_ID="$(date -u +'%Y%m%dT%H%M%SZ')-${GITHUB_SHA::7}"
+          bash scripts/web/prepare_web_build.sh dist/web "${BUILD_ID}"
           touch dist/web/.nojekyll
 
       - name: Upload Pages artifact

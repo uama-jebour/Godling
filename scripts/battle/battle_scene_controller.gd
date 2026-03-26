@@ -15,11 +15,16 @@ const UNIT_TOKEN_SCENE := preload("res://scenes/battle/unit_token.tscn")
 @onready var hero_header: Label = %HeroHeader
 @onready var hero_token: ColorRect = %HeroToken
 @onready var hero_label: Label = %HeroLabel
+@onready var enemy_header: Label = get_node_or_null("%EnemyHeader")
 @onready var enemy_tokens: VBoxContainer = %EnemyTokens
 @onready var tick_label: Label = %TickLabel
 @onready var event_log: RichTextLabel = %EventLog
 @onready var status_label: Label = get_node_or_null("%StatusLabel")
 @onready var selected_target_label: Label = get_node_or_null("%SelectedTargetLabel")
+@onready var root_vbox: VBoxContainer = $"../BattleUI/ShellMargin/ModalPanel/PanelMargin/RootVBox"
+@onready var action_bar: HBoxContainer = $"../BattleUI/ShellMargin/ModalPanel/PanelMargin/RootVBox/ActionBar"
+@onready var action_info_box: VBoxContainer = $"../BattleUI/ShellMargin/ModalPanel/PanelMargin/RootVBox/ActionBar/ActionInfo"
+@onready var command_strip: HBoxContainer = $"../BattleUI/ShellMargin/ModalPanel/PanelMargin/RootVBox/ActionBar/CommandStrip"
 @onready var attack_button: Button = get_node_or_null("%AttackButton")
 @onready var defend_button: Button = get_node_or_null("%DefendButton")
 @onready var wait_button: Button = get_node_or_null("%WaitButton")
@@ -61,6 +66,7 @@ var _interactive_state: Dictionary = {}
 var _selected_target_id := ""
 var _resolving_enemy_phase := false
 var _last_action_signature := ""
+var _action_deck_panel: PanelContainer
 
 const DEFAULT_SKILL_ICON := preload("res://icon.svg")
 
@@ -76,6 +82,7 @@ func _ready() -> void:
 		wait_button.pressed.connect(_on_wait_pressed)
 	if item_button != null and not item_button.pressed.is_connected(_on_item_pressed):
 		item_button.pressed.connect(_on_item_pressed)
+	_build_action_deck()
 	_set_interaction_enabled(false)
 	call_deferred("_refresh_layout_after_frame")
 
@@ -194,14 +201,24 @@ func _render_state(state: Dictionary, headline: String) -> void:
 		state.get("enemy_units", []).size(),
 		state.get("events_triggered", []).size()
 	]
+	if enemy_header != null:
+		var alive_enemy_count: int = _alive_enemy_count(state)
+		var total_enemy_count: int = state.get("enemy_entities", []).size()
+		enemy_header.text = "敌方编组（存活 %d/%d）" % [alive_enemy_count, total_enemy_count]
 
 	_sync_enemy_tokens(state.get("enemy_units", []))
 	_sync_arena_tokens(state)
 	_render_attack_cues(state)
-	_log_lines.append("%s | 我方 %.1f | 敌方 %.1f" % [headline, hero_hp, float(state.get("enemy_total_hp", 0.0))])
+	var action_brief: String = _format_action_brief(state)
+	_log_lines.append("%s | %s | 我方 %.1f | 敌方 %.1f" % [
+		headline,
+		action_brief,
+		hero_hp,
+		float(state.get("enemy_total_hp", 0.0))
+	])
 	if not state.get("events_triggered", []).is_empty():
-		_log_lines[_log_lines.size() - 1] += " | events=%s" % ",".join(state.get("events_triggered", []))
-	while _log_lines.size() > 8:
+		_log_lines[_log_lines.size() - 1] += " | 事件=%s" % ",".join(state.get("events_triggered", []))
+	while _log_lines.size() > 10:
 		_log_lines.remove_at(0)
 	event_log.text = "\n".join(_log_lines)
 	_update_interaction_hud(state)
@@ -238,24 +255,54 @@ func _update_interaction_hud(state: Dictionary) -> void:
 	var guard_name: String = String(guard_skill.get("name_cn", "架盾"))
 	var hero_resolve: int = int(state.get("hero_resolve", 0))
 	var hero_resolve_max: int = int(state.get("hero_resolve_max", 0))
-	var item_text: String = "选择道具"
-	var item_disabled := true
-	if not battle_items.is_empty():
-		item_text = "道具 x%d" % battle_items.size()
-		item_disabled = phase != "player" or _resolving_enemy_phase
-	status_label.text = String(state.get("status_text", "请选择一个敌人并发动攻击。"))
-	selected_target_label.text = "当前目标：%s" % (selected_name if not selected_name.is_empty() else "未选择")
-	attack_button.disabled = phase != "player" or _selected_target_id.is_empty() or _resolving_enemy_phase or not _skill_is_ready(slash_skill, hero_resolve)
-	attack_button.text = "技能1·%s" % slash_name if phase == "player" else "敌方行动中"
+	var can_player_input := phase == "player" and not _resolving_enemy_phase
+	var slash_block_reason: String = _skill_unavailable_reason(slash_skill, hero_resolve)
+	var guard_block_reason: String = _skill_unavailable_reason(guard_skill, hero_resolve)
+	var target_hp_text: String = _selected_target_hp_text(state, _selected_target_id)
+	var fallback_status := "请选择一个敌人并发动攻击。"
+	if not can_player_input:
+		fallback_status = "敌方行动中，请等待当前反击结算。"
+	status_label.text = String(state.get("status_text", fallback_status))
+	if not can_player_input and String(state.get("turn_phase", "player")) != "player":
+		status_label.text = "敌方行动中，请等待当前反击结算。"
+	elif can_player_input and _selected_target_id.is_empty():
+		status_label.text = "%s（先点击战场中的敌方目标）" % String(state.get("status_text", fallback_status))
+	selected_target_label.text = "当前目标：%s%s" % [
+		selected_name if not selected_name.is_empty() else "未选择",
+		target_hp_text
+	]
+	attack_button.disabled = not can_player_input or _selected_target_id.is_empty() or not slash_block_reason.is_empty()
+	attack_button.tooltip_text = "攻击当前锁定目标并消耗灵势。"
+	if not can_player_input:
+		attack_button.text = "敌方行动中"
+	elif _selected_target_id.is_empty():
+		attack_button.text = "技能1·%s（先选目标）" % slash_name
+	elif not slash_block_reason.is_empty():
+		attack_button.text = "技能1·%s（%s）" % [slash_name, slash_block_reason]
+	else:
+		attack_button.text = "技能1·%s" % slash_name
 	if defend_button != null:
-		defend_button.disabled = phase != "player" or _resolving_enemy_phase or not _skill_is_ready(guard_skill, hero_resolve)
-		defend_button.text = "技能2·%s" % guard_name
+		defend_button.disabled = not can_player_input or not guard_block_reason.is_empty()
+		defend_button.tooltip_text = "降低本轮即将承受的敌方伤害。"
+		if not can_player_input:
+			defend_button.text = "敌方行动中"
+		elif not guard_block_reason.is_empty():
+			defend_button.text = "技能2·%s（%s）" % [guard_name, guard_block_reason]
+		else:
+			defend_button.text = "技能2·%s" % guard_name
 	if wait_button != null:
-		wait_button.disabled = phase != "player" or _resolving_enemy_phase
+		wait_button.disabled = not can_player_input
 		wait_button.text = "蓄势待机"
+		wait_button.tooltip_text = "不出手，恢复灵势并进入敌方回合。"
 	if item_button != null:
-		item_button.text = item_text
-		item_button.disabled = item_disabled
+		if battle_items.is_empty():
+			item_button.text = "无可用道具"
+			item_button.disabled = true
+			item_button.tooltip_text = "当前没有可在战斗中使用的道具。"
+		else:
+			item_button.text = "道具 x%d" % battle_items.size()
+			item_button.disabled = not can_player_input
+			item_button.tooltip_text = "使用战斗道具后会立即进入敌方回合。"
 	_update_skill_card(slash_skill, attack_skill_card, attack_skill_icon, attack_meta_label, attack_cooldown_bar, attack_resource_bar, attack_cooldown_mask, hero_resolve, hero_resolve_max)
 	_update_skill_card(guard_skill, defend_skill_card, defend_skill_icon, defend_meta_label, defend_cooldown_bar, defend_resource_bar, defend_cooldown_mask, hero_resolve, hero_resolve_max)
 	_refresh_item_popup(battle_items)
@@ -662,6 +709,55 @@ func _entity_display_name(state: Dictionary, entity_id: String) -> String:
 	return ""
 
 
+func _selected_target_hp_text(state: Dictionary, entity_id: String) -> String:
+	if entity_id.is_empty():
+		return ""
+	for enemy_entity_value in state.get("enemy_entities", []):
+		if typeof(enemy_entity_value) != TYPE_DICTIONARY:
+			continue
+		var enemy_entity: Dictionary = enemy_entity_value
+		if String(enemy_entity.get("entity_id", "")) != entity_id:
+			continue
+		var hp: float = float(enemy_entity.get("current_hp", 0.0))
+		var max_hp: float = float(enemy_entity.get("max_hp", 0.0))
+		return "（HP %.1f/%.1f）" % [hp, max_hp]
+	return ""
+
+
+func _alive_enemy_count(state: Dictionary) -> int:
+	var alive := 0
+	for enemy_entity_value in state.get("enemy_entities", []):
+		if typeof(enemy_entity_value) != TYPE_DICTIONARY:
+			continue
+		var enemy_entity: Dictionary = enemy_entity_value
+		if bool(enemy_entity.get("is_alive", true)):
+			alive += 1
+	return alive
+
+
+func _format_action_brief(state: Dictionary) -> String:
+	var action: Dictionary = state.get("last_action", {})
+	if action.is_empty():
+		return "等待行动"
+	var phase_name: String = String(action.get("phase", ""))
+	var actor_name: String = String(action.get("actor_name", "未命名单位"))
+	var target_name: String = String(action.get("target_name", "未命名目标"))
+	var damage: float = float(action.get("damage", 0.0))
+	match phase_name:
+		"player":
+			return "%s 对 %s 造成 %.1f 伤害" % [actor_name, target_name, max(0.0, damage)]
+		"enemy":
+			return "%s 对 %s 造成 %.1f 伤害" % [actor_name, target_name, max(0.0, damage)]
+		"defend":
+			return "%s 进入防御姿态" % actor_name
+		"wait":
+			return "%s 蓄势待机" % actor_name
+		"item":
+			return "%s 使用 %s" % [actor_name, target_name]
+		_:
+			return "%s -> %s" % [actor_name, target_name]
+
+
 func _enemy_display_name(unit_id: String) -> String:
 	var content_db := get_node_or_null("/root/ContentDB")
 	if content_db == null:
@@ -718,7 +814,8 @@ func _on_token_pressed(entity_id: String) -> void:
 		if not bool(enemy_entity.get("is_alive", true)):
 			return
 		_selected_target_id = entity_id
-		_render_state(_interactive_state, "已锁定目标")
+		var target_name: String = String(enemy_entity.get("display_name", entity_id))
+		_render_state(_interactive_state, "已锁定目标：%s" % target_name)
 		return
 
 
@@ -726,6 +823,8 @@ func _on_attack_pressed() -> void:
 	if not _interactive_mode or _resolving_enemy_phase:
 		return
 	if _selected_target_id.is_empty():
+		if status_label != null:
+			status_label.text = "请先点击战场中的敌人，再发动攻击。"
 		return
 	_interactive_state = _sim().apply_player_attack(_interactive_state, _selected_target_id)
 	_render_state(_interactive_state, "我方发动攻击")
@@ -758,12 +857,20 @@ func _on_item_pressed() -> void:
 		return
 	var battle_items: Array = _interactive_state.get("battle_items", [])
 	if battle_items.is_empty():
+		if status_label != null:
+			status_label.text = "当前没有可在战斗中使用的道具。"
 		return
 	if battle_items.size() == 1:
 		_use_item_and_continue(String(battle_items[0].get("id", "")))
 		return
 	if item_popup_panel != null:
-		item_popup_panel.position = Vector2i(item_button.global_position.x - 188, item_button.global_position.y - 12)
+		var popup_target := Vector2(item_button.global_position.x - 188.0, item_button.global_position.y - 12.0)
+		var viewport_rect := get_viewport().get_visible_rect()
+		var popup_width := 348.0
+		var popup_height: float = float(clamp((float(battle_items.size()) * 92.0) + 70.0, 140.0, 460.0))
+		popup_target.x = clamp(popup_target.x, 10.0, max(10.0, viewport_rect.size.x - popup_width - 10.0))
+		popup_target.y = clamp(popup_target.y, 10.0, max(10.0, viewport_rect.size.y - popup_height - 10.0))
+		item_popup_panel.position = Vector2i(int(popup_target.x), int(popup_target.y))
 		item_popup_panel.popup()
 
 
@@ -892,6 +999,17 @@ func _skill_is_ready(skill: Dictionary, hero_resolve: int) -> bool:
 	return int(skill.get("cooldown_remaining", 0)) <= 0 and hero_resolve >= int(skill.get("resource_cost", 0))
 
 
+func _skill_unavailable_reason(skill: Dictionary, hero_resolve: int) -> String:
+	if skill.is_empty():
+		return "未配置"
+	var cooldown_remaining: int = int(skill.get("cooldown_remaining", 0))
+	if cooldown_remaining > 0:
+		return "冷却中"
+	if hero_resolve < int(skill.get("resource_cost", 0)):
+		return "灵势不足"
+	return ""
+
+
 func _update_skill_card(skill: Dictionary, card: Control, icon_node: TextureRect, meta_label: Label, cooldown_bar: ProgressBar, resource_bar: ProgressBar, cooldown_mask: ColorRect, hero_resolve: int, hero_resolve_max: int) -> void:
 	if meta_label == null or cooldown_bar == null or resource_bar == null:
 		return
@@ -986,3 +1104,82 @@ func _build_item_row(stack: Dictionary) -> Control:
 	)
 	hbox.add_child(use_button)
 	return row
+
+
+func _build_action_deck() -> void:
+	if action_bar == null or root_vbox == null or _action_deck_panel != null:
+		return
+	var old_index: int = action_bar.get_index()
+	_action_deck_panel = PanelContainer.new()
+	_action_deck_panel.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	var style := StyleBoxFlat.new()
+	style.bg_color = Color(0.12, 0.11, 0.08, 0.96)
+	style.border_color = Color(0.53, 0.42, 0.18, 1.0)
+	style.set_border_width_all(2)
+	style.corner_radius_top_left = 18
+	style.corner_radius_top_right = 18
+	style.corner_radius_bottom_left = 18
+	style.corner_radius_bottom_right = 18
+	_action_deck_panel.add_theme_stylebox_override("panel", style)
+
+	var margin := MarginContainer.new()
+	margin.add_theme_constant_override("margin_left", 18)
+	margin.add_theme_constant_override("margin_top", 14)
+	margin.add_theme_constant_override("margin_right", 18)
+	margin.add_theme_constant_override("margin_bottom", 14)
+	_action_deck_panel.add_child(margin)
+
+	action_bar.reparent(margin)
+	root_vbox.add_child(_action_deck_panel)
+	root_vbox.move_child(_action_deck_panel, old_index)
+
+	action_bar.add_theme_constant_override("separation", 20)
+	if action_info_box != null:
+		action_info_box.add_theme_constant_override("separation", 8)
+	if command_strip != null:
+		command_strip.add_theme_constant_override("separation", 12)
+	if status_label != null:
+		status_label.add_theme_font_size_override("font_size", 16)
+	if selected_target_label != null:
+		selected_target_label.add_theme_font_size_override("font_size", 16)
+	_style_action_button(wait_button, Color(0.23, 0.27, 0.19, 1.0), Color(0.62, 0.74, 0.42, 1.0))
+	_style_action_button(item_button, Color(0.18, 0.22, 0.30, 1.0), Color(0.44, 0.62, 0.88, 1.0))
+	_style_skill_card(attack_skill_card, Color(0.24, 0.15, 0.12, 1.0), Color(0.72, 0.46, 0.22, 1.0))
+	_style_skill_card(defend_skill_card, Color(0.12, 0.18, 0.24, 1.0), Color(0.34, 0.56, 0.82, 1.0))
+
+
+func _style_action_button(button: Button, bg: Color, border: Color) -> void:
+	if button == null:
+		return
+	var normal := StyleBoxFlat.new()
+	normal.bg_color = bg
+	normal.border_color = border
+	normal.set_border_width_all(2)
+	normal.corner_radius_top_left = 12
+	normal.corner_radius_top_right = 12
+	normal.corner_radius_bottom_left = 12
+	normal.corner_radius_bottom_right = 12
+	var hover := normal.duplicate()
+	hover.bg_color = bg.lightened(0.08)
+	var pressed := normal.duplicate()
+	pressed.bg_color = bg.darkened(0.08)
+	button.add_theme_stylebox_override("normal", normal)
+	button.add_theme_stylebox_override("hover", hover)
+	button.add_theme_stylebox_override("pressed", pressed)
+	button.add_theme_stylebox_override("disabled", pressed)
+	button.add_theme_font_size_override("font_size", 17)
+
+
+func _style_skill_card(card: Control, bg: Color, border: Color) -> void:
+	if card == null or not (card is PanelContainer):
+		return
+	var panel := card as PanelContainer
+	var style := StyleBoxFlat.new()
+	style.bg_color = bg
+	style.border_color = border
+	style.set_border_width_all(2)
+	style.corner_radius_top_left = 14
+	style.corner_radius_top_right = 14
+	style.corner_radius_bottom_left = 14
+	style.corner_radius_bottom_right = 14
+	panel.add_theme_stylebox_override("panel", style)
