@@ -9,6 +9,8 @@
 - 已新增 [export_presets.cfg](../export_presets.cfg) 中的 `Web` 预设
 - 已新增 [deploy-web.yml](../.github/workflows/deploy-web.yml) 工作流
 - 已新增 [prepare_web_build.sh](../scripts/web/prepare_web_build.sh) 用于导出后注入构建版本号（降低浏览器缓存旧包命中）
+- GitHub Pages 已上线，可直接访问：
+  - `https://uama-jebour.github.io/Godling/`
 - 已确认本地命令可成功导出：
 
 ```bash
@@ -57,6 +59,11 @@ python3 -m http.server 8080 --directory dist/web
 - 推送到 `master`
 - 手动触发 `Deploy Web Build`
 
+### 当前实际发布方式
+
+- 当前以 `main` 分支推送触发为主
+- 最近已多次通过 GitHub Actions 完成真实 Pages 发布，不再只是“具备自动发布条件”
+
 ### 工作流职责
 
 工作流会自动：
@@ -92,6 +99,8 @@ python3 -m http.server 8080 --directory dist/web
 ## 当前已处理的 Web 兼容点
 
 - [bootstrap.gd](../scripts/ui/bootstrap.gd) 中的桌面窗口控制逻辑已对 `web` 平台跳过
+- 首屏地图与右侧信息面板已做响应式适配，降低 Web 窄宽高比下的错位与滚动
+- `prepare_web_build.sh` 已在 `index.html` 中注入构建探针脚本，普通窗口缓存命中旧 HTML 时会尝试主动刷新
 
 ## 已知注意事项
 
@@ -104,6 +113,7 @@ python3 -m http.server 8080 --directory dist/web
 
 1. 打开页面后首屏布局无裁切
 2. 地图 hover 与右侧事件面板联动正常
-3. 点击战斗事件可进入交互战斗
-4. 战斗结束后能回到地图
-5. 刷新页面后存档行为符合预期
+3. 右侧任务 / 主线节点区能正确反映当前推进状态
+4. 点击战斗事件可进入交互战斗
+5. 战斗结束后会先出现战果卡，再返回地图
+6. 刷新页面后存档行为符合预期
