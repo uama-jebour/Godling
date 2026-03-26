@@ -4,6 +4,7 @@ signal interactive_battle_finished(result: Dictionary)
 
 const BATTLE_SIMULATOR := preload("res://systems/battle/battle_simulator.gd")
 const UNIT_TOKEN_SCENE := preload("res://scenes/battle/unit_token.tscn")
+const DRAG_START_DISTANCE := 12.0
 
 @onready var battle_arena: Control = %BattleArena
 @onready var hero_lane: ColorRect = get_node_or_null("%HeroLane")
@@ -56,7 +57,6 @@ var _last_state: Dictionary = {}
 var _log_lines: Array[String] = []
 var _arena_nodes: Dictionary = {}
 var _last_hp_by_entity: Dictionary = {}
-var _death_hold_by_entity: Dictionary = {}
 var _last_visual_position_by_entity: Dictionary = {}
 var _feedback_counts: Dictionary = {"hit": 0, "down": 0}
 var _motion_feedback_counts: Dictionary = {"hero_advances": 0, "enemy_advances": 0, "animated_entities": 0}
@@ -76,11 +76,17 @@ var _selected_target_id := ""
 var _resolving_enemy_phase := false
 var _last_action_signature := ""
 var _action_deck_panel: PanelContainer
+var _drag_in_progress := false
+var _last_drag_payload: Dictionary = {}
+var _pending_drag_source: Control
+var _pending_drag_payload: Dictionary = {}
+var _pending_drag_anchor := Vector2.ZERO
 
 const DEFAULT_SKILL_ICON := preload("res://icon.svg")
 
 
 func _ready() -> void:
+	set_process(true)
 	if battle_arena != null and not battle_arena.resized.is_connected(_on_battle_arena_resized):
 		battle_arena.resized.connect(_on_battle_arena_resized)
 	if attack_button != null and not attack_button.pressed.is_connected(_on_attack_pressed):
@@ -92,9 +98,27 @@ func _ready() -> void:
 	if item_button != null and not item_button.pressed.is_connected(_on_item_pressed):
 		item_button.pressed.connect(_on_item_pressed)
 	_build_action_deck()
-	_bind_clickable_cards()
+	_bind_drag_sources()
 	_set_interaction_enabled(false)
 	call_deferred("_refresh_layout_after_frame")
+
+
+func _process(_delta: float) -> void:
+	if not _drag_in_progress:
+		return
+	var viewport := get_viewport()
+	if viewport == null or not viewport.has_method("gui_is_dragging"):
+		return
+	if bool(viewport.call("gui_is_dragging")):
+		return
+	var drag_success := false
+	if viewport.has_method("gui_is_drag_successful"):
+		drag_success = bool(viewport.call("gui_is_drag_successful"))
+	if not drag_success:
+		_show_reject_drop_fx(viewport.get_mouse_position())
+		_show_drop_rejected_status(_last_drag_payload)
+	_drag_in_progress = false
+	_last_drag_payload = {}
 
 
 func execute_battle(request: Dictionary, battle_def: Dictionary, context: Dictionary = {}) -> Dictionary:
@@ -149,7 +173,6 @@ func _reset_render_runtime() -> void:
 	_timeline.clear()
 	_log_lines.clear()
 	_last_hp_by_entity.clear()
-	_death_hold_by_entity.clear()
 	_last_visual_position_by_entity.clear()
 	_feedback_counts = {"hit": 0, "down": 0}
 	_motion_feedback_counts = {"hero_advances": 0, "enemy_advances": 0, "animated_entities": 0}
@@ -158,6 +181,9 @@ func _reset_render_runtime() -> void:
 	_selected_target_id = ""
 	_resolving_enemy_phase = false
 	_last_action_signature = ""
+	_drag_in_progress = false
+	_last_drag_payload = {}
+	_clear_pending_drag()
 	_interactive_mode = false
 	_interactive_request = {}
 	_interactive_context = {}
@@ -343,7 +369,6 @@ func _start_preview_playback() -> void:
 	var nonce: int = _playback_nonce
 	_log_lines.clear()
 	_last_hp_by_entity.clear()
-	_death_hold_by_entity.clear()
 	_last_visual_position_by_entity.clear()
 	if _timeline.is_empty():
 		return
@@ -408,9 +433,18 @@ func _sync_arena_tokens(state: Dictionary) -> void:
 		if entity_id.is_empty():
 			continue
 		var is_alive: bool = bool(entity.get("is_alive", true))
-		_update_death_hold(entity_id, entity)
-		var should_render: bool = is_alive or String(entity.get("side", "")) == "hero"
+		var side: String = String(entity.get("side", "enemy"))
+		var current_hp: float = float(entity.get("current_hp", 0.0))
+		var previous_hp: float = float(_last_hp_by_entity.get(entity_id, current_hp))
+		var just_died: bool = (not is_alive) and previous_hp > 0.0
+		if just_died:
+			_combat_cue_counts["death_fades"] = int(_combat_cue_counts.get("death_fades", 0)) + 1
+			_spawn_death_skull_fx(_death_fx_origin(entity_id, entity), side)
+		var should_render: bool = is_alive or side == "hero"
 		if not should_render:
+			if just_died:
+				_feedback_counts["down"] = int(_feedback_counts.get("down", 0)) + 1
+			_last_hp_by_entity[entity_id] = current_hp
 			continue
 		active_ids[entity_id] = true
 		var token: Control = _arena_nodes.get(entity_id)
@@ -422,6 +456,12 @@ func _sync_arena_tokens(state: Dictionary) -> void:
 				var pressed_callable := Callable(self, "_on_token_pressed")
 				if not token.is_connected("token_pressed", pressed_callable):
 					token.connect("token_pressed", pressed_callable)
+		if token.has_method("set_drop_callbacks"):
+			token.call(
+				"set_drop_callbacks",
+				Callable(self, "_can_drop_payload_on_entity"),
+				Callable(self, "_drop_payload_on_entity")
+			)
 		if token.has_method("configure_token"):
 			token.call("configure_token", entity)
 		if token.has_method("set_battle_scale"):
@@ -450,7 +490,6 @@ func _sync_arena_tokens(state: Dictionary) -> void:
 			token_to_remove.queue_free()
 		_arena_nodes.erase(existing_id)
 		_last_hp_by_entity.erase(existing_id)
-		_death_hold_by_entity.erase(existing_id)
 		_last_visual_position_by_entity.erase(existing_id)
 
 
@@ -458,19 +497,20 @@ func _apply_token_feedback(token: Control, entity_id: String, entity: Dictionary
 	var current_hp: float = float(entity.get("current_hp", 0.0))
 	var is_alive: bool = bool(entity.get("is_alive", current_hp > 0.0))
 	var previous_hp: float = float(_last_hp_by_entity.get(entity_id, current_hp))
+	var just_died: bool = (not is_alive) and previous_hp > 0.0
 	var feedback_type: String = ""
 	var pulse_amount: float = 0.0
 	var pulse_kind: String = "damage"
-	if current_hp < previous_hp:
+	if just_died:
+		feedback_type = "down"
+		_feedback_counts["down"] = int(_feedback_counts.get("down", 0)) + 1
+	elif current_hp < previous_hp:
 		feedback_type = "hit"
 		pulse_amount = previous_hp - current_hp
 		_feedback_counts["hit"] = int(_feedback_counts.get("hit", 0)) + 1
 	elif current_hp > previous_hp:
 		pulse_amount = current_hp - previous_hp
 		pulse_kind = "heal"
-	if not is_alive:
-		feedback_type = "down"
-		_feedback_counts["down"] = int(_feedback_counts.get("down", 0)) + 1
 	if token.has_method("apply_feedback"):
 		token.call("apply_feedback", feedback_type)
 	if pulse_amount > 0.0 and token.has_method("show_value_pulse"):
@@ -512,11 +552,6 @@ func _build_motion_profile(entity: Dictionary, state: Dictionary) -> Dictionary:
 
 func _render_attack_cues(state: Dictionary) -> void:
 	_ensure_fx_nodes()
-	_attack_line.visible = false
-	if _attack_arrow != null:
-		_attack_arrow.visible = false
-	if _attack_arrow_glow != null:
-		_attack_arrow_glow.visible = false
 	for entity_id: String in _arena_nodes.keys():
 		var token: Control = _arena_nodes[entity_id]
 		if token != null and token.has_method("set_targeted"):
@@ -525,15 +560,25 @@ func _render_attack_cues(state: Dictionary) -> void:
 			token.call("set_targeted", keep_selected, side)
 
 	var action: Dictionary = state.get("last_action", {})
-	var action_signature: String = "%s|%s|%s|%s" % [
-		str(action.get("actor_id", "")),
-		str(action.get("target_id", "")),
-		str(action.get("phase", "")),
-		str(action.get("damage", ""))
-	]
+	var action_seq: int = int(action.get("seq", -1))
+	var action_signature: String = str(action_seq)
+	if action_seq < 0:
+		action_signature = "%s|%s|%s|%s|%s|%s|%s" % [
+			str(action.get("actor_id", "")),
+			str(action.get("target_id", "")),
+			str(action.get("phase", "")),
+			str(action.get("damage", "")),
+			str(state.get("elapsed", 0)),
+			str(state.get("enemy_turn_index", 0)),
+			str(state.get("hero_hp", 0.0)),
+		]
 	if action_signature == _last_action_signature:
 		return
 	_last_action_signature = action_signature
+	if _attack_line_tween != null:
+		_attack_line_tween.kill()
+	_attack_line_tween = null
+	_hide_attack_line()
 	var source_id: String = String(action.get("actor_id", ""))
 	var target_id: String = String(action.get("target_id", ""))
 	if source_id.is_empty() or target_id.is_empty():
@@ -574,8 +619,6 @@ func _render_attack_cues(state: Dictionary) -> void:
 		source_token.call("play_action_cue", "attack", String(action.get("actor_side", "hero")))
 	if target_token.has_method("play_action_cue"):
 		target_token.call("play_action_cue", "impact", String(action.get("target_side", "enemy")))
-	if _attack_line_tween != null:
-		_attack_line_tween.kill()
 	_attack_line_tween = create_tween()
 	_attack_line_tween.set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT)
 	_attack_line_tween.tween_method(Callable(self, "_set_attack_cue_progress"), 0.0, 1.0, 0.28)
@@ -697,12 +740,93 @@ func _set_attack_cue_progress(progress: float) -> void:
 		_attack_arrow.visible = true
 
 
-func _update_death_hold(entity_id: String, entity: Dictionary) -> void:
-	var current_hp: float = float(entity.get("current_hp", 0.0))
-	var previous_hp: float = float(_last_hp_by_entity.get(entity_id, current_hp))
-	var is_alive: bool = bool(entity.get("is_alive", current_hp > 0.0))
-	if not is_alive and previous_hp > 0.0 and not _death_hold_by_entity.has(entity_id):
-		_combat_cue_counts["death_fades"] = int(_combat_cue_counts.get("death_fades", 0)) + 1
+func _death_fx_origin(entity_id: String, entity: Dictionary) -> Vector2:
+	var token: Control = _arena_nodes.get(entity_id)
+	if token != null:
+		var token_size: Vector2 = token.size
+		if token_size.x <= 1.0 or token_size.y <= 1.0:
+			token_size = token.custom_minimum_size
+		return token.position + (token_size * 0.5)
+	if _last_visual_position_by_entity.has(entity_id):
+		return Vector2(_last_visual_position_by_entity[entity_id]) + Vector2(92.0, 82.0)
+	var fallback_pos: Array = entity.get("position", [battle_arena.size.x * 0.7, battle_arena.size.y * 0.48])
+	var px: float = float(fallback_pos[0]) if fallback_pos.size() > 0 else battle_arena.size.x * 0.7
+	var py: float = float(fallback_pos[1]) if fallback_pos.size() > 1 else battle_arena.size.y * 0.48
+	return Vector2(px, py)
+
+
+func _spawn_death_skull_fx(origin: Vector2, side: String) -> void:
+	if battle_arena == null:
+		return
+	var skull := _build_death_skull_node(side)
+	skull.position = origin
+	skull.z_index = 120
+	battle_arena.add_child(skull)
+	var tween := create_tween()
+	tween.set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT)
+	tween.parallel().tween_property(skull, "position:y", origin.y - 52.0, 0.62)
+	tween.parallel().tween_property(skull, "scale", Vector2(1.26, 1.26), 0.38)
+	tween.parallel().tween_property(skull, "modulate:a", 0.0, 0.62)
+	tween.tween_callback(skull.queue_free)
+
+
+func _build_death_skull_node(side: String) -> Node2D:
+	var root := Node2D.new()
+	root.scale = Vector2(0.9, 0.9)
+	var skull_color: Color = Color(1.0, 0.94, 0.84, 0.98)
+	if side == "hero":
+		skull_color = Color(0.82, 0.90, 1.0, 0.98)
+	var head := Polygon2D.new()
+	head.color = skull_color
+	head.polygon = PackedVector2Array([
+		Vector2(-16, -18),
+		Vector2(16, -18),
+		Vector2(20, -12),
+		Vector2(20, 8),
+		Vector2(14, 14),
+		Vector2(-14, 14),
+		Vector2(-20, 8),
+		Vector2(-20, -12),
+	])
+	root.add_child(head)
+	var jaw := Polygon2D.new()
+	jaw.color = skull_color.darkened(0.04)
+	jaw.polygon = PackedVector2Array([
+		Vector2(-10, 14),
+		Vector2(10, 14),
+		Vector2(10, 24),
+		Vector2(4, 28),
+		Vector2(-4, 28),
+		Vector2(-10, 24),
+	])
+	root.add_child(jaw)
+	var left_eye := Polygon2D.new()
+	left_eye.color = Color(0.08, 0.08, 0.10, 0.94)
+	left_eye.polygon = PackedVector2Array([
+		Vector2(-12, -4),
+		Vector2(-4, -4),
+		Vector2(-6, 4),
+		Vector2(-10, 4),
+	])
+	root.add_child(left_eye)
+	var right_eye := Polygon2D.new()
+	right_eye.color = Color(0.08, 0.08, 0.10, 0.94)
+	right_eye.polygon = PackedVector2Array([
+		Vector2(4, -4),
+		Vector2(12, -4),
+		Vector2(10, 4),
+		Vector2(6, 4),
+	])
+	root.add_child(right_eye)
+	var nose := Polygon2D.new()
+	nose.color = Color(0.12, 0.12, 0.14, 0.9)
+	nose.polygon = PackedVector2Array([
+		Vector2(0, 2),
+		Vector2(-3, 8),
+		Vector2(3, 8),
+	])
+	root.add_child(nose)
+	return root
 
 
 func _formation_position(entity: Dictionary, enemy_index_by_id: Dictionary, enemy_count: int) -> Vector2:
@@ -951,6 +1075,9 @@ func _on_attack_pressed() -> void:
 	if not _sim().is_battle_active(_interactive_state):
 		_finish_interactive_battle(_decorate_result(_sim().build_result(_interactive_state, _interactive_context, "scene"), _interactive_state))
 		return
+	if String(_interactive_state.get("turn_phase", "player")) != "enemy":
+		_update_interaction_hud(_interactive_state)
+		return
 	_resolving_enemy_phase = true
 	_update_interaction_hud(_interactive_state)
 	call_deferred("_resolve_enemy_phase_async")
@@ -1032,6 +1159,9 @@ func _finish_interactive_battle(result: Dictionary) -> void:
 func _queue_enemy_phase_or_finish() -> void:
 	if not _sim().is_battle_active(_interactive_state):
 		_finish_interactive_battle(_decorate_result(_sim().build_result(_interactive_state, _interactive_context, "scene"), _interactive_state))
+		return
+	if String(_interactive_state.get("turn_phase", "player")) != "enemy":
+		_update_interaction_hud(_interactive_state)
 		return
 	_resolving_enemy_phase = true
 	_selected_target_id = ""
@@ -1235,7 +1365,7 @@ func _build_item_row(stack: Dictionary) -> Control:
 		_use_item_and_continue(String(stack.get("id", "")))
 	)
 	hbox.add_child(use_button)
-	_bind_card_click_target(row, Callable(self, "_use_item_and_continue").bind(String(stack.get("id", ""))), use_button)
+	_bind_drag_source(row, Callable(self, "_item_drag_payload").bind(String(stack.get("id", ""))), use_button)
 	return row
 
 
@@ -1429,19 +1559,23 @@ func _ensure_burst_skill_card() -> void:
 	burst_resource_bar = resource_bar
 
 
-func _bind_clickable_cards() -> void:
-	_bind_card_click_target(attack_skill_card, Callable(self, "_on_attack_pressed"), attack_button)
-	_bind_card_click_target(defend_skill_card, Callable(self, "_on_defend_pressed"), defend_button)
-	_bind_card_click_target(burst_skill_card, Callable(self, "_on_burst_pressed"), burst_button)
+func _bind_drag_sources() -> void:
+	_bind_drag_source(attack_skill_card, Callable(self, "_skill_drag_payload").bind("primary"), attack_button)
+	_bind_drag_source(defend_skill_card, Callable(self, "_skill_drag_payload").bind("guard"), defend_button)
+	_bind_drag_source(burst_skill_card, Callable(self, "_skill_drag_payload").bind("burst"), burst_button)
 
 
-func _bind_card_click_target(card: Control, action: Callable, exclude_button: Button = null) -> void:
+func _bind_drag_source(card: Control, payload_provider: Callable, exclude_button: Button = null) -> void:
 	if card == null:
+		return
+	if bool(card.get_meta("_drag_bound", false)):
 		return
 	card.mouse_filter = Control.MOUSE_FILTER_STOP
 	_set_descendants_mouse_filter(card, exclude_button)
-	if not card.gui_input.is_connected(_on_card_gui_input.bind(action, exclude_button)):
-		card.gui_input.connect(_on_card_gui_input.bind(action, exclude_button))
+	var drag_handler := Callable(self, "_on_drag_source_gui_input").bind(card, payload_provider, exclude_button)
+	if not card.gui_input.is_connected(drag_handler):
+		card.gui_input.connect(drag_handler)
+	card.set_meta("_drag_bound", true)
 
 
 func _set_descendants_mouse_filter(node: Node, exclude_button: Button) -> void:
@@ -1454,12 +1588,301 @@ func _set_descendants_mouse_filter(node: Node, exclude_button: Button) -> void:
 		_set_descendants_mouse_filter(child, exclude_button)
 
 
-func _on_card_gui_input(event: InputEvent, action: Callable, exclude_button: Button = null) -> void:
-	if event is not InputEventMouseButton:
+func _on_drag_source_gui_input(event: InputEvent, source: Control, payload_provider: Callable, exclude_button: Button = null) -> void:
+	if event is InputEventMouseButton:
+		var mouse_button := event as InputEventMouseButton
+		if mouse_button.button_index != MOUSE_BUTTON_LEFT:
+			return
+		if mouse_button.pressed:
+			if exclude_button != null and exclude_button.get_global_rect().has_point(mouse_button.global_position):
+				_clear_pending_drag()
+				return
+			var payload := _drag_payload_from_provider(payload_provider)
+			if payload.is_empty():
+				_clear_pending_drag()
+				return
+			_pending_drag_source = source
+			_pending_drag_payload = payload
+			_pending_drag_anchor = mouse_button.global_position
+			return
+		_clear_pending_drag()
 		return
-	var mouse_event := event as InputEventMouseButton
-	if mouse_event.button_index != MOUSE_BUTTON_LEFT or not mouse_event.pressed:
+	if event is not InputEventMouseMotion:
 		return
-	if exclude_button != null and exclude_button.get_global_rect().has_point(mouse_event.global_position):
+	var mouse_motion := event as InputEventMouseMotion
+	if _pending_drag_source != source:
 		return
-	action.call()
+	if (mouse_motion.button_mask & MOUSE_BUTTON_MASK_LEFT) == 0:
+		_clear_pending_drag()
+		return
+	if mouse_motion.global_position.distance_to(_pending_drag_anchor) < DRAG_START_DISTANCE:
+		return
+	_begin_drag_payload(source, _pending_drag_payload)
+	_clear_pending_drag()
+
+
+func _begin_drag_payload(source: Control, payload: Dictionary) -> void:
+	if source == null or payload.is_empty():
+		return
+	var preview := _build_drag_preview(payload)
+	source.force_drag(payload, preview)
+	_drag_in_progress = true
+	_last_drag_payload = payload.duplicate(true)
+
+
+func _drag_payload_from_provider(payload_provider: Callable) -> Dictionary:
+	if not payload_provider.is_valid():
+		return {}
+	var payload_data: Variant = payload_provider.call()
+	if typeof(payload_data) != TYPE_DICTIONARY:
+		return {}
+	var payload: Dictionary = payload_data
+	if String(payload.get("kind", "")).is_empty():
+		return {}
+	return payload.duplicate(true)
+
+
+func _clear_pending_drag() -> void:
+	_pending_drag_source = null
+	_pending_drag_payload = {}
+	_pending_drag_anchor = Vector2.ZERO
+
+
+func _build_drag_preview(payload: Dictionary) -> Control:
+	var panel := PanelContainer.new()
+	panel.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	panel.custom_minimum_size = Vector2(150, 34)
+	var style := StyleBoxFlat.new()
+	style.bg_color = Color(0.12, 0.11, 0.08, 0.94)
+	style.border_color = Color(0.98, 0.82, 0.48, 0.95)
+	style.set_border_width_all(2)
+	style.corner_radius_top_left = 10
+	style.corner_radius_top_right = 10
+	style.corner_radius_bottom_left = 10
+	style.corner_radius_bottom_right = 10
+	panel.add_theme_stylebox_override("panel", style)
+	var margin := MarginContainer.new()
+	margin.add_theme_constant_override("margin_left", 10)
+	margin.add_theme_constant_override("margin_top", 6)
+	margin.add_theme_constant_override("margin_right", 10)
+	margin.add_theme_constant_override("margin_bottom", 6)
+	panel.add_child(margin)
+	var label := Label.new()
+	label.text = _drag_preview_text(payload)
+	label.modulate = Color(1.0, 0.96, 0.84, 1.0)
+	label.add_theme_font_size_override("font_size", 14)
+	margin.add_child(label)
+	return panel
+
+
+func _drag_preview_text(payload: Dictionary) -> String:
+	var kind: String = String(payload.get("kind", ""))
+	if kind == "skill":
+		return "技能: %s" % String(payload.get("name", "未命名"))
+	if kind == "item":
+		return "道具: %s" % String(payload.get("name", "未命名"))
+	return "动作"
+
+
+func _skill_drag_payload(slot_id: String) -> Dictionary:
+	if not _interactive_mode:
+		return {}
+	var skill: Dictionary = _skill_slot(_interactive_state.get("skill_slots", []), slot_id)
+	if skill.is_empty():
+		return {}
+	return {
+		"kind": "skill",
+		"slot": slot_id,
+		"name": String(skill.get("name_cn", slot_id))
+	}
+
+
+func _item_drag_payload(item_id: String) -> Dictionary:
+	if not _interactive_mode:
+		return {}
+	var stack: Dictionary = _battle_item_stack(item_id)
+	if stack.is_empty():
+		return {}
+	return {
+		"kind": "item",
+		"item_id": item_id,
+		"name": String(stack.get("name_cn", item_id))
+	}
+
+
+func _battle_item_stack(item_id: String) -> Dictionary:
+	for stack_value in _interactive_state.get("battle_items", []):
+		if typeof(stack_value) != TYPE_DICTIONARY:
+			continue
+		var stack: Dictionary = stack_value
+		if String(stack.get("id", "")) != item_id:
+			continue
+		if int(stack.get("count", 0)) <= 0:
+			return {}
+		return stack
+	return {}
+
+
+func _can_drop_payload_on_entity(entity_id: String, data: Variant) -> bool:
+	var payload: Dictionary = _normalize_drag_payload(data)
+	if payload.is_empty():
+		return false
+	if not _can_accept_drag_drop_input():
+		return false
+	var kind: String = String(payload.get("kind", ""))
+	if kind == "skill":
+		return _can_drop_skill_payload(entity_id, payload)
+	if kind == "item":
+		return _can_drop_item_payload(entity_id, payload)
+	return false
+
+
+func _drop_payload_on_entity(entity_id: String, data: Variant) -> void:
+	var payload: Dictionary = _normalize_drag_payload(data)
+	if payload.is_empty():
+		return
+	if not _can_drop_payload_on_entity(entity_id, payload):
+		_show_reject_drop_fx(get_viewport().get_mouse_position())
+		_show_drop_rejected_status(payload)
+		return
+	var kind: String = String(payload.get("kind", ""))
+	if kind == "skill":
+		_apply_skill_drop(entity_id, payload)
+		return
+	if kind == "item":
+		_apply_item_drop(entity_id, payload)
+
+
+func _normalize_drag_payload(data: Variant) -> Dictionary:
+	if typeof(data) != TYPE_DICTIONARY:
+		return {}
+	var payload: Dictionary = data
+	if String(payload.get("kind", "")).is_empty():
+		return {}
+	return payload
+
+
+func _can_accept_drag_drop_input() -> bool:
+	if not _interactive_mode or _resolving_enemy_phase:
+		return false
+	return String(_interactive_state.get("turn_phase", "player")) == "player"
+
+
+func _can_drop_skill_payload(entity_id: String, payload: Dictionary) -> bool:
+	var slot_id: String = String(payload.get("slot", ""))
+	if slot_id.is_empty():
+		return false
+	var skill: Dictionary = _skill_slot(_interactive_state.get("skill_slots", []), slot_id)
+	if skill.is_empty():
+		return false
+	var unavailable_reason: String = _skill_unavailable_reason(skill, int(_interactive_state.get("hero_resolve", 0)))
+	if not unavailable_reason.is_empty():
+		return false
+	match slot_id:
+		"primary", "burst":
+			return _is_alive_enemy_entity(entity_id)
+		"guard":
+			return entity_id == "hero_1" and _is_hero_alive()
+		_:
+			return false
+
+
+func _can_drop_item_payload(entity_id: String, payload: Dictionary) -> bool:
+	var item_id: String = String(payload.get("item_id", ""))
+	if item_id.is_empty():
+		return false
+	var stack: Dictionary = _battle_item_stack(item_id)
+	if stack.is_empty():
+		return false
+	var effect: Dictionary = stack.get("effect", {})
+	match String(effect.get("kind", "")):
+		"heal":
+			return entity_id == "hero_1" and _is_hero_alive()
+		_:
+			return false
+
+
+func _apply_skill_drop(entity_id: String, payload: Dictionary) -> void:
+	match String(payload.get("slot", "")):
+		"primary":
+			_selected_target_id = entity_id
+			_on_attack_pressed()
+		"guard":
+			_on_defend_pressed()
+		"burst":
+			_selected_target_id = entity_id
+			_on_burst_pressed()
+
+
+func _apply_item_drop(_entity_id: String, payload: Dictionary) -> void:
+	_use_item_and_continue(String(payload.get("item_id", "")))
+
+
+func _is_alive_enemy_entity(entity_id: String) -> bool:
+	for enemy_entity_value in _interactive_state.get("enemy_entities", []):
+		if typeof(enemy_entity_value) != TYPE_DICTIONARY:
+			continue
+		var enemy_entity: Dictionary = enemy_entity_value
+		if String(enemy_entity.get("entity_id", "")) != entity_id:
+			continue
+		return bool(enemy_entity.get("is_alive", true))
+	return false
+
+
+func _is_hero_alive() -> bool:
+	var hero_entity: Dictionary = _interactive_state.get("hero_entity", {})
+	return bool(hero_entity.get("is_alive", float(_interactive_state.get("hero_hp", 0.0)) > 0.0))
+
+
+func _show_drop_rejected_status(payload: Dictionary) -> void:
+	if status_label == null:
+		return
+	var kind: String = String(payload.get("kind", ""))
+	if kind == "skill":
+		status_label.text = "该单位不支持此技能目标，未触发动作。"
+		return
+	if kind == "item":
+		status_label.text = "该单位不支持此道具目标，未触发动作。"
+		return
+	status_label.text = "目标不支持该动作。"
+
+
+func _show_reject_drop_fx(viewport_position: Vector2) -> void:
+	if battle_arena == null:
+		return
+	var to_local: Transform2D = battle_arena.get_global_transform_with_canvas().affine_inverse()
+	var local_pos: Vector2 = to_local * viewport_position
+	var marker := _build_reject_marker()
+	marker.position = local_pos
+	marker.z_index = 240
+	battle_arena.add_child(marker)
+	var tween := create_tween()
+	tween.set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT)
+	tween.parallel().tween_property(marker, "scale", Vector2(1.18, 1.18), 0.18)
+	tween.parallel().tween_property(marker, "position:y", local_pos.y - 12.0, 0.24)
+	tween.parallel().tween_property(marker, "modulate:a", 0.0, 0.24)
+	tween.tween_callback(marker.queue_free)
+
+
+func _build_reject_marker() -> Node2D:
+	var root := Node2D.new()
+	root.scale = Vector2(0.92, 0.92)
+	var ring := Line2D.new()
+	ring.width = 4.0
+	ring.default_color = Color(1.0, 0.28, 0.24, 0.95)
+	ring.closed = true
+	ring.antialiased = true
+	var ring_points := PackedVector2Array()
+	var segments := 18
+	for i in range(segments):
+		var angle: float = (TAU * float(i)) / float(segments)
+		ring_points.append(Vector2(cos(angle), sin(angle)) * 14.0)
+	ring.points = ring_points
+	root.add_child(ring)
+	var slash := Line2D.new()
+	slash.width = 5.0
+	slash.default_color = Color(1.0, 0.32, 0.26, 0.96)
+	slash.antialiased = true
+	slash.points = PackedVector2Array([Vector2(-9, 9), Vector2(9, -9)])
+	root.add_child(slash)
+	return root

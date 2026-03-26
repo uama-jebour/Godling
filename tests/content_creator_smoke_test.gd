@@ -20,6 +20,9 @@ func _run_suite() -> void:
 	_reset_state()
 	_test_create_item()
 	_test_create_enemy()
+	_test_link_item_to_loot_table()
+	_test_link_enemy_to_battle()
+	_test_delete_created_content_cleans_links()
 	_test_create_hero()
 	_restore_files()
 	_print_result_and_exit()
@@ -130,6 +133,74 @@ func _test_create_hero() -> void:
 	_assert_true(_progression_state().state.get("hero_roster", []).has("hero_test_pilgrim"), "创建英雄后应自动加入家园 roster")
 
 
+func _test_link_item_to_loot_table() -> void:
+	var result: Dictionary = _balance_state().link_item_to_loot_table({
+		"loot_table_id": "loot_table_a02_basic_field",
+		"item_id": "consumable_test_balm",
+		"count": 2,
+		"weight": 7,
+		"prob": 0.8
+	})
+	_assert_true(bool(result.get("ok", false)), "将自定义道具挂入掉落表应成功")
+	var loot_table: Dictionary = _content_db().get_loot_table("loot_table_a02_basic_field")
+	var found := false
+	for entry_value in loot_table.get("entries", []):
+		if typeof(entry_value) != TYPE_DICTIONARY:
+			continue
+		var entry: Dictionary = entry_value
+		if String(entry.get("id", "")) != "consumable_test_balm":
+			continue
+		found = true
+		_assert_true(int(entry.get("count", 0)) == 2, "挂入掉落表后的数量应生效")
+		_assert_true(int(entry.get("weight", 0)) == 7, "挂入掉落表后的权重应生效")
+		break
+	_assert_true(found, "挂入后应能在掉落表中看到自定义道具条目")
+
+
+func _test_link_enemy_to_battle() -> void:
+	var result: Dictionary = _balance_state().link_enemy_to_battle({
+		"battle_id": "battle_a02_patrol",
+		"unit_id": "enemy_test_sentry",
+		"count": 2,
+		"count_min": 1,
+		"count_max": 3
+	})
+	_assert_true(bool(result.get("ok", false)), "将自定义敌人挂入 battle 应成功")
+	var battle_def: Dictionary = _content_db().get_battle("battle_a02_patrol")
+	var found := false
+	for group_value in battle_def.get("enemy_groups", []):
+		if typeof(group_value) != TYPE_DICTIONARY:
+			continue
+		var group: Dictionary = group_value
+		if String(group.get("unit_id", "")) != "enemy_test_sentry":
+			continue
+		found = true
+		_assert_true(int(group.get("count", 0)) == 2, "挂入 battle 后的数量应生效")
+		var count_range: Array = group.get("count_range", [])
+		_assert_true(count_range.size() >= 2 and int(count_range[0]) == 1 and int(count_range[1]) == 3, "挂入 battle 后的数量区间应生效")
+		break
+	_assert_true(found, "挂入后应能在 battle 编组中看到自定义敌人")
+
+
+func _test_delete_created_content_cleans_links() -> void:
+	var delete_item_result: Dictionary = _balance_state().delete_created_item("consumable_test_balm")
+	_assert_true(bool(delete_item_result.get("ok", false)), "删除自定义道具应成功")
+	var delete_enemy_result: Dictionary = _balance_state().delete_created_unit("enemy_test_sentry", "enemy")
+	_assert_true(bool(delete_enemy_result.get("ok", false)), "删除自定义敌人应成功")
+	var battle_def: Dictionary = _content_db().get_battle("battle_a02_patrol")
+	for group_value in battle_def.get("enemy_groups", []):
+		if typeof(group_value) != TYPE_DICTIONARY:
+			continue
+		var group: Dictionary = group_value
+		_assert_true(String(group.get("unit_id", "")) != "enemy_test_sentry", "删除敌人后 battle 编组中不应残留该引用")
+	var loot_table: Dictionary = _content_db().get_loot_table("loot_table_a02_basic_field")
+	for entry_value in loot_table.get("entries", []):
+		if typeof(entry_value) != TYPE_DICTIONARY:
+			continue
+		var entry: Dictionary = entry_value
+		_assert_true(String(entry.get("id", "")) != "consumable_test_balm", "删除道具后掉落表中不应残留该引用")
+
+
 func _content_db() -> Node:
 	return get_root().get_node("ContentDB")
 
@@ -151,7 +222,7 @@ func _assert_true(condition: bool, message: String) -> void:
 
 func _print_result_and_exit() -> void:
 	if _failures.is_empty():
-		print("SMOKE TEST PASS: runtime content creator registers items, enemies, and heroes.")
+		print("SMOKE TEST PASS: runtime content creator supports CRUD and runtime reference mounting.")
 		quit(0)
 		return
 	printerr("SMOKE TEST FAIL (%d):" % _failures.size())

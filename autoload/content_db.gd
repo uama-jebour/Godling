@@ -534,6 +534,115 @@ func _merge_runtime_created_content() -> void:
 		if not unit_visuals.has(unit_id):
 			unit_visuals[unit_id] = _default_unit_visual(unit_def)
 			data["unit_visuals"] = unit_visuals
+	_merge_runtime_links(created.get("links", {}))
+
+
+func _merge_runtime_links(links: Variant) -> void:
+	if typeof(links) != TYPE_DICTIONARY:
+		return
+	var links_dict: Dictionary = links
+	for link_value in links_dict.get("battle_enemy_groups", []):
+		if typeof(link_value) != TYPE_DICTIONARY:
+			continue
+		_apply_runtime_battle_enemy_link(link_value)
+	for link_value in links_dict.get("loot_table_entries", []):
+		if typeof(link_value) != TYPE_DICTIONARY:
+			continue
+		_apply_runtime_loot_entry_link(link_value)
+
+
+func _apply_runtime_battle_enemy_link(link: Dictionary) -> void:
+	var battle_id: String = String(link.get("battle_id", "")).strip_edges()
+	var unit_id: String = String(link.get("unit_id", "")).strip_edges()
+	if battle_id.is_empty() or unit_id.is_empty():
+		return
+	if not _data_array_has_id("battles", battle_id):
+		return
+	if not _data_array_has_id("units", unit_id):
+		return
+	var link_key := String(link.get("link_key", "%s::%s" % [battle_id, unit_id]))
+	var count_range: Array = link.get("count_range", []).duplicate(true)
+	var min_count: int = int(count_range[0]) if count_range.size() > 0 else max(0, int(link.get("count", 1)))
+	var max_count: int = int(count_range[1]) if count_range.size() > 1 else max(min_count, int(link.get("count", min_count)))
+	if max_count < min_count:
+		var swapped := min_count
+		min_count = max_count
+		max_count = swapped
+	var count: int = clampi(int(link.get("count", max_count)), min_count, max_count)
+	var spawn: Array = link.get("spawn", []).duplicate(true)
+	var spawn_x: int = int(spawn[0]) if spawn.size() > 0 else 540
+	var spawn_y: int = int(spawn[1]) if spawn.size() > 1 else 220
+	var battle_index := _find_data_array_index("battles", battle_id)
+	if battle_index < 0:
+		return
+	var battles: Array = data.get("battles", [])
+	var battle_def: Dictionary = _deep_copy_dict(battles[battle_index])
+	var enemy_groups: Array = battle_def.get("enemy_groups", []).duplicate(true)
+	var runtime_group := {
+		"runtime_link_key": link_key,
+		"unit_id": unit_id,
+		"count": count,
+		"count_range": [min_count, max_count],
+		"spawn": [spawn_x, spawn_y]
+	}
+	var updated := false
+	for group_index: int in range(enemy_groups.size()):
+		var group_value: Variant = enemy_groups[group_index]
+		if typeof(group_value) != TYPE_DICTIONARY:
+			continue
+		var group: Dictionary = group_value
+		if String(group.get("runtime_link_key", "")) != link_key:
+			continue
+		enemy_groups[group_index] = runtime_group
+		updated = true
+		break
+	if not updated:
+		enemy_groups.append(runtime_group)
+	battle_def["enemy_groups"] = enemy_groups
+	battles[battle_index] = battle_def
+	data["battles"] = battles
+
+
+func _apply_runtime_loot_entry_link(link: Dictionary) -> void:
+	var loot_table_id: String = String(link.get("loot_table_id", "")).strip_edges()
+	var item_id: String = String(link.get("item_id", "")).strip_edges()
+	if loot_table_id.is_empty() or item_id.is_empty():
+		return
+	if not _data_array_has_id("loot_tables", loot_table_id):
+		return
+	if not _data_array_has_id("items", item_id):
+		return
+	var link_key := String(link.get("link_key", "%s::%s" % [loot_table_id, item_id]))
+	var table_index := _find_data_array_index("loot_tables", loot_table_id)
+	if table_index < 0:
+		return
+	var loot_tables: Array = data.get("loot_tables", [])
+	var table_def: Dictionary = _deep_copy_dict(loot_tables[table_index])
+	var entries: Array = table_def.get("entries", []).duplicate(true)
+	var runtime_entry := {
+		"runtime_link_key": link_key,
+		"kind": String(link.get("kind", "item")),
+		"id": item_id,
+		"count": max(0, int(link.get("count", 1))),
+		"weight": max(0, int(link.get("weight", 5))),
+		"prob": clampf(float(link.get("prob", 1.0)), 0.0, 1.0)
+	}
+	var updated := false
+	for entry_index: int in range(entries.size()):
+		var entry_value: Variant = entries[entry_index]
+		if typeof(entry_value) != TYPE_DICTIONARY:
+			continue
+		var entry: Dictionary = entry_value
+		if String(entry.get("runtime_link_key", "")) != link_key:
+			continue
+		entries[entry_index] = runtime_entry
+		updated = true
+		break
+	if not updated:
+		entries.append(runtime_entry)
+	table_def["entries"] = entries
+	loot_tables[table_index] = table_def
+	data["loot_tables"] = loot_tables
 
 
 func _default_item_visual(_item_id: String) -> Dictionary:
@@ -567,6 +676,17 @@ func _data_array_has_id(group_name: String, entry_id: String) -> bool:
 		if String((entry_value as Dictionary).get("id", "")) == entry_id:
 			return true
 	return false
+
+
+func _find_data_array_index(group_name: String, entry_id: String) -> int:
+	var entries: Array = data.get(group_name, [])
+	for index: int in range(entries.size()):
+		var entry_value: Variant = entries[index]
+		if typeof(entry_value) != TYPE_DICTIONARY:
+			continue
+		if String((entry_value as Dictionary).get("id", "")) == entry_id:
+			return index
+	return -1
 
 
 func _upsert_data_array_entry(group_name: String, entry: Dictionary) -> void:

@@ -16,6 +16,7 @@ func _run_suite() -> void:
 	_backup_save_file()
 	_reset_progression_to_defaults()
 	_test_interactive_round_progression()
+	_test_enemy_presence_stable_without_hero_damage()
 	_test_interactive_commands()
 	_test_patrol_battle_is_winnable()
 	_test_loot_table_rolls_produce_rewards()
@@ -100,14 +101,49 @@ func _test_interactive_round_progression() -> void:
 
 	var hero_hp_before_enemy: float = float(state.get("hero_hp", 0.0))
 	if simulator.is_battle_active(state):
+		var expected_enemy_order: Array = _alive_enemy_ids(state)
 		var enemy_swings := 0
+		var enemy_actor_order: Array = []
 		while simulator.is_battle_active(state) and String(state.get("turn_phase", "")) == "enemy":
 			state = simulator.apply_enemy_phase(state)
-			enemy_swings += 1
+			if String(state.get("last_action", {}).get("phase", "")) == "enemy":
+				enemy_swings += 1
+				enemy_actor_order.append(String(state.get("last_action", {}).get("actor_id", "")))
 		_assert_true(int(state.get("elapsed", 0)) >= 1, "敌方阶段完成后应推进回合计数")
 		_assert_true(float(state.get("hero_hp", 0.0)) < hero_hp_before_enemy, "敌方行动后英雄生命应下降")
-		_assert_true(enemy_swings >= 2, "敌方阶段应由多名存活敌人依次反击")
+		_assert_true(enemy_swings == expected_enemy_order.size(), "敌方阶段应由每名存活敌人依次反击")
+		_assert_true(enemy_actor_order == expected_enemy_order, "敌方反击顺序应与战场左到右顺序一致")
 		_assert_true(int(state.get("hero_resolve", 0)) >= 2, "敌方回合结束后应回复灵势")
+
+
+func _test_enemy_presence_stable_without_hero_damage() -> void:
+	var simulator: RefCounted = load("res://systems/battle/battle_simulator.gd").new()
+	var battle_def: Dictionary = _content_db().get_battle("battle_a02_patrol")
+	var state: Dictionary = simulator.initialize_state(
+		{
+			"battle_id": "battle_a02_patrol",
+			"hero_snapshot": {
+				"hero_id": "hero_pilgrim_a01",
+				"runtime_stats": {
+					"hp": 40.0,
+					"attack_power": 5.0
+				}
+			},
+			"equipped_relic_modifiers": []
+		},
+		battle_def,
+		_content_db()
+	)
+	_assert_true(not state.has("invalid_reason"), "敌方稳定性测试初始化不应失败")
+	if state.has("invalid_reason"):
+		return
+	var hp_before: float = float(state.get("enemy_total_hp", 0.0))
+	var alive_before: Array = _alive_enemy_ids(state)
+	state = simulator.apply_player_wait(state)
+	while simulator.is_battle_active(state) and String(state.get("turn_phase", "")) == "enemy":
+		state = simulator.apply_enemy_phase(state)
+	_assert_true(is_equal_approx(float(state.get("enemy_total_hp", 0.0)), hp_before), "我方未造成伤害时，敌方总生命不应异常变化")
+	_assert_true(_alive_enemy_ids(state) == alive_before, "我方未造成伤害时，敌方单位不应在下一回合异常消失")
 
 
 func _test_interactive_commands() -> void:
@@ -300,6 +336,18 @@ func _enemy_hp_by_id(state: Dictionary, entity_id: String) -> float:
 		if String(enemy_entity.get("entity_id", "")) == entity_id:
 			return float(enemy_entity.get("current_hp", 0.0))
 	return -1.0
+
+
+func _alive_enemy_ids(state: Dictionary) -> Array:
+	var ids: Array = []
+	for enemy_entity_value in state.get("enemy_entities", []):
+		if typeof(enemy_entity_value) != TYPE_DICTIONARY:
+			continue
+		var enemy_entity: Dictionary = enemy_entity_value
+		if not bool(enemy_entity.get("is_alive", true)):
+			continue
+		ids.append(String(enemy_entity.get("entity_id", "")))
+	return ids
 
 
 func _skill_cooldown(state: Dictionary, slot_id: String) -> int:

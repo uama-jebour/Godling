@@ -123,6 +123,18 @@ var _creator_hero_status_label: Label
 var _creator_selected_item_id := ""
 var _creator_selected_enemy_id := ""
 var _creator_selected_hero_id := ""
+var _creator_search_inputs: Dictionary = {}
+var _creator_source_filters: Dictionary = {}
+var _creator_search_query_by_category := {"item": "", "enemy": "", "hero": ""}
+var _creator_source_filter_by_category := {"item": "all", "enemy": "all", "hero": "all"}
+var _creator_item_loot_table_select: OptionButton
+var _creator_item_link_count_spin: SpinBox
+var _creator_item_link_weight_spin: SpinBox
+var _creator_item_link_prob_spin: SpinBox
+var _creator_enemy_battle_select: OptionButton
+var _creator_enemy_link_count_spin: SpinBox
+var _creator_enemy_link_min_spin: SpinBox
+var _creator_enemy_link_max_spin: SpinBox
 var _task_snapshot_label: RichTextLabel
 var _delta_snapshot_label: RichTextLabel
 var _forced_hint_label: Label
@@ -1878,6 +1890,30 @@ func _build_content_manager_panel(category: String) -> Control:
 	list_hint.text = "选择一项进行查看或编辑；点击“新建”可清空表单。"
 	list_vbox.add_child(list_hint)
 
+	var filter_row := HBoxContainer.new()
+	filter_row.add_theme_constant_override("separation", 8)
+	list_vbox.add_child(filter_row)
+
+	var search_input := LineEdit.new()
+	search_input.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	search_input.custom_minimum_size = Vector2(0, 42)
+	search_input.placeholder_text = "搜索 ID / 中文名 / 标签"
+	search_input.text_changed.connect(_on_creator_search_changed.bind(category))
+	filter_row.add_child(search_input)
+	_creator_search_inputs[category] = search_input
+
+	var source_filter := OptionButton.new()
+	source_filter.custom_minimum_size = Vector2(132, 42)
+	source_filter.add_item("全部来源")
+	source_filter.set_item_metadata(0, "all")
+	source_filter.add_item("仅自定义")
+	source_filter.set_item_metadata(1, "custom")
+	source_filter.add_item("仅内置")
+	source_filter.set_item_metadata(2, "builtin")
+	source_filter.item_selected.connect(_on_creator_source_filter_changed.bind(category))
+	filter_row.add_child(source_filter)
+	_creator_source_filters[category] = source_filter
+
 	var list := ItemList.new()
 	list.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	list.size_flags_vertical = Control.SIZE_EXPAND_FILL
@@ -1937,6 +1973,12 @@ func _build_content_manager_panel(category: String) -> Control:
 	delete_button.text = "删除"
 	delete_button.pressed.connect(_on_creator_delete_pressed.bind(category))
 	toolbar.add_child(delete_button)
+
+	var duplicate_button := Button.new()
+	duplicate_button.custom_minimum_size = Vector2(148, 46)
+	duplicate_button.text = "复制为新项"
+	duplicate_button.pressed.connect(_on_creator_duplicate_pressed.bind(category))
+	toolbar.add_child(duplicate_button)
 
 	var status := Label.new()
 	status.size_flags_horizontal = Control.SIZE_EXPAND_FILL
@@ -2011,6 +2053,10 @@ func _build_content_manager_panel(category: String) -> Control:
 			_build_creator_spin_field(grid, _creator_hero_fields, "move_speed", "移动速度", 2, 24, 1, 10)
 			_build_creator_spin_field(grid, _creator_hero_fields, "size", "体型", 1, 8, 1, 4)
 			_build_creator_line_field(grid, _creator_hero_fields, "tags", "标签", "如 hero,pilgrim,ritual")
+	if category == "enemy":
+		detail_vbox.add_child(_build_enemy_reference_tools())
+	elif category == "item":
+		detail_vbox.add_child(_build_item_reference_tools())
 	return panel
 
 
@@ -2072,6 +2118,151 @@ func _build_creator_option_field(parent: GridContainer, field_store: Dictionary,
 	selector.select(target_index)
 	parent.add_child(selector)
 	field_store[key] = selector
+
+
+func _build_enemy_reference_tools() -> Control:
+	var card := _build_overlay_card()
+	card.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+
+	var margin := MarginContainer.new()
+	margin.add_theme_constant_override("margin_left", 12)
+	margin.add_theme_constant_override("margin_top", 10)
+	margin.add_theme_constant_override("margin_right", 12)
+	margin.add_theme_constant_override("margin_bottom", 10)
+	card.add_child(margin)
+
+	var vbox := VBoxContainer.new()
+	vbox.add_theme_constant_override("separation", 8)
+	margin.add_child(vbox)
+
+	var title := Label.new()
+	title.text = "引用挂载：追加到战斗编组"
+	title.add_theme_font_size_override("font_size", 16)
+	vbox.add_child(title)
+
+	var hint := Label.new()
+	hint.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	hint.text = "将当前敌人挂入指定 battle（运行时覆盖，不改 data/*.json 原始文件）。"
+	hint.add_theme_font_size_override("font_size", 13)
+	hint.modulate = Color(0.72, 0.78, 0.9, 0.92)
+	vbox.add_child(hint)
+
+	var row := HBoxContainer.new()
+	row.add_theme_constant_override("separation", 8)
+	vbox.add_child(row)
+
+	_creator_enemy_battle_select = OptionButton.new()
+	_creator_enemy_battle_select.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	_creator_enemy_battle_select.custom_minimum_size = Vector2(300, 40)
+	row.add_child(_creator_enemy_battle_select)
+
+	_creator_enemy_link_count_spin = _build_reference_spinbox(0, 12, 1, 1)
+	row.add_child(_creator_enemy_link_count_spin)
+	_creator_enemy_link_min_spin = _build_reference_spinbox(0, 12, 1, 1)
+	row.add_child(_creator_enemy_link_min_spin)
+	_creator_enemy_link_max_spin = _build_reference_spinbox(0, 16, 1, 1)
+	row.add_child(_creator_enemy_link_max_spin)
+
+	var apply_button := Button.new()
+	apply_button.custom_minimum_size = Vector2(132, 40)
+	apply_button.text = "挂入 Battle"
+	apply_button.pressed.connect(_on_creator_link_enemy_pressed)
+	row.add_child(apply_button)
+
+	var labels := HBoxContainer.new()
+	labels.add_theme_constant_override("separation", 8)
+	vbox.add_child(labels)
+
+	var spacer := Control.new()
+	spacer.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	labels.add_child(spacer)
+	labels.add_child(_build_reference_small_label("数量"))
+	labels.add_child(_build_reference_small_label("最小"))
+	labels.add_child(_build_reference_small_label("最大"))
+	return card
+
+
+func _build_item_reference_tools() -> Control:
+	var card := _build_overlay_card()
+	card.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+
+	var margin := MarginContainer.new()
+	margin.add_theme_constant_override("margin_left", 12)
+	margin.add_theme_constant_override("margin_top", 10)
+	margin.add_theme_constant_override("margin_right", 12)
+	margin.add_theme_constant_override("margin_bottom", 10)
+	card.add_child(margin)
+
+	var vbox := VBoxContainer.new()
+	vbox.add_theme_constant_override("separation", 8)
+	margin.add_child(vbox)
+
+	var title := Label.new()
+	title.text = "引用挂载：追加到掉落表"
+	title.add_theme_font_size_override("font_size", 16)
+	vbox.add_child(title)
+
+	var hint := Label.new()
+	hint.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	hint.text = "将当前道具挂入指定 loot table（运行时覆盖，不改 data/*.json 原始文件）。"
+	hint.add_theme_font_size_override("font_size", 13)
+	hint.modulate = Color(0.72, 0.78, 0.9, 0.92)
+	vbox.add_child(hint)
+
+	var row := HBoxContainer.new()
+	row.add_theme_constant_override("separation", 8)
+	vbox.add_child(row)
+
+	_creator_item_loot_table_select = OptionButton.new()
+	_creator_item_loot_table_select.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	_creator_item_loot_table_select.custom_minimum_size = Vector2(300, 40)
+	row.add_child(_creator_item_loot_table_select)
+
+	_creator_item_link_count_spin = _build_reference_spinbox(0, 999, 1, 1)
+	row.add_child(_creator_item_link_count_spin)
+	_creator_item_link_weight_spin = _build_reference_spinbox(0, 100, 1, 5)
+	row.add_child(_creator_item_link_weight_spin)
+	_creator_item_link_prob_spin = _build_reference_spinbox(0.0, 1.0, 0.05, 1.0)
+	row.add_child(_creator_item_link_prob_spin)
+
+	var apply_button := Button.new()
+	apply_button.custom_minimum_size = Vector2(132, 40)
+	apply_button.text = "挂入 Loot"
+	apply_button.pressed.connect(_on_creator_link_item_pressed)
+	row.add_child(apply_button)
+
+	var labels := HBoxContainer.new()
+	labels.add_theme_constant_override("separation", 8)
+	vbox.add_child(labels)
+
+	var spacer := Control.new()
+	spacer.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	labels.add_child(spacer)
+	labels.add_child(_build_reference_small_label("数量"))
+	labels.add_child(_build_reference_small_label("权重"))
+	labels.add_child(_build_reference_small_label("概率"))
+	return card
+
+
+func _build_reference_spinbox(min_value: float, max_value: float, step: float, default_value: float) -> SpinBox:
+	var spin := SpinBox.new()
+	spin.custom_minimum_size = Vector2(82, 40)
+	spin.min_value = min_value
+	spin.max_value = max_value
+	spin.step = step
+	spin.value = default_value
+	spin.alignment = HORIZONTAL_ALIGNMENT_CENTER
+	return spin
+
+
+func _build_reference_small_label(text_value: String) -> Label:
+	var label := Label.new()
+	label.custom_minimum_size = Vector2(82, 18)
+	label.text = text_value
+	label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	label.add_theme_font_size_override("font_size", 12)
+	label.modulate = Color(0.72, 0.78, 0.9, 0.88)
+	return label
 
 
 func _sync_balance_editor_from_live() -> void:
@@ -2192,9 +2383,13 @@ func _refresh_creator_lists() -> void:
 	var content := _content_db()
 	if content == null:
 		return
-	_populate_creator_list(_creator_item_list, _content_library_entries("item"), _creator_selected_item_id)
-	_populate_creator_list(_creator_enemy_list, _content_library_entries("enemy"), _creator_selected_enemy_id)
-	_populate_creator_list(_creator_hero_list, _content_library_entries("hero"), _creator_selected_hero_id)
+	_refresh_creator_source_filter_ui("item")
+	_refresh_creator_source_filter_ui("enemy")
+	_refresh_creator_source_filter_ui("hero")
+	_populate_creator_list(_creator_item_list, _filtered_creator_entries("item"), _creator_selected_item_id)
+	_populate_creator_list(_creator_enemy_list, _filtered_creator_entries("enemy"), _creator_selected_enemy_id)
+	_populate_creator_list(_creator_hero_list, _filtered_creator_entries("hero"), _creator_selected_hero_id)
+	_refresh_creator_reference_options()
 
 
 func _populate_creator_list(list: ItemList, entries: Array, selected_id: String) -> void:
@@ -2220,6 +2415,8 @@ func _populate_creator_list(list: ItemList, entries: Array, selected_id: String)
 			target_index = list.get_item_count() - 1
 	if target_index >= 0:
 		list.select(target_index)
+	else:
+		list.deselect_all()
 
 
 func _preferred_content_name(name_cn: String, entry_id: String, category: String) -> String:
@@ -2278,6 +2475,86 @@ func _content_library_entries(category: String) -> Array:
 				entries.append(hydrated)
 			return entries
 	return []
+
+
+func _filtered_creator_entries(category: String) -> Array:
+	var entries: Array = _content_library_entries(category)
+	var query: String = String(_creator_search_query_by_category.get(category, "")).strip_edges().to_lower()
+	var source_filter: String = String(_creator_source_filter_by_category.get(category, "all"))
+	var filtered: Array = []
+	for entry_value in entries:
+		if typeof(entry_value) != TYPE_DICTIONARY:
+			continue
+		var entry: Dictionary = entry_value
+		var is_custom: bool = bool(entry.get("is_custom", false))
+		if source_filter == "custom" and not is_custom:
+			continue
+		if source_filter == "builtin" and is_custom:
+			continue
+		if not query.is_empty() and not _creator_entry_matches_query(entry, category, query):
+			continue
+		filtered.append(entry.duplicate(true))
+	return filtered
+
+
+func _creator_entry_matches_query(entry: Dictionary, category: String, query: String) -> bool:
+	var entry_id: String = String(entry.get("id", "")).to_lower()
+	if entry_id.contains(query):
+		return true
+	var display_name := _preferred_content_name(String(entry.get("name_cn", "")), String(entry.get("id", "")), category).to_lower()
+	if display_name.contains(query):
+		return true
+	var tags_text := ",".join(entry.get("tags", [])).to_lower()
+	return tags_text.contains(query)
+
+
+func _refresh_creator_source_filter_ui(category: String) -> void:
+	var selector: OptionButton = _creator_source_filters.get(category)
+	if selector == null:
+		return
+	var current: String = String(_creator_source_filter_by_category.get(category, "all"))
+	for idx: int in range(selector.get_item_count()):
+		if String(selector.get_item_metadata(idx)) == current:
+			selector.select(idx)
+			return
+	if selector.get_item_count() > 0:
+		selector.select(0)
+
+
+func _refresh_creator_reference_options() -> void:
+	var content := _content_db()
+	if content == null:
+		return
+	if _creator_enemy_battle_select != null:
+		var battle_entries: Array = []
+		for battle_value in content.data.get("battles", []):
+			if typeof(battle_value) != TYPE_DICTIONARY:
+				continue
+			var battle_def: Dictionary = battle_value
+			var battle_id: String = String(battle_def.get("id", ""))
+			if battle_id.is_empty():
+				continue
+			var map_id: String = String(battle_def.get("map_id", ""))
+			battle_entries.append({
+				"id": battle_id,
+				"label": "%s（地图 %s）" % [battle_id, map_id]
+			})
+		_populate_selector(_creator_enemy_battle_select, battle_entries, _selector_metadata(_creator_enemy_battle_select), false, "无可用 Battle")
+	if _creator_item_loot_table_select != null:
+		var table_entries: Array = []
+		for loot_value in content.data.get("loot_tables", []):
+			if typeof(loot_value) != TYPE_DICTIONARY:
+				continue
+			var table_def: Dictionary = loot_value
+			var table_id: String = String(table_def.get("id", ""))
+			if table_id.is_empty():
+				continue
+			var table_name: String = String(table_def.get("name_cn", table_id))
+			table_entries.append({
+				"id": table_id,
+				"label": "%s（%s）" % [table_name, table_id]
+			})
+		_populate_selector(_creator_item_loot_table_select, table_entries, _selector_metadata(_creator_item_loot_table_select), false, "无可用 Loot")
 
 
 func _creator_line_value(field_store: Dictionary, key: String) -> String:
@@ -2525,6 +2802,20 @@ func _creator_payload(category: String) -> Dictionary:
 	}
 
 
+func _on_creator_search_changed(text: String, category: String) -> void:
+	_creator_search_query_by_category[category] = text
+	_refresh_creator_lists()
+
+
+func _on_creator_source_filter_changed(index: int, category: String) -> void:
+	var selector: OptionButton = _creator_source_filters.get(category)
+	if selector == null or selector.get_item_count() <= 0:
+		return
+	var safe_index := clampi(index, 0, selector.get_item_count() - 1)
+	_creator_source_filter_by_category[category] = String(selector.get_item_metadata(safe_index))
+	_refresh_creator_lists()
+
+
 func _on_creator_new_pressed(category: String) -> void:
 	_clear_creator_form(category)
 
@@ -2568,6 +2859,42 @@ func _on_creator_save_pressed(category: String) -> void:
 	_refresh_all()
 
 
+func _on_creator_duplicate_pressed(category: String) -> void:
+	var balance := _balance_state()
+	if balance == null:
+		return
+	var source_id: String = _creator_selected_id(category)
+	if source_id.is_empty():
+		_set_creator_status(category, "请先从列表选择要复制的内容。", true)
+		return
+	var payload := _creator_payload(category)
+	var generated_id: String = String(balance.call("generate_content_id", category))
+	payload["id"] = generated_id
+	var source_name := _preferred_content_name(String(payload.get("name_cn", "")), source_id, category)
+	payload["name_cn"] = "%s 副本" % source_name
+	var result: Dictionary = {}
+	match category:
+		"item":
+			result = balance.call("upsert_item", payload)
+		"enemy":
+			result = balance.call("upsert_enemy", payload)
+		"hero":
+			result = balance.call("upsert_hero", payload)
+	if not bool(result.get("ok", false)):
+		_set_creator_status(category, "复制失败：ID 冲突或输入无效。", true)
+		return
+	var entry_id: String = String(result.get("id", generated_id))
+	if category == "item":
+		_progression_state().grant_created_item(entry_id, int(payload.get("type", 2)), 1)
+	if category == "hero":
+		_progression_state().ensure_hero_in_roster(entry_id)
+	_set_creator_selected_id(category, entry_id)
+	_set_creator_status(category, "已复制%s：%s" % [_content_category_title(category), entry_id])
+	_append_log("已复制%s：%s。" % [_content_category_title(category), entry_id])
+	_refresh_balance_editor_after_content_created()
+	_refresh_all()
+
+
 func _on_creator_delete_pressed(category: String) -> void:
 	var balance := _balance_state()
 	if balance == null:
@@ -2590,6 +2917,66 @@ func _on_creator_delete_pressed(category: String) -> void:
 	_append_log("已删除%s：%s。" % [_content_category_title(category), entry_id])
 	_clear_creator_form(category)
 	_refresh_balance_editor_after_content_created()
+	_refresh_all()
+
+
+func _on_creator_link_enemy_pressed() -> void:
+	var balance := _balance_state()
+	if balance == null:
+		return
+	var unit_id: String = _creator_selected_id("enemy")
+	if unit_id.is_empty():
+		_set_creator_status("enemy", "请先选择要挂载的敌人。", true)
+		return
+	var battle_id: String = _selector_metadata(_creator_enemy_battle_select)
+	if battle_id.is_empty():
+		_set_creator_status("enemy", "当前没有可用 Battle 目标。", true)
+		return
+	var min_count: int = int(_creator_enemy_link_min_spin.value) if _creator_enemy_link_min_spin != null else 1
+	var max_count: int = int(_creator_enemy_link_max_spin.value) if _creator_enemy_link_max_spin != null else min_count
+	if max_count < min_count:
+		var swapped := min_count
+		min_count = max_count
+		max_count = swapped
+	var result: Dictionary = balance.call("link_enemy_to_battle", {
+		"battle_id": battle_id,
+		"unit_id": unit_id,
+		"count": int(_creator_enemy_link_count_spin.value) if _creator_enemy_link_count_spin != null else max_count,
+		"count_min": min_count,
+		"count_max": max_count
+	})
+	if not bool(result.get("ok", false)):
+		_set_creator_status("enemy", "挂载失败：请确认敌人和 battle 都存在。", true)
+		return
+	_set_creator_status("enemy", "已挂入 Battle：%s -> %s（%s）" % [unit_id, battle_id, String(result.get("mode", "create"))])
+	_append_log("内容挂载：敌人 %s -> battle %s（%s）。" % [unit_id, battle_id, String(result.get("mode", "create"))])
+	_refresh_all()
+
+
+func _on_creator_link_item_pressed() -> void:
+	var balance := _balance_state()
+	if balance == null:
+		return
+	var item_id: String = _creator_selected_id("item")
+	if item_id.is_empty():
+		_set_creator_status("item", "请先选择要挂载的道具。", true)
+		return
+	var loot_table_id: String = _selector_metadata(_creator_item_loot_table_select)
+	if loot_table_id.is_empty():
+		_set_creator_status("item", "当前没有可用 Loot 表目标。", true)
+		return
+	var result: Dictionary = balance.call("link_item_to_loot_table", {
+		"loot_table_id": loot_table_id,
+		"item_id": item_id,
+		"count": int(_creator_item_link_count_spin.value) if _creator_item_link_count_spin != null else 1,
+		"weight": int(_creator_item_link_weight_spin.value) if _creator_item_link_weight_spin != null else 5,
+		"prob": float(_creator_item_link_prob_spin.value) if _creator_item_link_prob_spin != null else 1.0
+	})
+	if not bool(result.get("ok", false)):
+		_set_creator_status("item", "挂载失败：请确认道具和 Loot 表都存在。", true)
+		return
+	_set_creator_status("item", "已挂入 Loot：%s -> %s（%s）" % [item_id, loot_table_id, String(result.get("mode", "create"))])
+	_append_log("内容挂载：道具 %s -> loot %s（%s）。" % [item_id, loot_table_id, String(result.get("mode", "create"))])
 	_refresh_all()
 
 

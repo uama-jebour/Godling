@@ -87,6 +87,7 @@ func initialize_state(request: Dictionary, battle_def: Dictionary, content_db: N
 		"guard_active": false,
 		"enemy_turn_queue": [],
 		"enemy_turn_index": 0,
+		"action_seq": 0,
 		"last_action": {},
 		"status_text": "选择一个敌人并发动攻击。"
 	}
@@ -135,7 +136,7 @@ func apply_player_burst(state: Dictionary) -> Dictionary:
 	state["enemy_total_hp"] = _living_enemy_total_hp(state)
 	state["enemy_total_attack"] = _living_enemy_total_attack(state)
 	state["selected_target_id"] = _first_alive_enemy_id(state.get("enemy_entities", []))
-	state["last_action"] = {
+	_push_last_action(state, {
 		"actor_id": String(hero_entity.get("entity_id", "hero_1")),
 		"actor_side": "hero",
 		"actor_name": String(hero_entity.get("display_name", "Hero")),
@@ -146,7 +147,7 @@ func apply_player_burst(state: Dictionary) -> Dictionary:
 		"damage": damage,
 		"targets_hit": targets_hit,
 		"phase": "burst"
-	}
+	})
 	if float(state.get("enemy_total_hp", 0.0)) <= 0.0:
 		state["turn_phase"] = "finished"
 		state["status_text"] = "敌方被全部清除。"
@@ -188,7 +189,7 @@ func apply_player_attack(state: Dictionary, target_entity_id: String) -> Diction
 	state["enemy_total_hp"] = _living_enemy_total_hp(state)
 	state["enemy_total_attack"] = _living_enemy_total_attack(state)
 	state["selected_target_id"] = _first_alive_enemy_id(state.get("enemy_entities", []))
-	state["last_action"] = {
+	_push_last_action(state, {
 		"actor_id": String(hero_entity.get("entity_id", "hero_1")),
 		"actor_side": "hero",
 		"actor_name": String(hero_entity.get("display_name", "Hero")),
@@ -198,7 +199,7 @@ func apply_player_attack(state: Dictionary, target_entity_id: String) -> Diction
 		"skill_slot": "primary",
 		"damage": damage,
 		"phase": "player"
-	}
+	})
 	if float(state.get("enemy_total_hp", 0.0)) <= 0.0:
 		state["turn_phase"] = "finished"
 		state["status_text"] = "敌方被全部清除。"
@@ -227,7 +228,7 @@ func apply_player_defend(state: Dictionary) -> Dictionary:
 	_commit_skill_use(state, "guard")
 	state["guard_active"] = true
 	state["hero_resolve"] = min(int(state.get("hero_resolve_max", HERO_RESOLVE_MAX)), int(state.get("hero_resolve", 0)) + _balance_int("battle.resolve_gain_on_guard", RESOLVE_GAIN_ON_GUARD))
-	state["last_action"] = {
+	_push_last_action(state, {
 		"actor_id": String(hero_entity.get("entity_id", "hero_1")),
 		"actor_side": "hero",
 		"actor_name": String(hero_entity.get("display_name", "Hero")),
@@ -237,7 +238,7 @@ func apply_player_defend(state: Dictionary) -> Dictionary:
 		"skill_slot": "guard",
 		"damage": 0.0,
 		"phase": "defend"
-	}
+	})
 	state["turn_phase"] = "enemy"
 	state["enemy_turn_queue"] = []
 	state["enemy_turn_index"] = 0
@@ -255,7 +256,7 @@ func apply_player_wait(state: Dictionary) -> Dictionary:
 	state["hero_resolve"] = min(int(state.get("hero_resolve_max", HERO_RESOLVE_MAX)), int(state.get("hero_resolve", 0)) + _balance_int("battle.resolve_gain_on_wait", RESOLVE_GAIN_ON_WAIT))
 	var hero_entity: Dictionary = state.get("hero_entity", {})
 	state["guard_active"] = false
-	state["last_action"] = {
+	_push_last_action(state, {
 		"actor_id": String(hero_entity.get("entity_id", "hero_1")),
 		"actor_side": "hero",
 		"actor_name": String(hero_entity.get("display_name", "Hero")),
@@ -264,7 +265,7 @@ func apply_player_wait(state: Dictionary) -> Dictionary:
 		"target_side": "",
 		"damage": 0.0,
 		"phase": "wait"
-	}
+	})
 	state["turn_phase"] = "enemy"
 	state["enemy_turn_queue"] = []
 	state["enemy_turn_index"] = 0
@@ -298,7 +299,7 @@ func apply_player_item(state: Dictionary, item_id: String) -> Dictionary:
 	hero_entity["is_alive"] = float(state.get("hero_hp", 0.0)) > 0.0
 	state["hero_entity"] = hero_entity
 	state["guard_active"] = false
-	state["last_action"] = {
+	_push_last_action(state, {
 		"actor_id": String(hero_entity.get("entity_id", "hero_1")),
 		"actor_side": "hero",
 		"actor_name": String(hero_entity.get("display_name", "Hero")),
@@ -307,7 +308,7 @@ func apply_player_item(state: Dictionary, item_id: String) -> Dictionary:
 		"target_side": "hero",
 		"damage": -recover_value,
 		"phase": "item"
-	}
+	})
 	state["turn_phase"] = "enemy"
 	state["enemy_turn_queue"] = []
 	state["enemy_turn_index"] = 0
@@ -344,7 +345,7 @@ func apply_enemy_phase(state: Dictionary) -> Dictionary:
 	if bool(state.get("guard_active", false)):
 		hero_damage *= _balance_float("skills.guard_damage_factor", HERO_GUARD_DAMAGE_FACTOR)
 	state["hero_hp"] = max(0.0, float(state.get("hero_hp", 0.0)) - hero_damage)
-	state["last_action"] = {
+	_push_last_action(state, {
 		"actor_id": String(enemy_actor.get("entity_id", "enemy")),
 		"actor_side": "enemy",
 		"actor_name": String(enemy_actor.get("display_name", "Enemy")),
@@ -353,7 +354,7 @@ func apply_enemy_phase(state: Dictionary) -> Dictionary:
 		"target_side": "hero",
 		"damage": hero_damage,
 		"phase": "enemy"
-	}
+	})
 	state["enemy_turn_index"] = turn_index + 1
 
 	var hero_entity: Dictionary = state.get("hero_entity", {})
@@ -522,16 +523,6 @@ func _living_enemy_turn_queue(state: Dictionary) -> Array:
 		if not bool(enemy_entity.get("is_alive", true)):
 			continue
 		queue.append(enemy_entity.duplicate(true))
-	queue.sort_custom(func(a: Dictionary, b: Dictionary) -> bool:
-		var a_attack: float = float(a.get("attack_power", 0.0))
-		var b_attack: float = float(b.get("attack_power", 0.0))
-		if not is_equal_approx(a_attack, b_attack):
-			return a_attack > b_attack
-		return float(a.get("current_hp", 0.0)) > float(b.get("current_hp", 0.0))
-	)
-	var attacker_limit: int = _balance_int("battle.enemy_phase_attacker_limit", ENEMY_PHASE_ATTACKER_LIMIT)
-	if queue.size() > attacker_limit:
-		queue.resize(attacker_limit)
 	return queue
 
 
@@ -757,6 +748,14 @@ func _battle_item_effect(item_def: Dictionary) -> Dictionary:
 			"display_name": String(item_def.get("name_cn", item_def.get("id", "")))
 		}
 	return {}
+
+
+func _push_last_action(state: Dictionary, action: Dictionary) -> void:
+	var next_seq: int = int(state.get("action_seq", 0)) + 1
+	state["action_seq"] = next_seq
+	var next_action: Dictionary = action.duplicate(true)
+	next_action["seq"] = next_seq
+	state["last_action"] = next_action
 
 
 func _find_battle_item_effect(state: Dictionary, item_id: String) -> Dictionary:

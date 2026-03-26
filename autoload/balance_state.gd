@@ -7,7 +7,11 @@ const PRESET_DIR := "user://balance_presets"
 const CONTENT_SAVE_PATH := "user://content_creations.json"
 const DEFAULT_CREATED_CONTENT := {
 	"items": [],
-	"units": []
+	"units": [],
+	"links": {
+		"battle_enemy_groups": [],
+		"loot_table_entries": []
+	}
 }
 
 const EDITOR_SECTIONS := [
@@ -121,6 +125,11 @@ func get_created_content() -> Dictionary:
 	return _created_content.duplicate(true)
 
 
+func get_created_links() -> Dictionary:
+	_ensure_link_container()
+	return _created_content.get("links", {}).duplicate(true)
+
+
 func get_created_content_summary() -> Dictionary:
 	var items: Array[String] = []
 	var heroes: Array[String] = []
@@ -228,6 +237,85 @@ func delete_created_unit(unit_id: String, camp: String = "") -> Dictionary:
 	if bool(result.get("ok", false)) and not camp.is_empty():
 		result["camp"] = camp
 	return result
+
+
+func link_enemy_to_battle(payload: Dictionary) -> Dictionary:
+	_ensure_link_container()
+	var battle_id: String = String(payload.get("battle_id", "")).strip_edges()
+	var unit_id: String = String(payload.get("unit_id", "")).strip_edges()
+	if battle_id.is_empty() or unit_id.is_empty():
+		return {"ok": false, "error": "missing_id"}
+	var content := _content_db()
+	if content == null:
+		return {"ok": false, "error": "missing_content_db"}
+	if content.get_battle(battle_id).is_empty():
+		return {"ok": false, "error": "missing_battle", "battle_id": battle_id}
+	if content.get_unit(unit_id).is_empty():
+		return {"ok": false, "error": "missing_unit", "unit_id": unit_id}
+	var min_count: int = max(0, int(payload.get("count_min", 1)))
+	var max_count: int = max(0, int(payload.get("count_max", min_count)))
+	if max_count < min_count:
+		var swapped := min_count
+		min_count = max_count
+		max_count = swapped
+	var count: int = clampi(int(payload.get("count", max_count)), min_count, max_count)
+	var spawn_x: int = int(payload.get("spawn_x", 540))
+	var spawn_y: int = int(payload.get("spawn_y", 220))
+	var link_key := "%s::%s" % [battle_id, unit_id]
+	var link_entry := {
+		"link_key": link_key,
+		"battle_id": battle_id,
+		"unit_id": unit_id,
+		"count": count,
+		"count_range": [min_count, max_count],
+		"spawn": [spawn_x, spawn_y]
+	}
+	var mode := _upsert_link_entry("battle_enemy_groups", link_key, link_entry)
+	_persist_created_content()
+	return {
+		"ok": true,
+		"mode": mode,
+		"link_key": link_key,
+		"battle_id": battle_id,
+		"unit_id": unit_id
+	}
+
+
+func link_item_to_loot_table(payload: Dictionary) -> Dictionary:
+	_ensure_link_container()
+	var loot_table_id: String = String(payload.get("loot_table_id", "")).strip_edges()
+	var item_id: String = String(payload.get("item_id", "")).strip_edges()
+	if loot_table_id.is_empty() or item_id.is_empty():
+		return {"ok": false, "error": "missing_id"}
+	var content := _content_db()
+	if content == null:
+		return {"ok": false, "error": "missing_content_db"}
+	if content.get_loot_table(loot_table_id).is_empty():
+		return {"ok": false, "error": "missing_loot_table", "loot_table_id": loot_table_id}
+	if content.get_item(item_id).is_empty():
+		return {"ok": false, "error": "missing_item", "item_id": item_id}
+	var count: int = max(0, int(payload.get("count", 1)))
+	var weight: int = max(0, int(payload.get("weight", 5)))
+	var prob: float = clampf(float(payload.get("prob", 1.0)), 0.0, 1.0)
+	var link_key := "%s::%s" % [loot_table_id, item_id]
+	var link_entry := {
+		"link_key": link_key,
+		"loot_table_id": loot_table_id,
+		"item_id": item_id,
+		"kind": "item",
+		"count": count,
+		"weight": weight,
+		"prob": prob
+	}
+	var mode := _upsert_link_entry("loot_table_entries", link_key, link_entry)
+	_persist_created_content()
+	return {
+		"ok": true,
+		"mode": mode,
+		"link_key": link_key,
+		"loot_table_id": loot_table_id,
+		"item_id": item_id
+	}
 
 
 func reset_created_content() -> void:
@@ -716,6 +804,7 @@ func _delete_created_entry(group_name: String, entry_id: String) -> Dictionary:
 		return {"ok": false, "error": "missing_entry", "id": entry_id}
 	var removed_entry: Dictionary = _created_content[group_name][index]
 	_created_content[group_name].remove_at(index)
+	_remove_links_for_entry(group_name, entry_id)
 	var progression := _progression_state()
 	if progression != null:
 		if group_name == "units" and String(removed_entry.get("camp", "")) == "hero" and progression.has_method("remove_hero_from_roster"):
@@ -724,6 +813,48 @@ func _delete_created_entry(group_name: String, entry_id: String) -> Dictionary:
 			progression.call("remove_item_references", entry_id)
 	_persist_created_content()
 	return {"ok": true, "id": entry_id}
+
+
+func _remove_links_for_entry(group_name: String, entry_id: String) -> void:
+	_ensure_link_container()
+	var links: Dictionary = _created_content.get("links", {})
+	if group_name == "items":
+		links["loot_table_entries"] = _remove_link_entries_by_id(links.get("loot_table_entries", []), "item_id", entry_id)
+	elif group_name == "units":
+		links["battle_enemy_groups"] = _remove_link_entries_by_id(links.get("battle_enemy_groups", []), "unit_id", entry_id)
+	_created_content["links"] = links
+
+
+func _remove_link_entries_by_id(entries: Array, key: String, entry_id: String) -> Array:
+	var filtered: Array = []
+	for entry_value in entries:
+		if typeof(entry_value) != TYPE_DICTIONARY:
+			continue
+		var entry: Dictionary = entry_value
+		if String(entry.get(key, "")) == entry_id:
+			continue
+		filtered.append(entry.duplicate(true))
+	return filtered
+
+
+func _upsert_link_entry(group_name: String, link_key: String, link_entry: Dictionary) -> String:
+	var links: Dictionary = _created_content.get("links", {})
+	var entries: Array = links.get(group_name, [])
+	for index: int in range(entries.size()):
+		var entry_value: Variant = entries[index]
+		if typeof(entry_value) != TYPE_DICTIONARY:
+			continue
+		var entry: Dictionary = entry_value
+		if String(entry.get("link_key", "")) != link_key:
+			continue
+		entries[index] = link_entry.duplicate(true)
+		links[group_name] = entries
+		_created_content["links"] = links
+		return "update"
+	entries.append(link_entry.duplicate(true))
+	links[group_name] = entries
+	_created_content["links"] = links
+	return "create"
 
 
 func _persist_created_content() -> void:
@@ -837,7 +968,61 @@ func _normalize_created_content(payload: Dictionary) -> Dictionary:
 			"combat_ai": String(unit_def.get("combat_ai", "melee_attack")),
 			"tags": _normalize_unit_tags(unit_def.get("tags", []), String(unit_def.get("camp", "enemy")))
 		})
+	var links_payload: Dictionary = payload.get("links", {})
+	if typeof(links_payload) == TYPE_DICTIONARY:
+		for link_value in links_payload.get("battle_enemy_groups", []):
+			if typeof(link_value) != TYPE_DICTIONARY:
+				continue
+			var link: Dictionary = link_value
+			var battle_id: String = String(link.get("battle_id", "")).strip_edges()
+			var unit_id: String = String(link.get("unit_id", "")).strip_edges()
+			if battle_id.is_empty() or unit_id.is_empty():
+				continue
+			var count_range: Array = link.get("count_range", []).duplicate(true)
+			var min_count: int = max(0, int(count_range[0])) if count_range.size() > 0 else 1
+			var max_count: int = max(min_count, int(count_range[1])) if count_range.size() > 1 else min_count
+			var count: int = clampi(int(link.get("count", max_count)), min_count, max_count)
+			var spawn: Array = link.get("spawn", []).duplicate(true)
+			var spawn_x: int = int(spawn[0]) if spawn.size() > 0 else 540
+			var spawn_y: int = int(spawn[1]) if spawn.size() > 1 else 220
+			normalized["links"]["battle_enemy_groups"].append({
+				"link_key": "%s::%s" % [battle_id, unit_id],
+				"battle_id": battle_id,
+				"unit_id": unit_id,
+				"count": count,
+				"count_range": [min_count, max_count],
+				"spawn": [spawn_x, spawn_y]
+			})
+		for link_value in links_payload.get("loot_table_entries", []):
+			if typeof(link_value) != TYPE_DICTIONARY:
+				continue
+			var link: Dictionary = link_value
+			var loot_table_id: String = String(link.get("loot_table_id", "")).strip_edges()
+			var item_id: String = String(link.get("item_id", "")).strip_edges()
+			if loot_table_id.is_empty() or item_id.is_empty():
+				continue
+			normalized["links"]["loot_table_entries"].append({
+				"link_key": "%s::%s" % [loot_table_id, item_id],
+				"loot_table_id": loot_table_id,
+				"item_id": item_id,
+				"kind": "item",
+				"count": max(0, int(link.get("count", 1))),
+				"weight": max(0, int(link.get("weight", 5))),
+				"prob": clampf(float(link.get("prob", 1.0)), 0.0, 1.0)
+			})
 	return normalized
+
+
+func _ensure_link_container() -> void:
+	if typeof(_created_content.get("links", {})) != TYPE_DICTIONARY:
+		_created_content["links"] = {"battle_enemy_groups": [], "loot_table_entries": []}
+		return
+	var links: Dictionary = _created_content.get("links", {})
+	if typeof(links.get("battle_enemy_groups", [])) != TYPE_ARRAY:
+		links["battle_enemy_groups"] = []
+	if typeof(links.get("loot_table_entries", [])) != TYPE_ARRAY:
+		links["loot_table_entries"] = []
+	_created_content["links"] = links
 
 
 func _ensure_preset_dir() -> void:

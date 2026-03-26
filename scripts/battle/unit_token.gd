@@ -30,6 +30,8 @@ var _entity_id := ""
 var _damage_tween: Tween
 var _action_tween: Tween
 var _battle_scale := 1.0
+var _drop_validator: Callable = Callable()
+var _drop_handler: Callable = Callable()
 
 
 func _ready() -> void:
@@ -75,6 +77,23 @@ func _gui_input(event: InputEvent) -> void:
 		return
 	if event is InputEventMouseButton and event.button_index == MOUSE_BUTTON_LEFT and event.pressed:
 		emit_signal("token_pressed", _entity_id)
+
+
+func set_drop_callbacks(validator: Callable, handler: Callable) -> void:
+	_drop_validator = validator
+	_drop_handler = handler
+
+
+func _can_drop_data(_at_position: Vector2, data: Variant) -> bool:
+	if _entity_id.is_empty() or not _drop_validator.is_valid():
+		return false
+	return bool(_drop_validator.call(_entity_id, data))
+
+
+func _drop_data(_at_position: Vector2, data: Variant) -> void:
+	if _entity_id.is_empty() or not _drop_handler.is_valid():
+		return
+	_drop_handler.call(_entity_id, data)
 
 
 func apply_feedback(feedback_type: String) -> void:
