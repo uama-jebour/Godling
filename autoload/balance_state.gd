@@ -129,12 +129,14 @@ func get_created_content_summary() -> Dictionary:
 		if typeof(item_value) != TYPE_DICTIONARY:
 			continue
 		var item_def: Dictionary = item_value
-		items.append("%s (%s)" % [String(item_def.get("name_cn", "")), String(item_def.get("id", ""))])
+		var item_id: String = String(item_def.get("id", ""))
+		items.append("%s (%s)" % [_preferred_name(String(item_def.get("name_cn", "")), item_id, "item"), item_id])
 	for unit_value in _created_content.get("units", []):
 		if typeof(unit_value) != TYPE_DICTIONARY:
 			continue
 		var unit_def: Dictionary = unit_value
-		var summary_line := "%s (%s)" % [String(unit_def.get("name_cn", "")), String(unit_def.get("id", ""))]
+		var unit_id: String = String(unit_def.get("id", ""))
+		var summary_line := "%s (%s)" % [_preferred_name(String(unit_def.get("name_cn", "")), unit_id, String(unit_def.get("camp", "enemy"))), unit_id]
 		if String(unit_def.get("camp", "")) == "hero":
 			heroes.append(summary_line)
 		else:
@@ -495,10 +497,11 @@ func _build_units_section(content: Node) -> Dictionary:
 			continue
 		var unit_def: Dictionary = unit_value
 		var unit_id: String = String(unit_def.get("id", ""))
-		entries.append({"path": "units.%s.hp" % unit_id, "label": "%s 生命" % String(unit_def.get("name_cn", unit_id)), "description": "单位基础生命值。", "default": int(unit_def.get("hp", 0)), "min": 1, "max": 120, "step": 1})
+		var unit_name := _preferred_name(String(unit_def.get("name_cn", "")), unit_id, String(unit_def.get("camp", "enemy")))
+		entries.append({"path": "units.%s.hp" % unit_id, "label": "%s 生命" % unit_name, "description": "单位基础生命值。", "default": int(unit_def.get("hp", 0)), "min": 1, "max": 120, "step": 1})
 		var attack: Dictionary = unit_def.get("attack", {})
-		entries.append({"path": "units.%s.attack_power" % unit_id, "label": "%s 攻击力" % String(unit_def.get("name_cn", unit_id)), "description": "单位攻击面板中的威力值。", "default": float(attack.get("power", 0.0)), "min": 0.2, "max": 20.0, "step": 0.1})
-		entries.append({"path": "units.%s.attack_speed" % unit_id, "label": "%s 攻速" % String(unit_def.get("name_cn", unit_id)), "description": "单位攻击面板中的速度值。", "default": float(attack.get("speed", 1.0)), "min": 0.2, "max": 3.0, "step": 0.05})
+		entries.append({"path": "units.%s.attack_power" % unit_id, "label": "%s 攻击力" % unit_name, "description": "单位攻击面板中的威力值。", "default": float(attack.get("power", 0.0)), "min": 0.2, "max": 20.0, "step": 0.1})
+		entries.append({"path": "units.%s.attack_speed" % unit_id, "label": "%s 攻速" % unit_name, "description": "单位攻击面板中的速度值。", "default": float(attack.get("speed", 1.0)), "min": 0.2, "max": 3.0, "step": 0.05})
 	return {"id": "units_content", "name_cn": "英雄与敌人", "description": "直接调整英雄与各类敌人的基础数值。", "entries": entries}
 
 
@@ -512,7 +515,8 @@ func _build_items_section(content: Node) -> Dictionary:
 		if combat_effect.is_empty():
 			continue
 		var item_id: String = String(item_def.get("id", ""))
-		entries.append({"path": "items.%s.combat_effect_value" % item_id, "label": "%s 战斗效果" % String(item_def.get("name_cn", item_id)), "description": "该道具在战斗中的数值效果。", "default": float(combat_effect.get("value", 0.0)), "min": 0.0, "max": 60.0, "step": 0.5})
+		var item_name := _preferred_name(String(item_def.get("name_cn", "")), item_id, "item")
+		entries.append({"path": "items.%s.combat_effect_value" % item_id, "label": "%s 战斗效果" % item_name, "description": "该道具在战斗中的数值效果。", "default": float(combat_effect.get("value", 0.0)), "min": 0.0, "max": 60.0, "step": 0.5})
 	return {"id": "items_content", "name_cn": "道具内容", "description": "调整具体道具的战斗效果值。", "entries": entries}
 
 
@@ -608,16 +612,15 @@ func _progression_state() -> Node:
 
 func _build_item_definition(payload: Dictionary, item_id: String) -> Dictionary:
 	var type_id: int = int(payload.get("type", 2))
+	var display_name := _preferred_name(String(payload.get("name_cn", "")).strip_edges(), item_id, "item")
 	var item_def := {
 		"id": item_id,
-		"name_cn": String(payload.get("name_cn", item_id)).strip_edges(),
+		"name_cn": display_name,
 		"type": type_id,
 		"quality": clampi(int(payload.get("quality", 1)), 0, 5),
 		"description": String(payload.get("description", "运行时新增道具。")).strip_edges(),
 		"tags": _normalize_tags(payload.get("tags", []))
 	}
-	if item_def["name_cn"].is_empty():
-		item_def["name_cn"] = item_id
 	if item_def["description"].is_empty():
 		item_def["description"] = "运行时新增道具。"
 	var effect_kind: String = String(payload.get("combat_effect_kind", "")).strip_edges()
@@ -658,10 +661,11 @@ func _upsert_unit(payload: Dictionary, camp: String) -> Dictionary:
 
 func _build_unit_definition(payload: Dictionary, unit_id: String, camp: String) -> Dictionary:
 	var attack_type: String = String(payload.get("attack_type", "melee")).strip_edges()
+	var display_name := _preferred_name(String(payload.get("name_cn", "")).strip_edges(), unit_id, camp)
 	var unit_def := {
 		"id": unit_id,
 		"camp": camp,
-		"name_cn": String(payload.get("name_cn", unit_id)).strip_edges(),
+		"name_cn": display_name,
 		"move_speed": clampi(int(payload.get("move_speed", 9)), 2, 24),
 		"move_type": String(payload.get("move_type", "walk")).strip_edges(),
 		"size": clampi(int(payload.get("size", 3)), 1, 8),
@@ -676,8 +680,6 @@ func _build_unit_definition(payload: Dictionary, unit_id: String, camp: String) 
 		"combat_ai": "ranged_attack" if attack_type == "ranged_flat" else "melee_attack",
 		"tags": _normalize_unit_tags(payload.get("tags", []), camp)
 	}
-	if unit_def["name_cn"].is_empty():
-		unit_def["name_cn"] = unit_id
 	return unit_def
 
 
@@ -863,3 +865,19 @@ func _normalize_content_id(raw_id: String, prefix: String) -> String:
 	if normalized.is_empty():
 		normalized = "%s_custom_%d" % [prefix, Time.get_ticks_msec()]
 	return normalized
+
+
+func _preferred_name(name_cn: String, entry_id: String, category: String) -> String:
+	var trimmed_name := name_cn.strip_edges()
+	if not trimmed_name.is_empty() and trimmed_name != entry_id:
+		return trimmed_name
+	if entry_id.contains("_custom_"):
+		var suffix := entry_id.get_slice("_custom_", 1)
+		match category:
+			"item":
+				return "自定义道具 %s" % suffix
+			"hero":
+				return "自定义英雄 %s" % suffix
+			"enemy":
+				return "自定义敌人 %s" % suffix
+	return entry_id if not trimmed_name.is_empty() else entry_id

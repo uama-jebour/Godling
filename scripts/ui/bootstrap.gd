@@ -1613,7 +1613,8 @@ func _rebuild_balance_editor_tabs() -> void:
 	if _balance_editor_tabs == null:
 		return
 	for child: Node in _balance_editor_tabs.get_children():
-		child.queue_free()
+		_balance_editor_tabs.remove_child(child)
+		child.free()
 	_balance_spinboxes.clear()
 	var balance := _balance_state()
 	if balance == null:
@@ -2208,13 +2209,33 @@ func _populate_creator_list(list: ItemList, entries: Array, selected_id: String)
 		var entry: Dictionary = entry_value
 		var entry_id: String = String(entry.get("id", ""))
 		var source_prefix := "[自定义] " if bool(entry.get("is_custom", false)) else "[内置] "
-		var label := "%s%s (%s)" % [source_prefix, String(entry.get("name_cn", entry_id)), entry_id]
+		var category := "item"
+		if entry.has("camp"):
+			category = String(entry.get("camp", "enemy"))
+		var display_name := _preferred_content_name(String(entry.get("name_cn", "")), entry_id, category)
+		var label := "%s%s (%s)" % [source_prefix, display_name, entry_id]
 		list.add_item(label)
 		list.set_item_metadata(list.get_item_count() - 1, entry.duplicate(true))
 		if entry_id == selected_id:
 			target_index = list.get_item_count() - 1
 	if target_index >= 0:
 		list.select(target_index)
+
+
+func _preferred_content_name(name_cn: String, entry_id: String, category: String) -> String:
+	var trimmed_name := name_cn.strip_edges()
+	if not trimmed_name.is_empty() and trimmed_name != entry_id:
+		return trimmed_name
+	if entry_id.contains("_custom_"):
+		var suffix := entry_id.get_slice("_custom_", 1)
+		match category:
+			"item":
+				return "自定义道具 %s" % suffix
+			"hero":
+				return "自定义英雄 %s" % suffix
+			_:
+				return "自定义敌人 %s" % suffix
+	return entry_id
 
 
 func _content_library_entries(category: String) -> Array:
