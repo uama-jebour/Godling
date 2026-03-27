@@ -1,29 +1,27 @@
-[gd_scene load_steps=7 format=3]
+[gd_scene load_steps=6 format=3]
 
 [ext_resource type="Script" path="res://scripts/battle/battle_scene_runner.gd" id="1"]
 [ext_resource type="Script" path="res://scripts/battle/battle_scene_controller.gd" id="2"]
 [ext_resource type="Theme" path="res://assets/fonts/ui_theme.tres" id="3"]
-[ext_resource type="Texture2D" path="res://output/imagegen/godling-batch1/action-card-surface.png" id="4"]
-
 [sub_resource type="StyleBoxFlat" id="StyleBoxFlat_modal_shell"]
-bg_color = Color(0.11, 0.09, 0.07, 0.46)
+bg_color = Color(0.0313726, 0.054902, 0.0901961, 0.94)
 border_width_left = 1
 border_width_top = 1
 border_width_right = 1
 border_width_bottom = 1
-border_color = Color(0.73, 0.63, 0.42, 0.38)
-corner_radius_top_left = 12
-corner_radius_top_right = 12
-corner_radius_bottom_right = 12
-corner_radius_bottom_left = 12
+border_color = Color(0.411765, 0.654902, 0.964706, 0.6)
+corner_radius_top_left = 10
+corner_radius_top_right = 10
+corner_radius_bottom_right = 10
+corner_radius_bottom_left = 10
 
 [sub_resource type="StyleBoxFlat" id="StyleBoxFlat_inner_panel"]
-bg_color = Color(0.12, 0.10, 0.08, 0.34)
+bg_color = Color(0.0588235, 0.0941177, 0.145098, 0.88)
 border_width_left = 1
 border_width_top = 1
 border_width_right = 1
 border_width_bottom = 1
-border_color = Color(0.68, 0.60, 0.40, 0.30)
+border_color = Color(0.301961, 0.52549, 0.8, 0.52)
 corner_radius_top_left = 8
 corner_radius_top_right = 8
 corner_radius_bottom_right = 8
@@ -52,20 +50,7 @@ anchor_right = 1.0
 anchor_bottom = 1.0
 grow_horizontal = 2
 grow_vertical = 2
-color = Color(0.0313726, 0.0392157, 0.0705882, 0.40)
-
-[node name="GlobalBackdropTexture" type="TextureRect" parent="BattleUI"]
-layout_mode = 1
-anchors_preset = 15
-anchor_right = 1.0
-anchor_bottom = 1.0
-grow_horizontal = 2
-grow_vertical = 2
-mouse_filter = 2
-texture = ExtResource("4")
-expand_mode = 1
-stretch_mode = 1
-modulate = Color(1, 1, 1, 0.55)
+color = Color(0.0196078, 0.027451, 0.0470588, 1)
 
 [node name="ShellMargin" type="MarginContainer" parent="BattleUI"]
 layout_mode = 1
@@ -75,9 +60,9 @@ anchor_bottom = 1.0
 grow_horizontal = 2
 grow_vertical = 2
 theme_override_constants/margin_left = 52
-theme_override_constants/margin_top = 38
+theme_override_constants/margin_top = 22
 theme_override_constants/margin_right = 52
-theme_override_constants/margin_bottom = 38
+theme_override_constants/margin_bottom = 22
 
 [node name="ModalPanel" type="PanelContainer" parent="BattleUI/ShellMargin"]
 layout_mode = 2
@@ -87,47 +72,49 @@ theme_override_styles/panel = SubResource("StyleBoxFlat_modal_shell")
 
 [node name="PanelMargin" type="MarginContainer" parent="BattleUI/ShellMargin/ModalPanel"]
 layout_mode = 2
-theme_override_constants/margin_left = 24
-theme_override_constants/margin_top = 22
-theme_override_constants/margin_right = 24
-theme_override_constants/margin_bottom = 22
+theme_override_constants/margin_left = 16
+theme_override_constants/margin_top = 14
+theme_override_constants/margin_right = 16
+theme_override_constants/margin_bottom = 14
 
 [node name="RootVBox" type="VBoxContainer" parent="BattleUI/ShellMargin/ModalPanel/PanelMargin"]
 layout_mode = 2
-theme_override_constants/separation = 14
+theme_override_constants/separation = 10
 
 [node name="HeaderRow" type="HBoxContainer" parent="BattleUI/ShellMargin/ModalPanel/PanelMargin/RootVBox"]
 layout_mode = 2
-theme_override_constants/separation = 12
+theme_override_constants/separation = 8
 
 [node name="PreviewBadge" type="Label" parent="BattleUI/ShellMargin/ModalPanel/PanelMargin/RootVBox/HeaderRow"]
 layout_mode = 2
 theme_override_font_sizes/font_size = 15
 text = "战斗预览"
+modulate = Color(0.576471, 0.713726, 0.901961, 1)
 
 [node name="BattleTitle" type="Label" parent="BattleUI/ShellMargin/ModalPanel/PanelMargin/RootVBox/HeaderRow"]
 unique_name_in_owner = true
 layout_mode = 2
 size_flags_horizontal = 3
-theme_override_font_sizes/font_size = 28
+theme_override_font_sizes/font_size = 24
 text = "灰烬圣坛巡逻战"
 
 [node name="TickLabel" type="Label" parent="BattleUI/ShellMargin/ModalPanel/PanelMargin/RootVBox/HeaderRow"]
 unique_name_in_owner = true
 layout_mode = 2
-theme_override_font_sizes/font_size = 16
+theme_override_font_sizes/font_size = 14
 text = "Tick 0"
+modulate = Color(0.694118, 0.803922, 0.972549, 1)
 
 [node name="ClosePreviewButton" type="Button" parent="BattleUI/ShellMargin/ModalPanel/PanelMargin/RootVBox/HeaderRow"]
 unique_name_in_owner = true
-custom_minimum_size = Vector2(124, 36)
+custom_minimum_size = Vector2(108, 32)
 layout_mode = 2
-theme_override_font_sizes/font_size = 15
+theme_override_font_sizes/font_size = 14
 text = "关闭预览"
 
 [node name="TopRow" type="HBoxContainer" parent="BattleUI/ShellMargin/ModalPanel/PanelMargin/RootVBox"]
 layout_mode = 2
-theme_override_constants/separation = 10
+theme_override_constants/separation = 8
 
 [node name="BattleSummaryPanel" type="PanelContainer" parent="BattleUI/ShellMargin/ModalPanel/PanelMargin/RootVBox/TopRow"]
 layout_mode = 2
@@ -137,9 +124,9 @@ theme_override_styles/panel = SubResource("StyleBoxFlat_inner_panel")
 [node name="BattleSummaryMargin" type="MarginContainer" parent="BattleUI/ShellMargin/ModalPanel/PanelMargin/RootVBox/TopRow/BattleSummaryPanel"]
 layout_mode = 2
 theme_override_constants/margin_left = 16
-theme_override_constants/margin_top = 10
+theme_override_constants/margin_top = 8
 theme_override_constants/margin_right = 16
-theme_override_constants/margin_bottom = 10
+theme_override_constants/margin_bottom = 8
 
 [node name="BattleSummary" type="RichTextLabel" parent="BattleUI/ShellMargin/ModalPanel/PanelMargin/RootVBox/TopRow/BattleSummaryPanel/BattleSummaryMargin"]
 unique_name_in_owner = true
@@ -147,10 +134,10 @@ layout_mode = 2
 bbcode_enabled = true
 fit_content = true
 scroll_active = false
-theme_override_font_sizes/normal_font_size = 16
+theme_override_font_sizes/normal_font_size = 14
 
 [node name="HeroPanel" type="PanelContainer" parent="BattleUI/ShellMargin/ModalPanel/PanelMargin/RootVBox/TopRow"]
-custom_minimum_size = Vector2(286, 0)
+custom_minimum_size = Vector2(248, 0)
 layout_mode = 2
 size_flags_horizontal = 3
 theme_override_styles/panel = SubResource("StyleBoxFlat_inner_panel")
@@ -158,9 +145,9 @@ theme_override_styles/panel = SubResource("StyleBoxFlat_inner_panel")
 [node name="HeroMargin" type="MarginContainer" parent="BattleUI/ShellMargin/ModalPanel/PanelMargin/RootVBox/TopRow/HeroPanel"]
 layout_mode = 2
 theme_override_constants/margin_left = 16
-theme_override_constants/margin_top = 10
+theme_override_constants/margin_top = 8
 theme_override_constants/margin_right = 16
-theme_override_constants/margin_bottom = 10
+theme_override_constants/margin_bottom = 8
 
 [node name="HeroVBox" type="VBoxContainer" parent="BattleUI/ShellMargin/ModalPanel/PanelMargin/RootVBox/TopRow/HeroPanel/HeroMargin"]
 layout_mode = 2
@@ -169,7 +156,7 @@ theme_override_constants/separation = 6
 [node name="HeroHeader" type="Label" parent="BattleUI/ShellMargin/ModalPanel/PanelMargin/RootVBox/TopRow/HeroPanel/HeroMargin/HeroVBox"]
 unique_name_in_owner = true
 layout_mode = 2
-theme_override_font_sizes/font_size = 14
+theme_override_font_sizes/font_size = 13
 text = "当前交战"
 
 [node name="HeroToken" type="ColorRect" parent="BattleUI/ShellMargin/ModalPanel/PanelMargin/RootVBox/TopRow/HeroPanel/HeroMargin/HeroVBox"]
@@ -181,13 +168,13 @@ color = Color(0.756863, 0.686275, 0.372549, 1)
 [node name="HeroLabel" type="Label" parent="BattleUI/ShellMargin/ModalPanel/PanelMargin/RootVBox/TopRow/HeroPanel/HeroMargin/HeroVBox"]
 unique_name_in_owner = true
 layout_mode = 2
-theme_override_font_sizes/font_size = 15
+theme_override_font_sizes/font_size = 14
 text = "Hero"
 
 [node name="ContentRow" type="HBoxContainer" parent="BattleUI/ShellMargin/ModalPanel/PanelMargin/RootVBox"]
 layout_mode = 2
 size_flags_vertical = 3
-theme_override_constants/separation = 8
+theme_override_constants/separation = 6
 
 [node name="ArenaPanel" type="PanelContainer" parent="BattleUI/ShellMargin/ModalPanel/PanelMargin/RootVBox/ContentRow"]
 layout_mode = 2
@@ -198,23 +185,23 @@ theme_override_styles/panel = SubResource("StyleBoxFlat_inner_panel")
 [node name="ArenaMargin" type="MarginContainer" parent="BattleUI/ShellMargin/ModalPanel/PanelMargin/RootVBox/ContentRow/ArenaPanel"]
 layout_mode = 2
 theme_override_constants/margin_left = 14
-theme_override_constants/margin_top = 14
+theme_override_constants/margin_top = 10
 theme_override_constants/margin_right = 14
-theme_override_constants/margin_bottom = 14
+theme_override_constants/margin_bottom = 10
 
 [node name="ArenaVBox" type="VBoxContainer" parent="BattleUI/ShellMargin/ModalPanel/PanelMargin/RootVBox/ContentRow/ArenaPanel/ArenaMargin"]
 layout_mode = 2
 size_flags_vertical = 3
-theme_override_constants/separation = 10
+theme_override_constants/separation = 8
 
 [node name="ArenaHeader" type="Label" parent="BattleUI/ShellMargin/ModalPanel/PanelMargin/RootVBox/ContentRow/ArenaPanel/ArenaMargin/ArenaVBox"]
 layout_mode = 2
-theme_override_font_sizes/font_size = 22
+theme_override_font_sizes/font_size = 18
 text = "战场"
 
 [node name="BattleArena" type="Control" parent="BattleUI/ShellMargin/ModalPanel/PanelMargin/RootVBox/ContentRow/ArenaPanel/ArenaMargin/ArenaVBox"]
 unique_name_in_owner = true
-custom_minimum_size = Vector2(0, 520)
+custom_minimum_size = Vector2(0, 560)
 layout_mode = 2
 size_flags_horizontal = 3
 size_flags_vertical = 3
@@ -229,7 +216,7 @@ anchor_bottom = 1.0
 grow_horizontal = 2
 grow_vertical = 2
 mouse_filter = 2
-color = Color(0.0901961, 0.105882, 0.141176, 0.24)
+color = Color(0.0705882, 0.101961, 0.168627, 0.96)
 
 [node name="HeroLane" type="ColorRect" parent="BattleUI/ShellMargin/ModalPanel/PanelMargin/RootVBox/ContentRow/ArenaPanel/ArenaMargin/ArenaVBox/BattleArena"]
 unique_name_in_owner = true
@@ -237,7 +224,7 @@ layout_mode = 1
 offset_right = 220.0
 offset_bottom = 520.0
 mouse_filter = 2
-color = Color(0.47451, 0.309804, 0.192157, 0.16)
+color = Color(0.180392, 0.341176, 0.541176, 0.13)
 
 [node name="EnemyLane" type="ColorRect" parent="BattleUI/ShellMargin/ModalPanel/PanelMargin/RootVBox/ContentRow/ArenaPanel/ArenaMargin/ArenaVBox/BattleArena"]
 unique_name_in_owner = true
@@ -247,7 +234,7 @@ anchor_right = 1.0
 offset_left = -520.0
 offset_bottom = 520.0
 mouse_filter = 2
-color = Color(0.352941, 0.184314, 0.184314, 0.16)
+color = Color(0.380392, 0.219608, 0.301961, 0.12)
 
 [node name="MidGap" type="ColorRect" parent="BattleUI/ShellMargin/ModalPanel/PanelMargin/RootVBox/ContentRow/ArenaPanel/ArenaMargin/ArenaVBox/BattleArena"]
 unique_name_in_owner = true
@@ -256,7 +243,7 @@ offset_left = 220.0
 offset_right = 340.0
 offset_bottom = 520.0
 mouse_filter = 2
-color = Color(0.0509804, 0.0588235, 0.0862745, 0.32)
+color = Color(0.0588235, 0.101961, 0.160784, 0.2)
 
 [node name="CenterLine" type="ColorRect" parent="BattleUI/ShellMargin/ModalPanel/PanelMargin/RootVBox/ContentRow/ArenaPanel/ArenaMargin/ArenaVBox/BattleArena"]
 unique_name_in_owner = true
@@ -265,10 +252,10 @@ offset_left = 278.0
 offset_right = 282.0
 offset_bottom = 520.0
 mouse_filter = 2
-color = Color(0.862745, 0.772549, 0.372549, 0.30)
+color = Color(0.576471, 0.843137, 1, 0.24)
 
 [node name="SidePanel" type="PanelContainer" parent="BattleUI/ShellMargin/ModalPanel/PanelMargin/RootVBox/ContentRow"]
-custom_minimum_size = Vector2(236, 0)
+custom_minimum_size = Vector2(214, 0)
 layout_mode = 2
 size_flags_vertical = 3
 theme_override_styles/panel = SubResource("StyleBoxFlat_inner_panel")
@@ -276,19 +263,19 @@ theme_override_styles/panel = SubResource("StyleBoxFlat_inner_panel")
 [node name="SideMargin" type="MarginContainer" parent="BattleUI/ShellMargin/ModalPanel/PanelMargin/RootVBox/ContentRow/SidePanel"]
 layout_mode = 2
 theme_override_constants/margin_left = 16
-theme_override_constants/margin_top = 14
+theme_override_constants/margin_top = 10
 theme_override_constants/margin_right = 16
-theme_override_constants/margin_bottom = 14
+theme_override_constants/margin_bottom = 10
 
 [node name="SideVBox" type="VBoxContainer" parent="BattleUI/ShellMargin/ModalPanel/PanelMargin/RootVBox/ContentRow/SidePanel/SideMargin"]
 layout_mode = 2
 size_flags_vertical = 3
-theme_override_constants/separation = 12
+theme_override_constants/separation = 10
 
 [node name="EnemyHeader" type="Label" parent="BattleUI/ShellMargin/ModalPanel/PanelMargin/RootVBox/ContentRow/SidePanel/SideMargin/SideVBox"]
 unique_name_in_owner = true
 layout_mode = 2
-theme_override_font_sizes/font_size = 16
+theme_override_font_sizes/font_size = 14
 text = "敌方编组"
 
 [node name="EnemyTokens" type="VBoxContainer" parent="BattleUI/ShellMargin/ModalPanel/PanelMargin/RootVBox/ContentRow/SidePanel/SideMargin/SideVBox"]
@@ -298,17 +285,17 @@ theme_override_constants/separation = 8
 
 [node name="LogHeader" type="Label" parent="BattleUI/ShellMargin/ModalPanel/PanelMargin/RootVBox/ContentRow/SidePanel/SideMargin/SideVBox"]
 layout_mode = 2
-theme_override_font_sizes/font_size = 16
+theme_override_font_sizes/font_size = 14
 text = "最近战报"
 
 [node name="EventLog" type="RichTextLabel" parent="BattleUI/ShellMargin/ModalPanel/PanelMargin/RootVBox/ContentRow/SidePanel/SideMargin/SideVBox"]
 unique_name_in_owner = true
-custom_minimum_size = Vector2(0, 320)
+custom_minimum_size = Vector2(0, 280)
 layout_mode = 2
 size_flags_vertical = 3
 bbcode_enabled = true
 scroll_active = true
-theme_override_font_sizes/normal_font_size = 14
+theme_override_font_sizes/normal_font_size = 13
 
 [node name="ActionBar" type="HBoxContainer" parent="BattleUI/ShellMargin/ModalPanel/PanelMargin/RootVBox"]
 layout_mode = 2

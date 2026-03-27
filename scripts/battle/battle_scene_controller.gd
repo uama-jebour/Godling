@@ -20,10 +20,7 @@ const MAIN_ITEM_CARD_LIMIT := 2
 const ACTION_INFO_WIDTH_RATIO := 0.15
 const ACTION_INFO_MIN_WIDTH := 180.0
 const ACTION_INFO_MAX_WIDTH := 260.0
-const ACTION_CARD_FRAME_TEXTURE := preload("res://assets/battle/ui/action_card_frame.svg")
-const ACTION_CARD_SURFACE_TEXTURE := preload("res://output/imagegen/godling-batch1/action-card-surface.png")
-const ARENA_BACKDROP_TEXTURE := preload("res://output/imagegen/godling-batch1/battle-arena-backdrop.png")
-const UI_SHELL_TEXTURE := preload("res://output/imagegen/godling-batch1/action-card-surface.png")
+const ARENA_TOKEN_BASE_WIDTH := 248.0
 const SKILL_ICON_PRIMARY := preload("res://assets/battle/icons/skill_primary.svg")
 const SKILL_ICON_GUARD := preload("res://assets/battle/icons/skill_guard.svg")
 const SKILL_ICON_BURST := preload("res://assets/battle/icons/skill_burst.svg")
@@ -47,6 +44,8 @@ const SKILL_ICON_BURST := preload("res://assets/battle/icons/skill_burst.svg")
 @onready var selected_target_label: Label = get_node_or_null("%SelectedTargetLabel")
 @onready var root_vbox: VBoxContainer = $"../BattleUI/ShellMargin/ModalPanel/PanelMargin/RootVBox"
 @onready var modal_panel: PanelContainer = $"../BattleUI/ShellMargin/ModalPanel"
+@onready var top_row: HBoxContainer = $"../BattleUI/ShellMargin/ModalPanel/PanelMargin/RootVBox/TopRow"
+@onready var side_vbox: VBoxContainer = $"../BattleUI/ShellMargin/ModalPanel/PanelMargin/RootVBox/ContentRow/SidePanel/SideMargin/SideVBox"
 @onready var battle_summary_panel: PanelContainer = $"../BattleUI/ShellMargin/ModalPanel/PanelMargin/RootVBox/TopRow/BattleSummaryPanel"
 @onready var hero_panel: PanelContainer = $"../BattleUI/ShellMargin/ModalPanel/PanelMargin/RootVBox/TopRow/HeroPanel"
 @onready var side_panel: PanelContainer = $"../BattleUI/ShellMargin/ModalPanel/PanelMargin/RootVBox/ContentRow/SidePanel"
@@ -120,6 +119,7 @@ var _interactive_request: Dictionary = {}
 var _interactive_context: Dictionary = {}
 var _interactive_state: Dictionary = {}
 var _selected_target_id := ""
+var _focused_entity_id := ""
 var _resolving_enemy_phase := false
 var _last_action_signature := ""
 var _action_deck_panel: PanelContainer
@@ -131,7 +131,6 @@ var _pending_drag_anchor := Vector2.ZERO
 var _drag_source_position: Vector2 = Vector2.ZERO
 var _item_card_item_ids := ["", ""]
 var _recent_item_ids: Array[String] = []
-var _card_noise_textures: Dictionary = {}
 var _current_action_card_width := ACTION_CARD_SIZE.x
 
 const DEFAULT_SKILL_ICON := preload("res://icon.svg")
@@ -146,11 +145,25 @@ func _ready() -> void:
 	if item_button != null and not item_button.pressed.is_connected(_on_item_pressed):
 		item_button.pressed.connect(_on_item_pressed)
 	_build_action_deck()
+	_relocate_hero_panel_to_sidebar()
 	_apply_generated_art_preview()
 	_apply_shell_texture_layers()
 	_bind_drag_sources()
 	_set_interaction_enabled(false)
 	call_deferred("_refresh_layout_after_frame")
+
+
+func _relocate_hero_panel_to_sidebar() -> void:
+	if hero_panel == null or side_vbox == null:
+		return
+	if hero_panel.get_parent() != side_vbox:
+		hero_panel.reparent(side_vbox)
+		side_vbox.move_child(hero_panel, 0)
+	hero_panel.custom_minimum_size = Vector2(0, 0)
+	hero_panel.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	hero_panel.size_flags_vertical = Control.SIZE_SHRINK_BEGIN
+	if top_row != null and top_row.get_child_count() > 0 and battle_summary_panel != null:
+		battle_summary_panel.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 
 
 func _process(_delta: float) -> void:
@@ -210,6 +223,8 @@ func _update_drag_hover_feedback() -> void:
 			continue
 		var is_hovered := entity_id == hovered_entity_id
 		token.call("notify_drag_hover", is_hovered, can_accept if is_hovered else false)
+	# During drag, only keep one visual highlight (the hovered valid target).
+	_apply_drag_highlight_override(hovered_entity_id, can_accept)
 
 
 func _clear_all_drop_hovers() -> void:
@@ -218,6 +233,17 @@ func _clear_all_drop_hovers() -> void:
 		if token == null or not token.has_method("notify_drag_hover"):
 			continue
 		token.call("notify_drag_hover", false, false)
+	_refresh_token_focus_visuals()
+
+
+func _apply_drag_highlight_override(hovered_entity_id: String, can_accept: bool) -> void:
+	for entity_id: String in _arena_nodes.keys():
+		var token: Control = _arena_nodes[entity_id]
+		if token == null or not token.has_method("set_targeted"):
+			continue
+		var side: String = "hero" if entity_id == "hero_1" else "enemy"
+		var highlighted := can_accept and entity_id == hovered_entity_id
+		token.call("set_targeted", highlighted, side)
 
 
 func _update_drag_attack_line(entity_id: String) -> void:
@@ -362,6 +388,7 @@ func _reset_render_runtime() -> void:
 	_combat_cue_counts = {"attack_lines": 0, "death_fades": 0}
 	_playback_nonce += 1
 	_selected_target_id = ""
+	_focused_entity_id = ""
 	_resolving_enemy_phase = false
 	_last_action_signature = ""
 	_drag_in_progress = false
@@ -405,9 +432,9 @@ func _render_state(state: Dictionary, headline: String) -> void:
 	]
 	var actor_side: String = String(combat_focus.get("actor_side", "hero"))
 	if actor_side == "hero":
-		hero_token.color = Color(0.756863, 0.686275, 0.372549, 1) if hero_hp > 0.0 else Color(0.427451, 0.180392, 0.180392, 1)
+		hero_token.color = Color(0.46, 0.82, 1.0, 1.0) if hero_hp > 0.0 else Color(0.50, 0.24, 0.34, 1.0)
 	else:
-		hero_token.color = Color(0.505882, 0.258824, 0.258824, 1)
+		hero_token.color = Color(0.34, 0.42, 0.54, 1.0)
 	battle_title.text = _battle_display_name(state.get("battle_def", {}))
 
 	var round_index: int = int(state.get("elapsed", 0)) + (0 if not _interactive_mode else 1)
@@ -658,7 +685,9 @@ func _sync_arena_tokens(state: Dictionary) -> void:
 		token.position = formation_position + Vector2(float(motion.get("offset_x", 0.0)), float(motion.get("offset_y", 0.0)))
 		if token.has_method("apply_motion_pose"):
 			token.call("apply_motion_pose", motion)
-		var highlighted: bool = _selected_target_id == entity_id and String(entity.get("side", "enemy")) == "enemy" and _interactive_mode
+		var highlighted: bool = (_focused_entity_id == entity_id)
+		if not highlighted and _selected_target_id == entity_id and String(entity.get("side", "enemy")) == "enemy" and _interactive_mode:
+			highlighted = true
 		if token.has_method("set_targeted"):
 			token.call("set_targeted", highlighted, String(entity.get("side", "enemy")))
 		token.modulate.a = 0.38 if not is_alive else 1.0
@@ -739,7 +768,7 @@ func _render_attack_cues(state: Dictionary) -> void:
 		var token: Control = _arena_nodes[entity_id]
 		if token != null and token.has_method("set_targeted"):
 			var side: String = "hero" if entity_id == "hero_1" else "enemy"
-			var keep_selected: bool = _interactive_mode and entity_id == _selected_target_id and side == "enemy"
+			var keep_selected: bool = (_focused_entity_id == entity_id) or (_interactive_mode and entity_id == _selected_target_id and side == "enemy")
 			token.call("set_targeted", keep_selected, side)
 
 	var action: Dictionary = state.get("last_action", {})
@@ -1036,18 +1065,23 @@ func _formation_position(entity: Dictionary, enemy_index_by_id: Dictionary, enem
 		arena_size.y = 520.0
 
 	var side: String = String(entity.get("side", "enemy"))
-	var row_y: float = (arena_size.y * 0.5) - 116.0
-	var hero_lane_width: float = clamp(arena_size.x * 0.22, 156.0, 220.0)
-	var gap_band_width: float = clamp(arena_size.x * 0.14, 92.0, 178.0)
-	var hero_x: float = 24.0 + max(10.0, (hero_lane_width - 180.0) * 0.5)
+	var row_y: float = (arena_size.y * 0.5) - 138.0
+	var hero_lane_width: float = _hero_lane_width(arena_size.x)
+	var gap_band_width: float = _gap_band_width(arena_size.x)
+	var hero_scale: float = _formation_scale(entity, enemy_count, arena_size.x)
+	var hero_token_width: float = ARENA_TOKEN_BASE_WIDTH * hero_scale
+	var hero_x: float = 24.0 + max(10.0, (hero_lane_width - hero_token_width) * 0.5)
+	var center_line_x: float = hero_lane_width + (gap_band_width * 0.5)
+	var hero_max_x: float = center_line_x - hero_token_width - 42.0
+	hero_x = clamp(hero_x, 12.0, max(12.0, hero_max_x))
 	if side == "hero":
 		return Vector2(hero_x, row_y)
 
 	var entity_id: String = String(entity.get("entity_id", ""))
 	var enemy_index: int = int(enemy_index_by_id.get(entity_id, 0))
 	var enemy_scale: float = _formation_scale(entity, enemy_count, arena_size.x)
-	var token_width: float = 188.0 * enemy_scale
-	var base_gap: float = clamp(arena_size.x * 0.016, 8.0, 20.0)
+	var token_width: float = ARENA_TOKEN_BASE_WIDTH * enemy_scale
+	var base_gap: float = clamp(arena_size.x * 0.018, 10.0, 28.0)
 	var available_start_x: float = 24.0 + hero_lane_width + gap_band_width
 	var available_width: float = max(120.0, arena_size.x - available_start_x - 24.0)
 	var total_width: float = (float(enemy_count) * token_width) + (float(max(0, enemy_count - 1)) * base_gap)
@@ -1057,31 +1091,35 @@ func _formation_position(entity: Dictionary, enemy_index_by_id: Dictionary, enem
 		total_width = (float(enemy_count) * token_width) + (float(enemy_count - 1) * gap)
 	var start_x: float = available_start_x + max(0.0, (available_width - total_width) * 0.5)
 	start_x = clamp(start_x, available_start_x, max(available_start_x, arena_size.x - total_width - 18.0))
-	return Vector2(start_x + (float(enemy_index) * (token_width + gap)), row_y + ((1.0 - enemy_scale) * 34.0))
+	return Vector2(start_x + (float(enemy_index) * (token_width + gap)), row_y + ((1.0 - enemy_scale) * 44.0))
 
 
 func _formation_scale(entity: Dictionary, enemy_count: int, arena_width: float) -> float:
 	if String(entity.get("side", "enemy")) == "hero":
-		return 1.20
-	var base_scale := 0.96
+		var desired_hero_scale := 1.34
+		var center_line_x: float = _hero_lane_width(arena_width) + (_gap_band_width(arena_width) * 0.5)
+		var hero_max_width: float = max(ARENA_TOKEN_BASE_WIDTH * 1.02, center_line_x - 12.0 - 42.0)
+		var max_hero_scale: float = hero_max_width / ARENA_TOKEN_BASE_WIDTH
+		return clamp(min(desired_hero_scale, max_hero_scale), 1.02, 1.34)
+	var base_scale := 1.18
 	match enemy_count:
 		0, 1:
-			base_scale = 1.12
+			base_scale = 1.30
 		2:
-			base_scale = 1.02
+			base_scale = 1.20
 		3:
-			base_scale = 0.94
+			base_scale = 1.10
 		4:
-			base_scale = 0.88
+			base_scale = 1.02
 		_:
-			base_scale = 0.82
-	var gap_band_width: float = clamp(arena_width * 0.14, 92.0, 178.0)
-	var hero_lane_width: float = clamp(arena_width * 0.22, 156.0, 220.0)
+			base_scale = 0.96
+	var gap_band_width: float = _gap_band_width(arena_width)
+	var hero_lane_width: float = _hero_lane_width(arena_width)
 	var available_width: float = max(120.0, arena_width - hero_lane_width - gap_band_width - 48.0)
-	var preferred_gap: float = clamp(arena_width * 0.016, 8.0, 20.0)
+	var preferred_gap: float = clamp(arena_width * 0.018, 10.0, 28.0)
 	var total_gap: float = float(max(0, enemy_count - 1)) * preferred_gap
-	var max_scale_for_width: float = (available_width - total_gap) / max(188.0, float(enemy_count) * 188.0)
-	return clamp(min(base_scale, max_scale_for_width), 0.70, 1.20)
+	var max_scale_for_width: float = (available_width - total_gap) / max(ARENA_TOKEN_BASE_WIDTH, float(enemy_count) * ARENA_TOKEN_BASE_WIDTH)
+	return clamp(min(base_scale, max_scale_for_width), 0.92, 1.42)
 
 
 func _layout_arena_regions() -> void:
@@ -1094,8 +1132,8 @@ func _layout_arena_regions() -> void:
 	var bottom: float = arena_size.y
 	var left_margin: float = 0.0
 	var right_margin: float = 0.0
-	var hero_lane_width: float = clamp(arena_size.x * 0.22, 156.0, 220.0)
-	var gap_band_width: float = clamp(arena_size.x * 0.14, 92.0, 178.0)
+	var hero_lane_width: float = _hero_lane_width(arena_size.x)
+	var gap_band_width: float = _gap_band_width(arena_size.x)
 	var enemy_lane_start: float = left_margin + hero_lane_width + gap_band_width
 	if hero_lane != null:
 		hero_lane.position = Vector2(left_margin, top)
@@ -1109,7 +1147,15 @@ func _layout_arena_regions() -> void:
 	if center_line != null:
 		var line_x: float = left_margin + hero_lane_width + (gap_band_width * 0.5)
 		center_line.position = Vector2(line_x, top)
-		center_line.size = Vector2(4.0, bottom - top)
+		center_line.size = Vector2(2.0, bottom - top)
+
+
+func _hero_lane_width(arena_width: float) -> float:
+	return clamp(arena_width * 0.36, 300.0, 440.0)
+
+
+func _gap_band_width(arena_width: float) -> float:
+	return clamp(arena_width * 0.075, 56.0, 96.0)
 
 
 func _current_combat_focus(state: Dictionary) -> Dictionary:
@@ -1222,6 +1268,14 @@ func _battle_display_name(battle_def: Dictionary) -> String:
 		"battle_a02_extraction_breakthrough":
 			return "撤离突破战"
 		_:
+			var map_id: String = String(battle_def.get("map_id", ""))
+			if not map_id.is_empty():
+				var content_db := get_node_or_null("/root/ContentDB")
+				if content_db != null and content_db.has_method("get_map"):
+					var map_def: Dictionary = content_db.get_map(map_id)
+					var map_name_cn: String = String(map_def.get("name_cn", ""))
+					if not map_name_cn.is_empty():
+						return "%s 作战" % map_name_cn
 			if battle_id.is_empty():
 				return "战斗预览"
 			return "战斗预览 %s" % battle_id
@@ -1250,6 +1304,8 @@ func _set_interaction_enabled(enabled: bool) -> void:
 
 
 func _on_token_pressed(entity_id: String) -> void:
+	_focused_entity_id = entity_id
+	_refresh_token_focus_visuals()
 	if not _interactive_mode or _resolving_enemy_phase:
 		return
 	if String(_interactive_state.get("turn_phase", "player")) != "player":
@@ -1265,7 +1321,20 @@ func _on_token_pressed(entity_id: String) -> void:
 		_selected_target_id = entity_id
 		var target_name: String = String(enemy_entity.get("display_name", entity_id))
 		_render_state(_interactive_state, "已锁定目标：%s" % target_name)
+		_refresh_token_focus_visuals()
 		return
+
+
+func _refresh_token_focus_visuals() -> void:
+	for entity_id: String in _arena_nodes.keys():
+		var token: Control = _arena_nodes[entity_id]
+		if token == null or not token.has_method("set_targeted"):
+			continue
+		var side: String = "hero" if entity_id == "hero_1" else "enemy"
+		var highlighted := (_focused_entity_id == entity_id)
+		if not highlighted and _interactive_mode and side == "enemy" and _selected_target_id == entity_id:
+			highlighted = true
+		token.call("set_targeted", highlighted, side)
 
 
 func _on_attack_pressed() -> void:
@@ -1377,6 +1446,7 @@ func _refresh_drag_bindings() -> void:
 func _finish_interactive_battle(result: Dictionary) -> void:
 	_set_interaction_enabled(false)
 	_interactive_mode = false
+	_focused_entity_id = ""
 	_resolving_enemy_phase = false
 	emit_signal("interactive_battle_finished", result)
 
@@ -1390,6 +1460,7 @@ func _queue_enemy_phase_or_finish() -> void:
 		return
 	_resolving_enemy_phase = true
 	_selected_target_id = ""
+	_focused_entity_id = ""
 	_update_interaction_hud(_interactive_state)
 	call_deferred("_resolve_enemy_phase_async")
 
@@ -1737,30 +1808,29 @@ func _build_action_deck() -> void:
 	_action_deck_panel = PanelContainer.new()
 	_action_deck_panel.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	var style := StyleBoxFlat.new()
-	style.bg_color = Color(0.13, 0.09, 0.08, 0.96)
-	style.border_color = Color(0.74, 0.60, 0.35, 1.0)
-	style.set_border_width_all(2)
-	style.corner_radius_top_left = 18
-	style.corner_radius_top_right = 18
-	style.corner_radius_bottom_left = 18
-	style.corner_radius_bottom_right = 18
+	style.bg_color = Color(0.08, 0.10, 0.14, 0.96)
+	style.border_color = Color(0.30, 0.66, 0.98, 0.70)
+	style.set_border_width_all(1)
+	style.corner_radius_top_left = 12
+	style.corner_radius_top_right = 12
+	style.corner_radius_bottom_left = 12
+	style.corner_radius_bottom_right = 12
 	_action_deck_panel.add_theme_stylebox_override("panel", style)
-	_ensure_shell_texture_layer(_action_deck_panel, "DeckShellTexture", 0.22)
 
 	var margin := MarginContainer.new()
-	margin.add_theme_constant_override("margin_left", 18)
-	margin.add_theme_constant_override("margin_top", 14)
-	margin.add_theme_constant_override("margin_right", 18)
-	margin.add_theme_constant_override("margin_bottom", 14)
+	margin.add_theme_constant_override("margin_left", 12)
+	margin.add_theme_constant_override("margin_top", 10)
+	margin.add_theme_constant_override("margin_right", 12)
+	margin.add_theme_constant_override("margin_bottom", 10)
 	_action_deck_panel.add_child(margin)
 
 	action_bar.reparent(margin)
 	root_vbox.add_child(_action_deck_panel)
 	root_vbox.move_child(_action_deck_panel, old_index)
 
-	action_bar.add_theme_constant_override("separation", 8)
+	action_bar.add_theme_constant_override("separation", 10)
 	if command_strip_scroll != null:
-		command_strip_scroll.custom_minimum_size = Vector2(0, 244)
+		command_strip_scroll.custom_minimum_size = Vector2(0, 220)
 		command_strip_scroll.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		command_strip_scroll.size_flags_vertical = Control.SIZE_FILL
 	if action_info_box != null:
@@ -1771,7 +1841,7 @@ func _build_action_deck() -> void:
 		command_strip.add_theme_constant_override("separation", 8)
 		_ensure_burst_skill_card()
 	if item_card_rack != null:
-		item_card_rack.add_theme_constant_override("separation", 6)
+		item_card_rack.add_theme_constant_override("separation", 8)
 	if status_label != null:
 		status_label.add_theme_font_size_override("font_size", 16)
 		status_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
@@ -1780,16 +1850,16 @@ func _build_action_deck() -> void:
 		selected_target_label.add_theme_font_size_override("font_size", 16)
 		selected_target_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	if wait_button != null:
-		wait_button.custom_minimum_size = Vector2(92, 56)
+		wait_button.custom_minimum_size = Vector2(100, 50)
 	if item_button != null:
-		item_button.custom_minimum_size = Vector2(96, 56)
+		item_button.custom_minimum_size = Vector2(108, 50)
 	if wait_button != null and action_info_box != null and wait_button.get_parent() != action_info_box:
 		wait_button.reparent(action_info_box)
 		wait_button.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-		wait_button.custom_minimum_size = Vector2(0, 52)
+		wait_button.custom_minimum_size = Vector2(0, 46)
 		action_info_box.move_child(wait_button, action_info_box.get_child_count() - 1)
-	_style_action_button(wait_button, Color(0.23, 0.27, 0.19, 1.0), Color(0.62, 0.74, 0.42, 1.0))
-	_style_action_button(item_button, Color(0.17, 0.20, 0.28, 1.0), Color(0.50, 0.70, 0.94, 1.0))
+	_style_action_button(wait_button, Color(0.12, 0.19, 0.14, 1.0), Color(0.44, 0.90, 0.64, 0.95))
+	_style_action_button(item_button, Color(0.12, 0.15, 0.23, 1.0), Color(0.50, 0.74, 1.0, 0.95))
 	_apply_skill_card_theme()
 	_apply_item_card_theme()
 	_bind_main_item_card_buttons()
@@ -1797,28 +1867,18 @@ func _build_action_deck() -> void:
 
 
 func _apply_shell_texture_layers() -> void:
-	_ensure_shell_texture_layer(modal_panel, "ModalShellTexture", 0.14)
-	_ensure_shell_texture_layer(battle_summary_panel, "SummaryShellTexture", 0.18)
-	_ensure_shell_texture_layer(hero_panel, "HeroShellTexture", 0.18)
-	_ensure_shell_texture_layer(side_panel, "SideShellTexture", 0.20)
+	_remove_shell_texture_layer(modal_panel, "ModalShellTexture")
+	_remove_shell_texture_layer(battle_summary_panel, "SummaryShellTexture")
+	_remove_shell_texture_layer(hero_panel, "HeroShellTexture")
+	_remove_shell_texture_layer(side_panel, "SideShellTexture")
 
 
-func _ensure_shell_texture_layer(panel: PanelContainer, layer_name: String, alpha: float) -> void:
+func _remove_shell_texture_layer(panel: PanelContainer, layer_name: String) -> void:
 	if panel == null:
 		return
 	var texture_layer := panel.get_node_or_null(layer_name) as TextureRect
-	if texture_layer == null:
-		texture_layer = TextureRect.new()
-		texture_layer.name = layer_name
-		texture_layer.mouse_filter = Control.MOUSE_FILTER_IGNORE
-		texture_layer.anchor_right = 1.0
-		texture_layer.anchor_bottom = 1.0
-		texture_layer.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
-		texture_layer.stretch_mode = TextureRect.STRETCH_TILE
-		panel.add_child(texture_layer)
-		panel.move_child(texture_layer, 0)
-	texture_layer.texture = UI_SHELL_TEXTURE
-	texture_layer.modulate = Color(1, 1, 1, clampf(alpha, 0.0, 1.0))
+	if texture_layer != null:
+		texture_layer.queue_free()
 
 
 func _layout_action_bar() -> void:
@@ -1898,11 +1958,13 @@ func _style_action_button(button: Button, bg: Color, border: Color) -> void:
 	var normal := StyleBoxFlat.new()
 	normal.bg_color = bg
 	normal.border_color = border
-	normal.set_border_width_all(2)
-	normal.corner_radius_top_left = 12
-	normal.corner_radius_top_right = 12
-	normal.corner_radius_bottom_left = 12
-	normal.corner_radius_bottom_right = 12
+	normal.set_border_width_all(1)
+	normal.corner_radius_top_left = 10
+	normal.corner_radius_top_right = 10
+	normal.corner_radius_bottom_left = 10
+	normal.corner_radius_bottom_right = 10
+	normal.shadow_color = Color(0, 0, 0, 0.22)
+	normal.shadow_size = 1
 	var hover := normal.duplicate()
 	hover.bg_color = bg.lightened(0.08)
 	var pressed := normal.duplicate()
@@ -1911,19 +1973,19 @@ func _style_action_button(button: Button, bg: Color, border: Color) -> void:
 	button.add_theme_stylebox_override("hover", hover)
 	button.add_theme_stylebox_override("pressed", pressed)
 	button.add_theme_stylebox_override("disabled", pressed)
-	button.add_theme_font_size_override("font_size", 17)
+	button.add_theme_font_size_override("font_size", 15)
 
 
 func _apply_skill_card_theme() -> void:
-	_apply_action_card_chrome(attack_skill_card as PanelContainer, Color(0.86, 0.56, 0.24, 1.0), 11)
-	_apply_action_card_chrome(defend_skill_card as PanelContainer, Color(0.42, 0.62, 0.94, 1.0), 29)
-	_apply_action_card_chrome(burst_skill_card as PanelContainer, Color(0.94, 0.48, 0.24, 1.0), 53)
+	_apply_action_card_chrome(attack_skill_card as PanelContainer, Color(0.99, 0.63, 0.34, 1.0), 11)
+	_apply_action_card_chrome(defend_skill_card as PanelContainer, Color(0.48, 0.76, 1.0, 1.0), 29)
+	_apply_action_card_chrome(burst_skill_card as PanelContainer, Color(1.00, 0.46, 0.40, 1.0), 53)
 	_apply_current_action_card_size()
 
 
 func _apply_item_card_theme() -> void:
-	_apply_action_card_chrome(item_card_a, Color(0.56, 0.86, 0.48, 0.98), 71)
-	_apply_action_card_chrome(item_card_b, Color(0.56, 0.86, 0.48, 0.98), 89)
+	_apply_action_card_chrome(item_card_a, Color(0.56, 0.92, 0.68, 0.98), 71)
+	_apply_action_card_chrome(item_card_b, Color(0.56, 0.92, 0.68, 0.98), 89)
 	_apply_current_action_card_size()
 
 
@@ -1935,48 +1997,39 @@ func _apply_generated_arena_backdrop() -> void:
 	if battle_arena == null:
 		return
 	var backdrop_layer := battle_arena.get_node_or_null("ArenaBackdropArt") as TextureRect
-	if backdrop_layer == null:
-		backdrop_layer = TextureRect.new()
-		backdrop_layer.name = "ArenaBackdropArt"
-		backdrop_layer.mouse_filter = Control.MOUSE_FILTER_IGNORE
-		backdrop_layer.anchor_right = 1.0
-		backdrop_layer.anchor_bottom = 1.0
-		backdrop_layer.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
-		backdrop_layer.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_COVERED
-		battle_arena.add_child(backdrop_layer)
-		battle_arena.move_child(backdrop_layer, 0)
-	backdrop_layer.texture = ARENA_BACKDROP_TEXTURE
-	backdrop_layer.modulate = Color(1, 1, 1, 1.0)
+	if backdrop_layer != null:
+		backdrop_layer.queue_free()
 	if arena_tint != null:
-		arena_tint.color = Color(0.09, 0.10, 0.14, 0.02)
+		arena_tint.color = Color(0.07, 0.10, 0.17, 0.96)
 	if hero_lane != null:
-		hero_lane.color = Color(0.33, 0.18, 0.12, 0.01)
+		hero_lane.color = Color(0.18, 0.34, 0.54, 0.13)
 	if enemy_lane != null:
-		enemy_lane.color = Color(0.29, 0.12, 0.12, 0.01)
+		enemy_lane.color = Color(0.38, 0.22, 0.30, 0.12)
 	if mid_gap != null:
-		mid_gap.color = Color(0.04, 0.04, 0.06, 0.02)
+		mid_gap.color = Color(0.06, 0.10, 0.16, 0.20)
 	if center_line != null:
-		center_line.color = Color(0.91, 0.78, 0.46, 0.24)
+		center_line.color = Color(0.58, 0.84, 1.0, 0.24)
 
 
 func _apply_action_card_chrome(panel: PanelContainer, accent: Color, noise_seed: int) -> void:
 	if panel == null:
 		return
 	var base := StyleBoxFlat.new()
-	base.bg_color = Color(0.15, 0.10, 0.08, 0.98)
-	base.border_color = accent.lerp(Color(0.84, 0.71, 0.42, 1.0), 0.35)
-	base.set_border_width_all(2)
+	base.bg_color = Color(0.09, 0.12, 0.17, 0.98)
+	base.border_color = accent
+	base.set_border_width_all(1)
 	base.corner_radius_top_left = ACTION_CARD_CORNER_RADIUS
 	base.corner_radius_top_right = ACTION_CARD_CORNER_RADIUS
 	base.corner_radius_bottom_left = ACTION_CARD_CORNER_RADIUS
 	base.corner_radius_bottom_right = ACTION_CARD_CORNER_RADIUS
-	base.shadow_color = Color(accent.r, accent.g, accent.b, 0.20)
-	base.shadow_size = 7
+	base.shadow_color = Color(accent.r, accent.g, accent.b, 0.12)
+	base.shadow_size = 2
 	panel.add_theme_stylebox_override("panel", base)
 	_ensure_action_card_layers(panel, accent, noise_seed)
 
 
 func _ensure_action_card_layers(panel: PanelContainer, accent: Color, noise_seed: int) -> void:
+	var _unused_noise_seed := noise_seed
 	var top_glow := panel.get_node_or_null("CardTopGlow") as ColorRect
 	if top_glow == null:
 		top_glow = ColorRect.new()
@@ -1986,46 +2039,35 @@ func _ensure_action_card_layers(panel: PanelContainer, accent: Color, noise_seed
 		top_glow.offset_bottom = 34.0
 		panel.add_child(top_glow)
 		panel.move_child(top_glow, 0)
-	top_glow.color = Color(accent.r, accent.g, accent.b, 0.12)
-	var surface_layer := panel.get_node_or_null("CardSurface") as TextureRect
-	if surface_layer == null:
-		surface_layer = TextureRect.new()
-		surface_layer.name = "CardSurface"
-		surface_layer.mouse_filter = Control.MOUSE_FILTER_IGNORE
-		surface_layer.anchor_right = 1.0
-		surface_layer.anchor_bottom = 1.0
-		surface_layer.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
-		surface_layer.stretch_mode = TextureRect.STRETCH_SCALE
-		panel.add_child(surface_layer)
-		panel.move_child(surface_layer, 1)
-	surface_layer.texture = ACTION_CARD_SURFACE_TEXTURE
-	surface_layer.modulate = Color(1, 1, 1, 0.28)
-	var noise_layer := panel.get_node_or_null("CardNoise") as TextureRect
-	if noise_layer == null:
-		noise_layer = TextureRect.new()
-		noise_layer.name = "CardNoise"
-		noise_layer.mouse_filter = Control.MOUSE_FILTER_IGNORE
-		noise_layer.anchor_right = 1.0
-		noise_layer.anchor_bottom = 1.0
-		noise_layer.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
-		noise_layer.stretch_mode = TextureRect.STRETCH_SCALE
-		panel.add_child(noise_layer)
-		panel.move_child(noise_layer, 2)
-	noise_layer.texture = _card_noise_texture(noise_seed)
-	noise_layer.modulate = Color(0.92, 0.86, 0.70, 0.13)
-	var frame_layer := panel.get_node_or_null("CardFrame") as TextureRect
+	top_glow.color = Color(accent.r, accent.g, accent.b, 0.14)
+	var surface_layer := panel.get_node_or_null("CardSurface")
+	if surface_layer != null:
+		surface_layer.queue_free()
+	var noise_layer := panel.get_node_or_null("CardNoise")
+	if noise_layer != null:
+		noise_layer.queue_free()
+	var frame_layer := panel.get_node_or_null("CardFrame") as Panel
 	if frame_layer == null:
-		frame_layer = TextureRect.new()
+		frame_layer = Panel.new()
 		frame_layer.name = "CardFrame"
 		frame_layer.mouse_filter = Control.MOUSE_FILTER_IGNORE
 		frame_layer.anchor_right = 1.0
 		frame_layer.anchor_bottom = 1.0
-		frame_layer.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
-		frame_layer.stretch_mode = TextureRect.STRETCH_SCALE
-		frame_layer.texture = ACTION_CARD_FRAME_TEXTURE
+		frame_layer.offset_left = 1.0
+		frame_layer.offset_top = 1.0
+		frame_layer.offset_right = -1.0
+		frame_layer.offset_bottom = -1.0
 		panel.add_child(frame_layer)
-		panel.move_child(frame_layer, 3)
-	frame_layer.modulate = Color(1, 1, 1, 0.92)
+		panel.move_child(frame_layer, 1)
+	var frame_style := StyleBoxFlat.new()
+	frame_style.bg_color = Color(0, 0, 0, 0)
+	frame_style.border_color = Color(accent.r, accent.g, accent.b, 0.34)
+	frame_style.set_border_width_all(1)
+	frame_style.corner_radius_top_left = ACTION_CARD_CORNER_RADIUS - 2
+	frame_style.corner_radius_top_right = ACTION_CARD_CORNER_RADIUS - 2
+	frame_style.corner_radius_bottom_left = ACTION_CARD_CORNER_RADIUS - 2
+	frame_style.corner_radius_bottom_right = ACTION_CARD_CORNER_RADIUS - 2
+	frame_layer.add_theme_stylebox_override("panel", frame_style)
 	var rune_stripe := panel.get_node_or_null("CardRuneStripe") as ColorRect
 	if rune_stripe == null:
 		rune_stripe = ColorRect.new()
@@ -2038,8 +2080,8 @@ func _ensure_action_card_layers(panel: PanelContainer, accent: Color, noise_seed
 		rune_stripe.offset_right = -8.0
 		rune_stripe.offset_bottom = -8.0
 		panel.add_child(rune_stripe)
-		panel.move_child(rune_stripe, 4)
-	rune_stripe.color = Color(accent.r, accent.g, accent.b, 0.06)
+		panel.move_child(rune_stripe, 3)
+	rune_stripe.color = Color(accent.r, accent.g, accent.b, 0.05)
 
 
 func _skill_icon_texture(slot_id: String) -> Texture2D:
@@ -2051,25 +2093,6 @@ func _skill_icon_texture(slot_id: String) -> Texture2D:
 		"primary":
 			return SKILL_ICON_PRIMARY
 	return DEFAULT_SKILL_ICON
-
-
-func _card_noise_texture(seed: int) -> Texture2D:
-	if _card_noise_textures.has(seed):
-		return _card_noise_textures[seed]
-	var noise := FastNoiseLite.new()
-	noise.seed = seed * 97 + 13
-	noise.frequency = 0.09
-	noise.fractal_octaves = 3
-	noise.fractal_gain = 0.52
-	noise.noise_type = FastNoiseLite.TYPE_SIMPLEX
-	var texture := NoiseTexture2D.new()
-	texture.width = 256
-	texture.height = 256
-	texture.in_3d_space = false
-	texture.seamless = true
-	texture.noise = noise
-	_card_noise_textures[seed] = texture
-	return texture
 
 
 func _bind_main_item_card_buttons() -> void:
@@ -2474,10 +2497,10 @@ func _build_drag_preview(payload: Dictionary) -> Control:
 	shadow.position = Vector2(3, 3)
 	var shadow_style := StyleBoxFlat.new()
 	shadow_style.bg_color = Color(0.0, 0.0, 0.0, 0.42)
-	shadow_style.corner_radius_top_left = 12
-	shadow_style.corner_radius_top_right = 12
-	shadow_style.corner_radius_bottom_left = 12
-	shadow_style.corner_radius_bottom_right = 12
+	shadow_style.corner_radius_top_left = 10
+	shadow_style.corner_radius_top_right = 10
+	shadow_style.corner_radius_bottom_left = 10
+	shadow_style.corner_radius_bottom_right = 10
 	shadow.add_theme_stylebox_override("panel", shadow_style)
 	root.add_child(shadow)
 	
@@ -2485,36 +2508,36 @@ func _build_drag_preview(payload: Dictionary) -> Control:
 	panel.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	panel.custom_minimum_size = Vector2(180, 52)
 	var style := StyleBoxFlat.new()
-	style.bg_color = Color(0.10, 0.09, 0.06, 0.96)
-	style.corner_radius_top_left = 12
-	style.corner_radius_top_right = 12
-	style.corner_radius_bottom_left = 12
-	style.corner_radius_bottom_right = 12
-	style.set_border_width_all(2)
+	style.bg_color = Color(0.08, 0.11, 0.16, 0.96)
+	style.corner_radius_top_left = 10
+	style.corner_radius_top_right = 10
+	style.corner_radius_bottom_left = 10
+	style.corner_radius_bottom_right = 10
+	style.set_border_width_all(1)
 	if is_skill:
 		var slot := String(payload.get("slot", "primary"))
 		match slot:
 			"primary":
-				style.border_color = Color(0.98, 0.72, 0.28, 1.0)
-				style.shadow_color = Color(0.96, 0.58, 0.18, 0.48)
+				style.border_color = Color(1.0, 0.67, 0.42, 1.0)
+				style.shadow_color = Color(1.0, 0.67, 0.42, 0.22)
 			"guard":
-				style.border_color = Color(0.34, 0.62, 0.94, 1.0)
-				style.shadow_color = Color(0.28, 0.52, 0.88, 0.48)
+				style.border_color = Color(0.49, 0.79, 1.0, 1.0)
+				style.shadow_color = Color(0.49, 0.79, 1.0, 0.22)
 			"burst":
-				style.border_color = Color(0.94, 0.42, 0.22, 1.0)
-				style.shadow_color = Color(0.92, 0.36, 0.16, 0.48)
+				style.border_color = Color(1.0, 0.50, 0.48, 1.0)
+				style.shadow_color = Color(1.0, 0.50, 0.48, 0.22)
 			_:
-				style.border_color = Color(0.98, 0.82, 0.48, 0.95)
-				style.shadow_color = Color(0.88, 0.72, 0.38, 0.42)
-		style.shadow_size = 8
+				style.border_color = Color(0.70, 0.84, 1.0, 0.95)
+				style.shadow_color = Color(0.70, 0.84, 1.0, 0.18)
+		style.shadow_size = 2
 	elif is_item:
-		style.border_color = Color(0.56, 0.86, 0.48, 1.0)
-		style.shadow_color = Color(0.42, 0.78, 0.34, 0.42)
-		style.shadow_size = 6
+		style.border_color = Color(0.56, 0.92, 0.70, 1.0)
+		style.shadow_color = Color(0.56, 0.92, 0.70, 0.20)
+		style.shadow_size = 2
 	else:
-		style.border_color = Color(0.98, 0.82, 0.48, 0.95)
-		style.shadow_color = Color(0.88, 0.72, 0.38, 0.32)
-		style.shadow_size = 4
+		style.border_color = Color(0.64, 0.80, 1.0, 0.95)
+		style.shadow_color = Color(0.64, 0.80, 1.0, 0.16)
+		style.shadow_size = 2
 	panel.add_theme_stylebox_override("panel", style)
 	root.add_child(panel)
 	
@@ -2529,10 +2552,10 @@ func _build_drag_preview(payload: Dictionary) -> Control:
 	else:
 		glow_style.border_color = Color(style.border_color.r, style.border_color.g, style.border_color.b, 0.18)
 	glow_style.set_border_width_all(3)
-	glow_style.corner_radius_top_left = 14
-	glow_style.corner_radius_top_right = 14
-	glow_style.corner_radius_bottom_left = 14
-	glow_style.corner_radius_bottom_right = 14
+	glow_style.corner_radius_top_left = 12
+	glow_style.corner_radius_top_right = 12
+	glow_style.corner_radius_bottom_left = 12
+	glow_style.corner_radius_bottom_right = 12
 	glow.add_theme_stylebox_override("panel", glow_style)
 	root.add_child(glow)
 	
@@ -2561,7 +2584,7 @@ func _build_drag_preview(payload: Dictionary) -> Control:
 	
 	var label := Label.new()
 	label.text = _drag_preview_text(payload)
-	label.modulate = Color(1.0, 0.98, 0.90, 1.0)
+	label.modulate = Color(0.93, 0.97, 1.0, 1.0)
 	label.add_theme_font_size_override("font_size", 15)
 	label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 	hbox.add_child(label)

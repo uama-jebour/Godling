@@ -1,8 +1,33 @@
-[gd_scene load_steps=4 format=3]
+[gd_scene load_steps=7 format=3]
 
 [ext_resource type="Script" path="res://scripts/ui/bootstrap.gd" id="1"]
 [ext_resource type="Script" path="res://scripts/ui/world_map_panel.gd" id="2"]
 [ext_resource type="Theme" path="res://assets/fonts/ui_theme.tres" id="3"]
+[ext_resource type="Texture2D" path="res://output/imagegen/godling-batch1/action-card-surface.png" id="4"]
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_shell_panel"]
+bg_color = Color(0.11, 0.09, 0.07, 0.72)
+border_width_left = 1
+border_width_top = 1
+border_width_right = 1
+border_width_bottom = 1
+border_color = Color(0.73, 0.63, 0.42, 0.40)
+corner_radius_top_left = 10
+corner_radius_top_right = 10
+corner_radius_bottom_right = 10
+corner_radius_bottom_left = 10
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_inner_map"]
+bg_color = Color(0.10, 0.09, 0.08, 0.52)
+border_width_left = 1
+border_width_top = 1
+border_width_right = 1
+border_width_bottom = 1
+border_color = Color(0.70, 0.62, 0.44, 0.32)
+corner_radius_top_left = 8
+corner_radius_top_right = 8
+corner_radius_bottom_right = 8
+corner_radius_bottom_left = 8
 
 [node name="Bootstrap" type="Control"]
 layout_mode = 3
@@ -21,7 +46,20 @@ anchor_right = 1.0
 anchor_bottom = 1.0
 grow_horizontal = 2
 grow_vertical = 2
-color = Color(0.0666667, 0.0509804, 0.117647, 1)
+color = Color(0.0666667, 0.0509804, 0.117647, 0.72)
+
+[node name="GlobalBackdropTexture" type="TextureRect" parent="."]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+texture = ExtResource("4")
+expand_mode = 1
+stretch_mode = 1
+modulate = Color(1, 1, 1, 0.42)
 
 [node name="Margin" type="MarginContainer" parent="."]
 layout_mode = 1
@@ -37,12 +75,13 @@ theme_override_constants/margin_bottom = 26
 
 [node name="MainRow" type="BoxContainer" parent="Margin"]
 layout_mode = 2
-theme_override_constants/separation = 16
+theme_override_constants/separation = 10
 
 [node name="MapPanel" type="PanelContainer" parent="Margin/MainRow"]
 custom_minimum_size = Vector2(700, 0)
 layout_mode = 2
 size_flags_horizontal = 3
+theme_override_styles/panel = SubResource("StyleBoxFlat_shell_panel")
 
 [node name="MapScroll" type="ScrollContainer" parent="Margin/MainRow/MapPanel"]
 layout_mode = 2
@@ -100,6 +139,7 @@ layout_mode = 2
 size_flags_horizontal = 3
 size_flags_vertical = 3
 clip_contents = true
+theme_override_styles/panel = SubResource("StyleBoxFlat_inner_map")
 
 [node name="MapFrameMargin" type="MarginContainer" parent="Margin/MainRow/MapPanel/MapScroll/MapPadding/MapVBox/MapFrame"]
 layout_mode = 2
@@ -197,9 +237,10 @@ theme_override_font_sizes/font_size = 19
 text = "安卓横屏预览：1920x1080"
 
 [node name="DispatchPanel" type="PanelContainer" parent="Margin/MainRow"]
-custom_minimum_size = Vector2(530, 0)
+custom_minimum_size = Vector2(460, 0)
 layout_mode = 2
 size_flags_horizontal = 3
+theme_override_styles/panel = SubResource("StyleBoxFlat_shell_panel")
 
 [node name="DispatchScroll" type="ScrollContainer" parent="Margin/MainRow/DispatchPanel"]
 layout_mode = 2

@@ -386,6 +386,7 @@ func _apply_responsive_layout() -> void:
 
 
 func _refresh_all() -> void:
+	_render_map_header()
 	_refresh_home_layer()
 	_render_summary()
 	_render_map_events()
@@ -394,6 +395,25 @@ func _refresh_all() -> void:
 	_render_resolution_delta()
 	_render_forced_hint()
 	_render_log()
+
+
+func _render_map_header() -> void:
+	if title_label == null or event_title_label == null:
+		return
+	var map_id: String = String(_run_state().active_run.get("map_id", ""))
+	var map_name_cn := _active_map_name_cn(map_id)
+	title_label.text = "作战地图 · %s" % map_name_cn
+	event_title_label.text = "地图事件板（点击事件点进入处理）"
+
+
+func _active_map_name_cn(map_id: String) -> String:
+	if map_id.is_empty():
+		return "未出发"
+	var map_def: Dictionary = _content_db().get_map(map_id)
+	var map_name_cn: String = String(map_def.get("name_cn", ""))
+	if not map_name_cn.is_empty():
+		return map_name_cn
+	return map_id
 
 
 func _render_summary() -> void:

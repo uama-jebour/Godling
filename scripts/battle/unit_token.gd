@@ -29,6 +29,7 @@ var _default_rotation := 0.0
 var _entity_id := ""
 var _damage_tween: Tween
 var _action_tween: Tween
+var _focus_tween: Tween
 var _battle_scale := 1.0
 var _drop_validator: Callable = Callable()
 var _drop_handler: Callable = Callable()
@@ -37,6 +38,28 @@ var _drop_handler: Callable = Callable()
 func _ready() -> void:
 	_base_scale = scale
 	_default_rotation = rotation
+	_apply_line_theme()
+
+
+func _apply_line_theme() -> void:
+	var fill := StyleBoxFlat.new()
+	fill.bg_color = Color(0.18, 0.26, 0.36, 0.92)
+	fill.border_color = Color(0.34, 0.60, 0.86, 0.78)
+	fill.set_border_width_all(1)
+	fill.corner_radius_top_left = 4
+	fill.corner_radius_top_right = 4
+	fill.corner_radius_bottom_left = 4
+	fill.corner_radius_bottom_right = 4
+	var bg := StyleBoxFlat.new()
+	bg.bg_color = Color(0.06, 0.09, 0.14, 0.96)
+	bg.border_color = Color(0.22, 0.34, 0.48, 0.84)
+	bg.set_border_width_all(1)
+	bg.corner_radius_top_left = 4
+	bg.corner_radius_top_right = 4
+	bg.corner_radius_bottom_left = 4
+	bg.corner_radius_bottom_right = 4
+	hp_bar.add_theme_stylebox_override("fill", fill)
+	hp_bar.add_theme_stylebox_override("background", bg)
 
 
 func configure_token(entity: Dictionary) -> void:
@@ -61,13 +84,13 @@ func configure_token(entity: Dictionary) -> void:
 	meta_label.text = "%.1f / %.1f" % [current_hp, max_hp]
 
 	if side == "hero":
-		overlay.color = Color(0.19, 0.11, 0.08, 0.68)
-		name_label.modulate = Color(0.99, 0.95, 0.84, 1.0)
-		role_icon_bg.color = Color(0.28, 0.17, 0.12, 0.84)
+		overlay.color = Color(0.07, 0.12, 0.18, 0.74)
+		name_label.modulate = Color(0.90, 0.96, 1.0, 1.0)
+		role_icon_bg.color = Color(0.12, 0.28, 0.42, 0.86)
 	else:
-		overlay.color = Color(0.16, 0.08, 0.08, 0.68)
-		name_label.modulate = Color(0.99, 0.88, 0.88, 1.0)
-		role_icon_bg.color = Color(0.22, 0.10, 0.10, 0.84)
+		overlay.color = Color(0.16, 0.08, 0.12, 0.74)
+		name_label.modulate = Color(1.0, 0.91, 0.94, 1.0)
+		role_icon_bg.color = Color(0.42, 0.14, 0.24, 0.86)
 
 	portrait.modulate = Color(1, 1, 1, 1) if is_alive else Color(0.52, 0.52, 0.52, 0.82)
 	shadow.color = Color(0.01, 0.01, 0.01, 0.30) if is_alive else Color(0.01, 0.01, 0.01, 0.18)
@@ -101,7 +124,7 @@ func _can_drop_data(_at_position: Vector2, data: Variant) -> bool:
 
 
 func _get_minimum_size() -> Vector2:
-	return Vector2(80, 80) + Vector2(DROP_MARGIN_EXPAND, DROP_MARGIN_EXPAND)
+	return Vector2(248, 284) + Vector2(DROP_MARGIN_EXPAND, DROP_MARGIN_EXPAND)
 
 
 func notify_drag_hover(is_hovering: bool, can_accept: bool) -> void:
@@ -230,11 +253,37 @@ func set_battle_scale(scale_value: float) -> void:
 func set_targeted(is_targeted: bool, side: String) -> void:
 	if not is_targeted:
 		target_glow.color = Color(1, 0.95, 0.64, 0.0)
+		_stop_focus_pulse()
+		overlay.modulate = Color(1, 1, 1, 1)
+		scale = _base_scale * _battle_scale
 		return
 	if side == "hero":
-		target_glow.color = Color(0.98, 0.90, 0.52, 0.16)
+		target_glow.color = Color(0.66, 0.90, 1.0, 0.42)
+		_start_focus_pulse(Color(0.66, 0.90, 1.0, 0.36), Color(0.66, 0.90, 1.0, 0.56))
 	else:
-		target_glow.color = Color(1.0, 0.56, 0.48, 0.18)
+		target_glow.color = Color(1.0, 0.62, 0.54, 0.42)
+		_start_focus_pulse(Color(1.0, 0.62, 0.54, 0.36), Color(1.0, 0.62, 0.54, 0.56))
+
+
+func _start_focus_pulse(min_color: Color, max_color: Color) -> void:
+	if _focus_tween != null:
+		_focus_tween.kill()
+	scale = _base_scale * _battle_scale * Vector2(1.02, 1.02)
+	overlay.modulate = Color(1.06, 1.06, 1.08, 1.0)
+	_focus_tween = create_tween()
+	_focus_tween.set_loops()
+	_focus_tween.set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
+	_focus_tween.parallel().tween_property(target_glow, "color", max_color, 0.36)
+	_focus_tween.parallel().tween_property(self, "scale", _base_scale * _battle_scale * Vector2(1.035, 1.035), 0.36)
+	_focus_tween.tween_interval(0.02)
+	_focus_tween.parallel().tween_property(target_glow, "color", min_color, 0.36)
+	_focus_tween.parallel().tween_property(self, "scale", _base_scale * _battle_scale * Vector2(1.015, 1.015), 0.36)
+
+
+func _stop_focus_pulse() -> void:
+	if _focus_tween != null:
+		_focus_tween.kill()
+		_focus_tween = null
 
 
 func _resolve_portrait(unit_id: String, visual_def: Dictionary) -> Texture2D:

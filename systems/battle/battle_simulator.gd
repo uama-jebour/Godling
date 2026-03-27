@@ -22,6 +22,7 @@ const PRIMARY_COST := 1
 const GUARD_COST := 1
 const BURST_COST := 2
 const FIELD_BALM_RECOVER_HP := 16.0
+const MAX_BATTLE_ENEMIES_ALIVE := 4
 
 
 func initialize_state(request: Dictionary, battle_def: Dictionary, content_db: Node) -> Dictionary:
@@ -53,11 +54,17 @@ func initialize_state(request: Dictionary, battle_def: Dictionary, content_db: N
 		var count: int = _resolve_enemy_group_count(group)
 		if count <= 0:
 			continue
-		enemy_unit_total += count
-		enemy_units.append({"unit_id": unit_id, "count": count})
-		enemy_total_hp += float(unit_def.get("hp", 0)) * count
+		var remaining_capacity: int = MAX_BATTLE_ENEMIES_ALIVE - enemy_entity_index
+		if remaining_capacity <= 0:
+			break
+		var capped_count: int = min(count, remaining_capacity)
+		if capped_count <= 0:
+			continue
+		enemy_unit_total += capped_count
+		enemy_units.append({"unit_id": unit_id, "count": capped_count})
+		enemy_total_hp += float(unit_def.get("hp", 0)) * capped_count
 		var spawn: Array = group.get("spawn", [540, 180])
-		for i in range(count):
+		for i in range(capped_count):
 			enemy_entity_index += 1
 			enemy_entities.append(_create_enemy_entity(enemy_entity_index, unit_def, spawn, i))
 
@@ -564,10 +571,15 @@ func _trigger_battle_events(state: Dictionary) -> void:
 			var summon_unit: Dictionary = content_db.get_unit(String(payload.get("unit_id", "")))
 			var summon_count: int = int(payload.get("count", 0))
 			if not summon_unit.is_empty() and summon_count > 0:
-				state["enemy_units"].append({"unit_id": String(payload.get("unit_id", "")), "count": summon_count})
-				state["enemy_unit_total"] = int(state.get("enemy_unit_total", 0)) + summon_count
+				var alive_enemy_count: int = _alive_enemy_entity_count(state.get("enemy_entities", []))
+				var summon_capacity: int = max(0, MAX_BATTLE_ENEMIES_ALIVE - alive_enemy_count)
+				var summon_actual: int = min(summon_count, summon_capacity)
+				if summon_actual <= 0:
+					continue
+				state["enemy_units"].append({"unit_id": String(payload.get("unit_id", "")), "count": summon_actual})
+				state["enemy_unit_total"] = int(state.get("enemy_unit_total", 0)) + summon_actual
 				var next_index: int = state.get("enemy_entities", []).size()
-				for summon_idx in range(summon_count):
+				for summon_idx in range(summon_actual):
 					next_index += 1
 					state["enemy_entities"].append(_create_enemy_entity(next_index, summon_unit, [680, 140], summon_idx))
 				state["enemy_total_hp"] = _living_enemy_total_hp(state)
@@ -660,6 +672,17 @@ func _find_alive_enemy_entity(enemy_entities: Array, entity_id: String) -> Dicti
 		if bool(enemy_entity.get("is_alive", true)):
 			return enemy_entity
 	return {}
+
+
+func _alive_enemy_entity_count(enemy_entities: Array) -> int:
+	var count := 0
+	for enemy_entity_value in enemy_entities:
+		if typeof(enemy_entity_value) != TYPE_DICTIONARY:
+			continue
+		var enemy_entity: Dictionary = enemy_entity_value
+		if bool(enemy_entity.get("is_alive", true)):
+			count += 1
+	return count
 
 
 func _default_skill_slots() -> Array:

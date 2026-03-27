@@ -1,0 +1,22 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(/opt/homebrew/bin/python3)",
+      "Read(//tmp/**)",
+      "Read(//private/tmp/**)",
+      "Bash(python3 -u -c \"print\\(''hello''\\)\")",
+      "Bash(python3 -c \"import sys; sys.stdout.write\\(''hello\\\\n''\\); sys.stdout.flush\\(\\)\")",
+      "Bash(python3 codex-configs/skills/azure-imagegen/scripts/azure_image_gen.py generate --prompt \"A simple red circle on white background\" --size 1024x1024 --out output/imagegen/test-skill/red-circle.png --quality low)",
+      "WebFetch(domain:platform.openai.com)",
+      "WebSearch",
+      "Bash(python3 codex-configs/skills/azure-imagegen/scripts/azure_image_gen.py generate --prompt \"test\" --out /tmp/test.png --dry-run)",
+      "Bash(git add:*)",
+      "Bash(git reset:*)",
+      "Bash(git commit:*)",
+      "Bash(git push:*)"
+    ],
+    "additionalDirectories": [
+      "/tmp"
+    ]
+  }
+}
