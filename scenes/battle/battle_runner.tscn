@@ -1,9 +1,33 @@
-[gd_scene load_steps=5 format=3]
+[gd_scene load_steps=7 format=3]
 
 [ext_resource type="Script" path="res://scripts/battle/battle_scene_runner.gd" id="1"]
 [ext_resource type="Script" path="res://scripts/battle/battle_scene_controller.gd" id="2"]
 [ext_resource type="Theme" path="res://assets/fonts/ui_theme.tres" id="3"]
-[ext_resource type="Texture2D" path="res://output/imagegen/godling-batch1/battle-arena-backdrop.png" id="4"]
+[ext_resource type="Texture2D" path="res://output/imagegen/godling-batch1/action-card-surface.png" id="4"]
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_modal_shell"]
+bg_color = Color(0.11, 0.09, 0.07, 0.46)
+border_width_left = 1
+border_width_top = 1
+border_width_right = 1
+border_width_bottom = 1
+border_color = Color(0.73, 0.63, 0.42, 0.38)
+corner_radius_top_left = 12
+corner_radius_top_right = 12
+corner_radius_bottom_right = 12
+corner_radius_bottom_left = 12
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_inner_panel"]
+bg_color = Color(0.12, 0.10, 0.08, 0.34)
+border_width_left = 1
+border_width_top = 1
+border_width_right = 1
+border_width_bottom = 1
+border_color = Color(0.68, 0.60, 0.40, 0.30)
+corner_radius_top_left = 8
+corner_radius_top_right = 8
+corner_radius_bottom_right = 8
+corner_radius_bottom_left = 8
 
 [node name="BattleRunner" type="Node"]
 script = ExtResource("1")
@@ -28,7 +52,7 @@ anchor_right = 1.0
 anchor_bottom = 1.0
 grow_horizontal = 2
 grow_vertical = 2
-color = Color(0.0313726, 0.0392157, 0.0705882, 0.78)
+color = Color(0.0313726, 0.0392157, 0.0705882, 0.40)
 
 [node name="GlobalBackdropTexture" type="TextureRect" parent="BattleUI"]
 layout_mode = 1
@@ -40,8 +64,8 @@ grow_vertical = 2
 mouse_filter = 2
 texture = ExtResource("4")
 expand_mode = 1
-stretch_mode = 6
-modulate = Color(1, 1, 1, 0.22)
+stretch_mode = 1
+modulate = Color(1, 1, 1, 0.55)
 
 [node name="ShellMargin" type="MarginContainer" parent="BattleUI"]
 layout_mode = 1
@@ -59,6 +83,7 @@ theme_override_constants/margin_bottom = 38
 layout_mode = 2
 size_flags_horizontal = 3
 size_flags_vertical = 3
+theme_override_styles/panel = SubResource("StyleBoxFlat_modal_shell")
 
 [node name="PanelMargin" type="MarginContainer" parent="BattleUI/ShellMargin/ModalPanel"]
 layout_mode = 2
@@ -107,6 +132,7 @@ theme_override_constants/separation = 10
 [node name="BattleSummaryPanel" type="PanelContainer" parent="BattleUI/ShellMargin/ModalPanel/PanelMargin/RootVBox/TopRow"]
 layout_mode = 2
 size_flags_horizontal = 3
+theme_override_styles/panel = SubResource("StyleBoxFlat_inner_panel")
 
 [node name="BattleSummaryMargin" type="MarginContainer" parent="BattleUI/ShellMargin/ModalPanel/PanelMargin/RootVBox/TopRow/BattleSummaryPanel"]
 layout_mode = 2
@@ -127,6 +153,7 @@ theme_override_font_sizes/normal_font_size = 16
 custom_minimum_size = Vector2(286, 0)
 layout_mode = 2
 size_flags_horizontal = 3
+theme_override_styles/panel = SubResource("StyleBoxFlat_inner_panel")
 
 [node name="HeroMargin" type="MarginContainer" parent="BattleUI/ShellMargin/ModalPanel/PanelMargin/RootVBox/TopRow/HeroPanel"]
 layout_mode = 2
@@ -160,12 +187,13 @@ text = "Hero"
 [node name="ContentRow" type="HBoxContainer" parent="BattleUI/ShellMargin/ModalPanel/PanelMargin/RootVBox"]
 layout_mode = 2
 size_flags_vertical = 3
-theme_override_constants/separation = 14
+theme_override_constants/separation = 8
 
 [node name="ArenaPanel" type="PanelContainer" parent="BattleUI/ShellMargin/ModalPanel/PanelMargin/RootVBox/ContentRow"]
 layout_mode = 2
 size_flags_horizontal = 3
 size_flags_vertical = 3
+theme_override_styles/panel = SubResource("StyleBoxFlat_inner_panel")
 
 [node name="ArenaMargin" type="MarginContainer" parent="BattleUI/ShellMargin/ModalPanel/PanelMargin/RootVBox/ContentRow/ArenaPanel"]
 layout_mode = 2
@@ -240,9 +268,10 @@ mouse_filter = 2
 color = Color(0.862745, 0.772549, 0.372549, 0.30)
 
 [node name="SidePanel" type="PanelContainer" parent="BattleUI/ShellMargin/ModalPanel/PanelMargin/RootVBox/ContentRow"]
-custom_minimum_size = Vector2(300, 0)
+custom_minimum_size = Vector2(236, 0)
 layout_mode = 2
 size_flags_vertical = 3
+theme_override_styles/panel = SubResource("StyleBoxFlat_inner_panel")
 
 [node name="SideMargin" type="MarginContainer" parent="BattleUI/ShellMargin/ModalPanel/PanelMargin/RootVBox/ContentRow/SidePanel"]
 layout_mode = 2

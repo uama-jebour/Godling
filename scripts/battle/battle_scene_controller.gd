@@ -23,6 +23,7 @@ const ACTION_INFO_MAX_WIDTH := 260.0
 const ACTION_CARD_FRAME_TEXTURE := preload("res://assets/battle/ui/action_card_frame.svg")
 const ACTION_CARD_SURFACE_TEXTURE := preload("res://output/imagegen/godling-batch1/action-card-surface.png")
 const ARENA_BACKDROP_TEXTURE := preload("res://output/imagegen/godling-batch1/battle-arena-backdrop.png")
+const UI_SHELL_TEXTURE := preload("res://output/imagegen/godling-batch1/action-card-surface.png")
 const SKILL_ICON_PRIMARY := preload("res://assets/battle/icons/skill_primary.svg")
 const SKILL_ICON_GUARD := preload("res://assets/battle/icons/skill_guard.svg")
 const SKILL_ICON_BURST := preload("res://assets/battle/icons/skill_burst.svg")
@@ -45,6 +46,10 @@ const SKILL_ICON_BURST := preload("res://assets/battle/icons/skill_burst.svg")
 @onready var status_label: Label = get_node_or_null("%StatusLabel")
 @onready var selected_target_label: Label = get_node_or_null("%SelectedTargetLabel")
 @onready var root_vbox: VBoxContainer = $"../BattleUI/ShellMargin/ModalPanel/PanelMargin/RootVBox"
+@onready var modal_panel: PanelContainer = $"../BattleUI/ShellMargin/ModalPanel"
+@onready var battle_summary_panel: PanelContainer = $"../BattleUI/ShellMargin/ModalPanel/PanelMargin/RootVBox/TopRow/BattleSummaryPanel"
+@onready var hero_panel: PanelContainer = $"../BattleUI/ShellMargin/ModalPanel/PanelMargin/RootVBox/TopRow/HeroPanel"
+@onready var side_panel: PanelContainer = $"../BattleUI/ShellMargin/ModalPanel/PanelMargin/RootVBox/ContentRow/SidePanel"
 @onready var action_bar: HBoxContainer = $"../BattleUI/ShellMargin/ModalPanel/PanelMargin/RootVBox/ActionBar"
 @onready var action_info_box: VBoxContainer = $"../BattleUI/ShellMargin/ModalPanel/PanelMargin/RootVBox/ActionBar/ActionInfo"
 @onready var command_strip_scroll: ScrollContainer = get_node_or_null("%CommandStripScroll")
@@ -142,6 +147,7 @@ func _ready() -> void:
 		item_button.pressed.connect(_on_item_pressed)
 	_build_action_deck()
 	_apply_generated_art_preview()
+	_apply_shell_texture_layers()
 	_bind_drag_sources()
 	_set_interaction_enabled(false)
 	call_deferred("_refresh_layout_after_frame")
@@ -1201,12 +1207,24 @@ func _enemy_display_name(unit_id: String) -> String:
 func _battle_display_name(battle_def: Dictionary) -> String:
 	var battle_id: String = String(battle_def.get("id", ""))
 	match battle_id:
+		"battle_a01_patrol":
+			return "灰烬前哨巡逻战"
+		"battle_a01_bridgehold":
+			return "断桥据守战"
 		"battle_a02_patrol":
 			return "灰烬圣坛巡逻战"
+		"battle_a02_husk_chapel":
+			return "枯壳礼拜堂遭遇战"
 		"battle_a02_forced_ambush":
 			return "灰烬圣坛伏击战"
+		"battle_a02_mainline_sanctum":
+			return "圣所主线攻坚战"
+		"battle_a02_extraction_breakthrough":
+			return "撤离突破战"
 		_:
-			return battle_id if not battle_id.is_empty() else "战斗预览"
+			if battle_id.is_empty():
+				return "战斗预览"
+			return "战斗预览 %s" % battle_id
 
 
 func _set_interaction_enabled(enabled: bool) -> void:
@@ -1727,6 +1745,7 @@ func _build_action_deck() -> void:
 	style.corner_radius_bottom_left = 18
 	style.corner_radius_bottom_right = 18
 	_action_deck_panel.add_theme_stylebox_override("panel", style)
+	_ensure_shell_texture_layer(_action_deck_panel, "DeckShellTexture", 0.22)
 
 	var margin := MarginContainer.new()
 	margin.add_theme_constant_override("margin_left", 18)
@@ -1764,12 +1783,42 @@ func _build_action_deck() -> void:
 		wait_button.custom_minimum_size = Vector2(92, 56)
 	if item_button != null:
 		item_button.custom_minimum_size = Vector2(96, 56)
+	if wait_button != null and action_info_box != null and wait_button.get_parent() != action_info_box:
+		wait_button.reparent(action_info_box)
+		wait_button.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		wait_button.custom_minimum_size = Vector2(0, 52)
+		action_info_box.move_child(wait_button, action_info_box.get_child_count() - 1)
 	_style_action_button(wait_button, Color(0.23, 0.27, 0.19, 1.0), Color(0.62, 0.74, 0.42, 1.0))
 	_style_action_button(item_button, Color(0.17, 0.20, 0.28, 1.0), Color(0.50, 0.70, 0.94, 1.0))
 	_apply_skill_card_theme()
 	_apply_item_card_theme()
 	_bind_main_item_card_buttons()
 	_refresh_main_item_cards([])
+
+
+func _apply_shell_texture_layers() -> void:
+	_ensure_shell_texture_layer(modal_panel, "ModalShellTexture", 0.14)
+	_ensure_shell_texture_layer(battle_summary_panel, "SummaryShellTexture", 0.18)
+	_ensure_shell_texture_layer(hero_panel, "HeroShellTexture", 0.18)
+	_ensure_shell_texture_layer(side_panel, "SideShellTexture", 0.20)
+
+
+func _ensure_shell_texture_layer(panel: PanelContainer, layer_name: String, alpha: float) -> void:
+	if panel == null:
+		return
+	var texture_layer := panel.get_node_or_null(layer_name) as TextureRect
+	if texture_layer == null:
+		texture_layer = TextureRect.new()
+		texture_layer.name = layer_name
+		texture_layer.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		texture_layer.anchor_right = 1.0
+		texture_layer.anchor_bottom = 1.0
+		texture_layer.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+		texture_layer.stretch_mode = TextureRect.STRETCH_TILE
+		panel.add_child(texture_layer)
+		panel.move_child(texture_layer, 0)
+	texture_layer.texture = UI_SHELL_TEXTURE
+	texture_layer.modulate = Color(1, 1, 1, clampf(alpha, 0.0, 1.0))
 
 
 func _layout_action_bar() -> void:
@@ -1798,10 +1847,10 @@ func _apply_dynamic_action_card_width() -> void:
 	if available_width <= 0.0:
 		return
 	var wait_width: float = 0.0
-	if wait_button != null:
+	if wait_button != null and wait_button.get_parent() == command_strip:
 		wait_width = wait_button.custom_minimum_size.x
 	var item_button_width: float = 0.0
-	if item_button != null:
+	if item_button != null and item_button.get_parent() == command_strip:
 		item_button_width = item_button.custom_minimum_size.x
 	var strip_gap: float = float(command_strip.get_theme_constant("separation"))
 	var strip_gap_count: float = maxf(0.0, float(max(0, command_strip.get_child_count() - 1)))
@@ -2175,7 +2224,9 @@ func _load_item_icon(icon_path: String) -> Texture2D:
 func _ensure_burst_skill_card() -> void:
 	if command_strip == null or burst_skill_card != null:
 		return
-	var insert_index: int = command_strip.get_children().find(wait_button)
+	var insert_index: int = command_strip.get_children().find(item_card_rack)
+	if insert_index < 0:
+		insert_index = command_strip.get_children().find(item_button)
 	if insert_index < 0:
 		insert_index = command_strip.get_child_count()
 	var card := PanelContainer.new()
