@@ -1,38 +1,42 @@
 {
 	"hero_pilgrim_a01": {
-		"portrait_path": "res://output/imagegen/godling-portraits-v2/hero-pilgrim-a01-shadow.png",
+		"portrait_path": "res://output/imagegen/godling-fullbody-v1/hero-pilgrim-a01-fullbody-v1.png",
 		"icon_path": "res://assets/battle/icons/hero_pilgrim_a01.svg",
-		"portrait_scale": 1.0,
+		"portrait_scale": 1.36,
 		"x_offset": 0.0,
-		"y_offset": 0.0,
-		"origin": "azure-imagegen-preview",
-		"notes": "Previewing generated hero portrait directly in battle UI."
+		"y_offset": -8.0,
+		"flip_h": true,
+		"origin": "azure-imagegen-units-v3",
+		"notes": "Full-body combat stance, facing battlefield left, transparent background."
 	},
 	"enemy_hollow_deacon": {
-		"portrait_path": "res://output/imagegen/godling-portraits-v2/enemy-hollow-deacon-v2.png",
+		"portrait_path": "res://output/imagegen/godling-fullbody-v1/enemy-hollow-deacon-fullbody-v1.png",
 		"icon_path": "res://assets/battle/icons/enemy_hollow_deacon.svg",
-		"portrait_scale": 1.0,
+		"portrait_scale": 1.28,
 		"x_offset": 0.0,
-		"y_offset": 0.0,
-		"origin": "azure-imagegen-preview",
-		"notes": "Previewing generated enemy portrait directly in battle UI."
+		"y_offset": -8.0,
+		"flip_h": true,
+		"origin": "azure-imagegen-units-v3",
+		"notes": "Full-body combat stance, flipped to face battlefield left, transparent background."
 	},
 	"enemy_ashen_hunter": {
-		"portrait_path": "res://output/imagegen/godling-portraits-v2/enemy-ashen-hunter-v2.png",
+		"portrait_path": "res://output/imagegen/godling-fullbody-v1/enemy-ashen-hunter-fullbody-v1.png",
 		"icon_path": "res://assets/battle/icons/enemy_ashen_hunter.svg",
-		"portrait_scale": 1.0,
+		"portrait_scale": 1.26,
 		"x_offset": 0.0,
-		"y_offset": 0.0,
-		"origin": "azure-imagegen-preview",
-		"notes": "Previewing generated enemy portrait directly in battle UI."
+		"y_offset": -8.0,
+		"flip_h": true,
+		"origin": "azure-imagegen-units-v3",
+		"notes": "Full-body combat stance, facing battlefield right, transparent background."
 	},
 	"enemy_demon_stalker": {
-		"portrait_path": "res://output/imagegen/godling-portraits-v2/enemy-demon-stalker-v2.png",
+		"portrait_path": "res://output/imagegen/godling-fullbody-v1/enemy-demon-stalker-fullbody-v1.png",
 		"icon_path": "res://assets/battle/icons/enemy_demon_stalker.svg",
-		"portrait_scale": 1.0,
+		"portrait_scale": 1.30,
 		"x_offset": 0.0,
-		"y_offset": 0.0,
-		"origin": "azure-imagegen-preview",
-		"notes": "Previewing generated enemy portrait directly in battle UI."
+		"y_offset": -8.0,
+		"flip_h": true,
+		"origin": "azure-imagegen-units-v3",
+		"notes": "Full-body combat stance, facing battlefield right, transparent background."
 	}
 }

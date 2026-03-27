@@ -12,8 +12,8 @@ const DRAG_ATTACK_CURVE_SAMPLE_DENSITY := 18.0
 const DRAG_ATTACK_LINE_WIDTH := 7.2
 const DRAG_ATTACK_ARROW_SCALE := 1.46
 const DRAG_ATTACK_ARROW_GLOW_SCALE := 1.84
-const ACTION_CARD_SIZE := Vector2(172, 178)
-const ACTION_CARD_MIN_WIDTH := 92.0
+const ACTION_CARD_SIZE := Vector2(158, 228)
+const ACTION_CARD_MIN_WIDTH := 132.0
 const ACTION_CARD_MAX_WIDTH := 176.0
 const ACTION_CARD_CORNER_RADIUS := 14
 const MAIN_ITEM_CARD_LIMIT := 2
@@ -28,6 +28,7 @@ const SKILL_ICON_GUARD := preload("res://assets/battle/icons/skill_guard.svg")
 const SKILL_ICON_BURST := preload("res://assets/battle/icons/skill_burst.svg")
 
 @onready var battle_arena: Control = %BattleArena
+@onready var arena_tint: ColorRect = get_node_or_null("%ArenaTint")
 @onready var hero_lane: ColorRect = get_node_or_null("%HeroLane")
 @onready var enemy_lane: ColorRect = get_node_or_null("%EnemyLane")
 @onready var mid_gap: ColorRect = get_node_or_null("%MidGap")
@@ -1029,9 +1030,9 @@ func _formation_position(entity: Dictionary, enemy_index_by_id: Dictionary, enem
 		arena_size.y = 520.0
 
 	var side: String = String(entity.get("side", "enemy"))
-	var row_y: float = (arena_size.y * 0.5) - 92.0
-	var hero_lane_width: float = clamp(arena_size.x * 0.25, 170.0, 250.0)
-	var gap_band_width: float = clamp(arena_size.x * 0.18, 130.0, 240.0)
+	var row_y: float = (arena_size.y * 0.5) - 116.0
+	var hero_lane_width: float = clamp(arena_size.x * 0.22, 156.0, 220.0)
+	var gap_band_width: float = clamp(arena_size.x * 0.14, 92.0, 178.0)
 	var hero_x: float = 24.0 + max(10.0, (hero_lane_width - 180.0) * 0.5)
 	if side == "hero":
 		return Vector2(hero_x, row_y)
@@ -1039,8 +1040,8 @@ func _formation_position(entity: Dictionary, enemy_index_by_id: Dictionary, enem
 	var entity_id: String = String(entity.get("entity_id", ""))
 	var enemy_index: int = int(enemy_index_by_id.get(entity_id, 0))
 	var enemy_scale: float = _formation_scale(entity, enemy_count, arena_size.x)
-	var token_width: float = 180.0 * enemy_scale
-	var base_gap: float = clamp(arena_size.x * 0.018, 10.0, 22.0)
+	var token_width: float = 188.0 * enemy_scale
+	var base_gap: float = clamp(arena_size.x * 0.016, 8.0, 20.0)
 	var available_start_x: float = 24.0 + hero_lane_width + gap_band_width
 	var available_width: float = max(120.0, arena_size.x - available_start_x - 24.0)
 	var total_width: float = (float(enemy_count) * token_width) + (float(max(0, enemy_count - 1)) * base_gap)
@@ -1050,31 +1051,31 @@ func _formation_position(entity: Dictionary, enemy_index_by_id: Dictionary, enem
 		total_width = (float(enemy_count) * token_width) + (float(enemy_count - 1) * gap)
 	var start_x: float = available_start_x + max(0.0, (available_width - total_width) * 0.5)
 	start_x = clamp(start_x, available_start_x, max(available_start_x, arena_size.x - total_width - 18.0))
-	return Vector2(start_x + (float(enemy_index) * (token_width + gap)), row_y + ((1.0 - enemy_scale) * 36.0))
+	return Vector2(start_x + (float(enemy_index) * (token_width + gap)), row_y + ((1.0 - enemy_scale) * 34.0))
 
 
 func _formation_scale(entity: Dictionary, enemy_count: int, arena_width: float) -> float:
 	if String(entity.get("side", "enemy")) == "hero":
-		return 1.0
+		return 1.20
 	var base_scale := 0.96
 	match enemy_count:
 		0, 1:
-			base_scale = 0.96
+			base_scale = 1.12
 		2:
-			base_scale = 0.88
+			base_scale = 1.02
 		3:
-			base_scale = 0.82
+			base_scale = 0.94
 		4:
-			base_scale = 0.76
+			base_scale = 0.88
 		_:
-			base_scale = 0.70
-	var gap_band_width: float = clamp(arena_width * 0.16, 110.0, 220.0)
-	var hero_lane_width: float = clamp(arena_width * 0.24, 160.0, 230.0)
+			base_scale = 0.82
+	var gap_band_width: float = clamp(arena_width * 0.14, 92.0, 178.0)
+	var hero_lane_width: float = clamp(arena_width * 0.22, 156.0, 220.0)
 	var available_width: float = max(120.0, arena_width - hero_lane_width - gap_band_width - 48.0)
-	var preferred_gap: float = clamp(arena_width * 0.018, 10.0, 22.0)
+	var preferred_gap: float = clamp(arena_width * 0.016, 8.0, 20.0)
 	var total_gap: float = float(max(0, enemy_count - 1)) * preferred_gap
-	var max_scale_for_width: float = (available_width - total_gap) / max(180.0, float(enemy_count) * 180.0)
-	return clamp(min(base_scale, max_scale_for_width), 0.52, 0.96)
+	var max_scale_for_width: float = (available_width - total_gap) / max(188.0, float(enemy_count) * 188.0)
+	return clamp(min(base_scale, max_scale_for_width), 0.70, 1.20)
 
 
 func _layout_arena_regions() -> void:
@@ -1087,8 +1088,8 @@ func _layout_arena_regions() -> void:
 	var bottom: float = arena_size.y
 	var left_margin: float = 0.0
 	var right_margin: float = 0.0
-	var hero_lane_width: float = clamp(arena_size.x * 0.25, 170.0, 250.0)
-	var gap_band_width: float = clamp(arena_size.x * 0.18, 130.0, 240.0)
+	var hero_lane_width: float = clamp(arena_size.x * 0.22, 156.0, 220.0)
+	var gap_band_width: float = clamp(arena_size.x * 0.14, 92.0, 178.0)
 	var enemy_lane_start: float = left_margin + hero_lane_width + gap_band_width
 	if hero_lane != null:
 		hero_lane.position = Vector2(left_margin, top)
@@ -1740,7 +1741,7 @@ func _build_action_deck() -> void:
 
 	action_bar.add_theme_constant_override("separation", 8)
 	if command_strip_scroll != null:
-		command_strip_scroll.custom_minimum_size = Vector2(0, 198)
+		command_strip_scroll.custom_minimum_size = Vector2(0, 244)
 		command_strip_scroll.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		command_strip_scroll.size_flags_vertical = Control.SIZE_FILL
 	if action_info_box != null:
@@ -1896,13 +1897,15 @@ func _apply_generated_arena_backdrop() -> void:
 		battle_arena.add_child(backdrop_layer)
 		battle_arena.move_child(backdrop_layer, 0)
 	backdrop_layer.texture = ARENA_BACKDROP_TEXTURE
-	backdrop_layer.modulate = Color(1, 1, 1, 0.66)
+	backdrop_layer.modulate = Color(1, 1, 1, 1.0)
+	if arena_tint != null:
+		arena_tint.color = Color(0.09, 0.10, 0.14, 0.02)
 	if hero_lane != null:
-		hero_lane.color = Color(0.33, 0.18, 0.12, 0.12)
+		hero_lane.color = Color(0.33, 0.18, 0.12, 0.01)
 	if enemy_lane != null:
-		enemy_lane.color = Color(0.29, 0.12, 0.12, 0.12)
+		enemy_lane.color = Color(0.29, 0.12, 0.12, 0.01)
 	if mid_gap != null:
-		mid_gap.color = Color(0.04, 0.04, 0.06, 0.18)
+		mid_gap.color = Color(0.04, 0.04, 0.06, 0.02)
 	if center_line != null:
 		center_line.color = Color(0.91, 0.78, 0.46, 0.24)
 

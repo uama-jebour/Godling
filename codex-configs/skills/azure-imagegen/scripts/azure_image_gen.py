@@ -19,6 +19,27 @@ DEFAULT_OUTPUT_FORMAT = "png"
 ALLOWED_SIZES = {"1024x1024", "1536x1024", "1024x1536", "auto"}
 ALLOWED_QUALITIES = {"low", "medium", "high", "auto"}
 ALLOWED_BACKGROUNDS = {"transparent", "opaque", "auto", None}
+ALLOWED_INPUT_FIDELITIES = {"low", "high", "auto", None}
+
+# Follow OpenAI curated imagegen skill taxonomy slugs.
+USE_CASE_SLUGS = {
+    "photorealistic-natural",
+    "product-mockup",
+    "ui-mockup",
+    "infographic-diagram",
+    "logo-brand",
+    "illustration-story",
+    "stylized-concept",
+    "historical-scene",
+    "text-localization",
+    "identity-preserve",
+    "precise-object-edit",
+    "lighting-weather",
+    "background-extraction",
+    "style-transfer",
+    "compositing",
+    "sketch-to-render",
+}
 
 
 def die(message: str, code: int = 1) -> None:
@@ -52,6 +73,19 @@ def validate_background(background: str | None) -> None:
         die("background must be one of transparent, opaque, or auto")
 
 
+def validate_input_fidelity(input_fidelity: str | None) -> None:
+    if input_fidelity not in ALLOWED_INPUT_FIDELITIES:
+        die("input-fidelity must be one of low, high, or auto")
+
+
+def validate_use_case(use_case: str | None) -> None:
+    if use_case and use_case not in USE_CASE_SLUGS:
+        die(
+            "use-case must be one of: "
+            + ", ".join(sorted(USE_CASE_SLUGS))
+        )
+
+
 def normalize_output_format(fmt: str | None) -> str:
     if not fmt:
         return DEFAULT_OUTPUT_FORMAT
@@ -68,9 +102,24 @@ def ensure_transparency(background: str | None, output_format: str) -> None:
         die("transparent background requires png or webp")
 
 
+def normalize_whitespace(value: str) -> str:
+    return " ".join(value.split())
+
+
+def infer_prompt_specificity(prompt: str) -> str:
+    compact = normalize_whitespace(prompt)
+    if len(compact) >= 180:
+        return "detailed"
+    if len(compact) <= 70:
+        return "generic"
+    return "normal"
+
+
 def fields_from_args(args: argparse.Namespace) -> dict[str, str | None]:
     return {
         "use_case": getattr(args, "use_case", None),
+        "asset_type": getattr(args, "asset_type", None),
+        "input_images": getattr(args, "input_images", None),
         "scene": getattr(args, "scene", None),
         "subject": getattr(args, "subject", None),
         "style": getattr(args, "style", None),
@@ -84,15 +133,25 @@ def fields_from_args(args: argparse.Namespace) -> dict[str, str | None]:
     }
 
 
-def augment_prompt(prompt: str, fields: dict[str, str | None], enabled: bool = True) -> str:
+def augment_prompt(prompt: str, fields: dict[str, str | None], enabled: bool = True, specificity: str = "auto") -> str:
     if not enabled:
         return prompt.strip()
+
+    validate_use_case(fields.get("use_case"))
+
+    prompt_compact = normalize_whitespace(prompt.strip())
+    resolved_specificity = infer_prompt_specificity(prompt_compact) if specificity == "auto" else specificity
+
     sections: list[str] = []
     if fields.get("use_case"):
         sections.append(f"Use case: {fields['use_case']}")
-    sections.append(f"Primary request: {prompt.strip()}")
+    if fields.get("asset_type"):
+        sections.append(f"Asset type: {fields['asset_type']}")
+    sections.append(f"Primary request: {prompt_compact}")
+    if fields.get("input_images"):
+        sections.append(f"Input images: {fields['input_images']}")
     if fields.get("scene"):
-        sections.append(f"Scene/background: {fields['scene']}")
+        sections.append(f"Scene/backdrop: {fields['scene']}")
     if fields.get("subject"):
         sections.append(f"Subject: {fields['subject']}")
     if fields.get("style"):
@@ -111,6 +170,11 @@ def augment_prompt(prompt: str, fields: dict[str, str | None], enabled: bool = T
         sections.append(f"Constraints: {fields['constraints']}")
     if fields.get("negative"):
         sections.append(f"Avoid: {fields['negative']}")
+
+    # Follow prompting guide specificity policy: only add tasteful help for generic prompts.
+    if resolved_specificity == "generic":
+        sections.append("Constraints: keep composition clean and production-usable; no watermark")
+
     return "\n".join(sections)
 
 
@@ -171,8 +235,7 @@ def print_payload(payload: dict[str, Any]) -> None:
     print(json.dumps(payload, indent=2, ensure_ascii=False, sort_keys=True))
 
 
-def generate_one(client: AzureOpenAI, payload: dict[str, Any]) -> list[str]:
-    response = client.images.generate(**payload)
+def collect_b64_images(response: Any) -> list[str]:
     data = getattr(response, "data", None) or []
     images: list[str] = []
     for item in data:
@@ -183,6 +246,42 @@ def generate_one(client: AzureOpenAI, payload: dict[str, Any]) -> list[str]:
     if not images:
         die("Azure returned no images")
     return images
+
+
+def generate_one(client: AzureOpenAI, payload: dict[str, Any]) -> list[str]:
+    response = client.images.generate(**payload)
+    return collect_b64_images(response)
+
+
+def edit_one(client: AzureOpenAI, payload: dict[str, Any], image_paths: list[Path], mask_path: Path | None = None) -> list[str]:
+    streams: list[Any] = []
+    try:
+        images_arg = []
+        for path in image_paths:
+            if not path.exists():
+                die(f"Input image not found: {path}")
+            f = path.open("rb")
+            streams.append(f)
+            images_arg.append(f)
+
+        edit_payload = dict(payload)
+        edit_payload["image"] = images_arg
+
+        if mask_path is not None:
+            if not mask_path.exists():
+                die(f"Mask image not found: {mask_path}")
+            mask_stream = mask_path.open("rb")
+            streams.append(mask_stream)
+            edit_payload["mask"] = mask_stream
+
+        response = client.images.edit(**edit_payload)
+        return collect_b64_images(response)
+    finally:
+        for stream in streams:
+            try:
+                stream.close()
+            except Exception:
+                pass
 
 
 def slugify(value: str) -> str:
@@ -224,6 +323,20 @@ def job_output_paths(out_dir: Path, output_format: str, idx: int, prompt: str, e
     return [out_dir / f"{idx:03d}-{slugify(prompt)}{ext}"]
 
 
+def build_prompt(args: argparse.Namespace, prompt: str, field_overrides: dict[str, Any] | None = None) -> str:
+    fields = fields_from_args(args)
+    if field_overrides:
+        for key, value in field_overrides.items():
+            if key in fields and value is not None:
+                fields[key] = value
+    return augment_prompt(
+        prompt,
+        fields,
+        enabled=not args.no_augment,
+        specificity=args.prompt_specificity,
+    )
+
+
 def cmd_generate(args: argparse.Namespace) -> int:
     prompt = read_prompt(args.prompt, args.prompt_file)
     validate_size(args.size)
@@ -231,8 +344,9 @@ def cmd_generate(args: argparse.Namespace) -> int:
     validate_background(args.background)
     output_format = normalize_output_format(args.output_format)
     ensure_transparency(args.background, output_format)
+    validate_use_case(args.use_case)
     deployment = deployment_name(args)
-    final_prompt = augment_prompt(prompt, fields_from_args(args), enabled=not args.no_augment)
+    final_prompt = build_prompt(args, prompt)
     payload = {
         "model": deployment,
         "prompt": final_prompt,
@@ -253,6 +367,53 @@ def cmd_generate(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_edit(args: argparse.Namespace) -> int:
+    prompt = read_prompt(args.prompt, args.prompt_file)
+    validate_size(args.size)
+    validate_quality(args.quality)
+    validate_background(args.background)
+    validate_input_fidelity(args.input_fidelity)
+    output_format = normalize_output_format(args.output_format)
+    ensure_transparency(args.background, output_format)
+    validate_use_case(args.use_case)
+
+    deployment = deployment_name(args)
+    final_prompt = build_prompt(args, prompt)
+
+    payload = {
+        "model": deployment,
+        "prompt": final_prompt,
+        "size": args.size,
+        "quality": args.quality,
+        "output_format": output_format,
+    }
+    if args.background is not None:
+        payload["background"] = args.background
+    if args.input_fidelity is not None:
+        payload["input_fidelity"] = args.input_fidelity
+
+    outputs = build_output_paths(args.out, output_format, 1, args.out_dir)
+    image_paths = [Path(p) for p in args.image]
+    mask_path = Path(args.mask) if args.mask else None
+
+    if args.dry_run:
+        print_payload(
+            {
+                "deployment": deployment,
+                "images": [str(p) for p in image_paths],
+                "mask": str(mask_path) if mask_path else None,
+                "outputs": [str(p) for p in outputs],
+                **payload,
+            }
+        )
+        return 0
+
+    client = build_client(args)
+    images = edit_one(client, payload, image_paths=image_paths, mask_path=mask_path)
+    decode_and_write(images, outputs, args.force)
+    return 0
+
+
 def run_batch_job(base_args: argparse.Namespace, job: dict[str, Any], idx: int, out_dir: Path, dry_run: bool) -> dict[str, Any]:
     size = str(job.get("size", base_args.size))
     quality = str(job.get("quality", base_args.quality))
@@ -262,21 +423,11 @@ def run_batch_job(base_args: argparse.Namespace, job: dict[str, Any], idx: int, 
     validate_quality(quality)
     validate_background(background)
     ensure_transparency(background, output_format)
+
     prompt = str(job.get("prompt", "")).strip()
-    fields = {
-        "use_case": job.get("use_case", base_args.use_case),
-        "scene": job.get("scene", base_args.scene),
-        "subject": job.get("subject", base_args.subject),
-        "style": job.get("style", base_args.style),
-        "composition": job.get("composition", base_args.composition),
-        "lighting": job.get("lighting", base_args.lighting),
-        "palette": job.get("palette", base_args.palette),
-        "materials": job.get("materials", base_args.materials),
-        "text": job.get("text", base_args.text),
-        "constraints": job.get("constraints", base_args.constraints),
-        "negative": job.get("negative", base_args.negative),
-    }
-    final_prompt = augment_prompt(prompt, fields, enabled=not base_args.no_augment)
+    validate_use_case(job.get("use_case", base_args.use_case))
+
+    final_prompt = build_prompt(base_args, prompt, field_overrides=job)
     deployment = deployment_name(base_args, job)
     payload = {
         "model": deployment,
@@ -288,9 +439,11 @@ def run_batch_job(base_args: argparse.Namespace, job: dict[str, Any], idx: int, 
     }
     if background is not None:
         payload["background"] = background
+
     outputs = job_output_paths(out_dir, output_format, idx, prompt, job.get("out"))
     if dry_run:
         return {"job": idx, "deployment": deployment, "outputs": [str(p) for p in outputs], **payload}
+
     client = build_client(base_args)
     images = generate_one(client, payload)
     decode_and_write(images, outputs, base_args.force)
@@ -317,9 +470,7 @@ def cmd_generate_batch(args: argparse.Namespace) -> int:
     return 0
 
 
-def build_parser() -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(description="Azure OpenAI image generation helper")
-    common = argparse.ArgumentParser(add_help=False)
+def add_common_args(common: argparse.ArgumentParser) -> None:
     common.add_argument("--deployment")
     common.add_argument("--endpoint")
     common.add_argument("--api-key")
@@ -328,7 +479,9 @@ def build_parser() -> argparse.ArgumentParser:
     common.add_argument("--quality", default=DEFAULT_QUALITY)
     common.add_argument("--background")
     common.add_argument("--output-format", default=DEFAULT_OUTPUT_FORMAT)
-    common.add_argument("--use-case")
+    common.add_argument("--use-case", help="Use-case taxonomy slug from the OpenAI imagegen guide.")
+    common.add_argument("--asset-type", help="Where the asset will be used.")
+    common.add_argument("--input-images", help="Prompt scaffold describing image roles (Image 1: ..., Image 2: ...).")
     common.add_argument("--scene")
     common.add_argument("--subject")
     common.add_argument("--style")
@@ -339,9 +492,21 @@ def build_parser() -> argparse.ArgumentParser:
     common.add_argument("--text")
     common.add_argument("--constraints")
     common.add_argument("--negative")
+    common.add_argument(
+        "--prompt-specificity",
+        choices=["auto", "generic", "normal", "detailed"],
+        default="auto",
+        help="How aggressively prompt augmentation should add extra details.",
+    )
     common.add_argument("--no-augment", action="store_true")
     common.add_argument("--force", action="store_true")
     common.add_argument("--dry-run", action="store_true")
+
+
+def build_parser() -> argparse.ArgumentParser:
+    parser = argparse.ArgumentParser(description="Azure OpenAI image generation helper")
+    common = argparse.ArgumentParser(add_help=False)
+    add_common_args(common)
 
     sub = parser.add_subparsers(dest="command", required=True)
 
@@ -352,6 +517,16 @@ def build_parser() -> argparse.ArgumentParser:
     gen.add_argument("--out-dir")
     gen.add_argument("--n", type=int, default=1)
     gen.set_defaults(func=cmd_generate)
+
+    edit = sub.add_parser("edit", parents=[common], help="Edit image(s) using gpt-image model semantics.")
+    edit.add_argument("--prompt")
+    edit.add_argument("--prompt-file")
+    edit.add_argument("--image", action="append", required=True, help="Input image path. Repeat for multi-image edit.")
+    edit.add_argument("--mask", help="Optional mask image path.")
+    edit.add_argument("--input-fidelity", choices=["low", "high", "auto"], help="Edit mode fidelity control.")
+    edit.add_argument("--out", default="output/imagegen/output-edit.png")
+    edit.add_argument("--out-dir")
+    edit.set_defaults(func=cmd_edit)
 
     batch = sub.add_parser("generate-batch", parents=[common])
     batch.add_argument("--input", required=True)

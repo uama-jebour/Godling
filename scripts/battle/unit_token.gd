@@ -49,7 +49,11 @@ func configure_token(entity: Dictionary) -> void:
 	_entity_id = String(entity.get("entity_id", ""))
 
 	portrait.texture = _resolve_portrait(unit_id, visual_def)
-	portrait.flip_h = side == "enemy"
+	var flip_override: Variant = visual_def.get("flip_h", null)
+	if typeof(flip_override) == TYPE_BOOL:
+		portrait.flip_h = bool(flip_override)
+	else:
+		portrait.flip_h = false
 	_apply_visual_layout(side, visual_def)
 	name_label.text = String(entity.get("display_name", unit_id))
 	hp_bar.max_value = max_hp
@@ -219,7 +223,7 @@ func apply_motion_pose(motion: Dictionary) -> void:
 
 
 func set_battle_scale(scale_value: float) -> void:
-	_battle_scale = max(0.68, scale_value)
+	_battle_scale = max(0.74, scale_value)
 	scale = _base_scale * _battle_scale
 
 

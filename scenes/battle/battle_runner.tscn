@@ -1,8 +1,9 @@
-[gd_scene load_steps=4 format=3]
+[gd_scene load_steps=5 format=3]
 
 [ext_resource type="Script" path="res://scripts/battle/battle_scene_runner.gd" id="1"]
 [ext_resource type="Script" path="res://scripts/battle/battle_scene_controller.gd" id="2"]
 [ext_resource type="Theme" path="res://assets/fonts/ui_theme.tres" id="3"]
+[ext_resource type="Texture2D" path="res://output/imagegen/godling-batch1/battle-arena-backdrop.png" id="4"]
 
 [node name="BattleRunner" type="Node"]
 script = ExtResource("1")
@@ -27,7 +28,20 @@ anchor_right = 1.0
 anchor_bottom = 1.0
 grow_horizontal = 2
 grow_vertical = 2
-color = Color(0.0313726, 0.0392157, 0.0705882, 0.94)
+color = Color(0.0313726, 0.0392157, 0.0705882, 0.78)
+
+[node name="GlobalBackdropTexture" type="TextureRect" parent="BattleUI"]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+texture = ExtResource("4")
+expand_mode = 1
+stretch_mode = 6
+modulate = Color(1, 1, 1, 0.22)
 
 [node name="ShellMargin" type="MarginContainer" parent="BattleUI"]
 layout_mode = 1
@@ -179,6 +193,7 @@ size_flags_vertical = 3
 mouse_filter = 2
 
 [node name="ArenaTint" type="ColorRect" parent="BattleUI/ShellMargin/ModalPanel/PanelMargin/RootVBox/ContentRow/ArenaPanel/ArenaMargin/ArenaVBox/BattleArena"]
+unique_name_in_owner = true
 layout_mode = 1
 anchors_preset = 15
 anchor_right = 1.0
@@ -186,7 +201,7 @@ anchor_bottom = 1.0
 grow_horizontal = 2
 grow_vertical = 2
 mouse_filter = 2
-color = Color(0.0901961, 0.105882, 0.141176, 1)
+color = Color(0.0901961, 0.105882, 0.141176, 0.24)
 
 [node name="HeroLane" type="ColorRect" parent="BattleUI/ShellMargin/ModalPanel/PanelMargin/RootVBox/ContentRow/ArenaPanel/ArenaMargin/ArenaVBox/BattleArena"]
 unique_name_in_owner = true
