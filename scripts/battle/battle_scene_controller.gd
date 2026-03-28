@@ -3,7 +3,9 @@ extends Node
 signal interactive_battle_finished(result: Dictionary)
 
 const BATTLE_SIMULATOR := preload("res://systems/battle/battle_simulator.gd")
+const AUTO_BATTLE_RUNNER := preload("res://systems/battle/auto_battle_runner.gd")
 const UNIT_TOKEN_SCENE := preload("res://scenes/battle/unit_token.tscn")
+const AUTO_OBSERVE_DEFAULT_MAP := preload("res://scripts/battle/auto_observe_default_map.gd")
 const DRAG_START_DISTANCE := 12.0
 const DRAG_ATTACK_CURVE_ARC_MULTIPLIER := 0.24
 const DRAG_ATTACK_CURVE_ARC_MIN := 46.0
@@ -20,7 +22,8 @@ const MAIN_ITEM_CARD_LIMIT := 2
 const ACTION_INFO_WIDTH_RATIO := 0.15
 const ACTION_INFO_MIN_WIDTH := 180.0
 const ACTION_INFO_MAX_WIDTH := 260.0
-const ARENA_TOKEN_BASE_WIDTH := 248.0
+const ARENA_TOKEN_BASE_WIDTH := 96.0
+const TOKEN_WORLD_ANCHOR_RATIO := Vector2(0.5, 0.78)
 const SKILL_ICON_PRIMARY := preload("res://assets/battle/icons/skill_primary.svg")
 const SKILL_ICON_GUARD := preload("res://assets/battle/icons/skill_guard.svg")
 const SKILL_ICON_BURST := preload("res://assets/battle/icons/skill_burst.svg")
@@ -99,9 +102,12 @@ var burst_resource_bar: ProgressBar
 @onready var item_list_vbox: VBoxContainer = get_node_or_null("%ItemListVBox")
 
 var _simulator: RefCounted
+var _auto_preview_runner: RefCounted
 var _last_state: Dictionary = {}
 var _log_lines: Array[String] = []
 var _arena_nodes: Dictionary = {}
+var _token_target_positions: Dictionary = {}
+var _token_render_positions: Dictionary = {}
 var _last_hp_by_entity: Dictionary = {}
 var _last_visual_position_by_entity: Dictionary = {}
 var _feedback_counts: Dictionary = {"hit": 0, "down": 0}
@@ -115,6 +121,10 @@ var _attack_arrow_glow: Polygon2D
 var _attack_line_tween: Tween
 var _attack_curve_points := PackedVector2Array()
 var _interactive_mode := false
+var _auto_preview_active := false
+var _auto_preview_result: Dictionary = {}
+var _auto_preview_paused := false
+var _auto_preview_speed := 1.0
 var _interactive_request: Dictionary = {}
 var _interactive_context: Dictionary = {}
 var _interactive_state: Dictionary = {}
@@ -132,8 +142,11 @@ var _drag_source_position: Vector2 = Vector2.ZERO
 var _item_card_item_ids := ["", ""]
 var _recent_item_ids: Array[String] = []
 var _current_action_card_width := ACTION_CARD_SIZE.x
+var _current_backdrop_path := ""
 
 const DEFAULT_SKILL_ICON := preload("res://icon.svg")
+const AUTO_PREVIEW_POSITION_LERP_SPEED := 14.0
+const AUTO_PREVIEW_POSITION_SNAP_DISTANCE := 0.75
 
 
 func _ready() -> void:
@@ -166,7 +179,8 @@ func _relocate_hero_panel_to_sidebar() -> void:
 		battle_summary_panel.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 
 
-func _process(_delta: float) -> void:
+func _process(delta: float) -> void:
+	_update_auto_preview_token_motion(delta)
 	_update_drag_hover_feedback()
 	if not _drag_in_progress:
 		return
@@ -331,6 +345,19 @@ func _ensure_attack_line() -> void:
 
 
 func execute_battle(request: Dictionary, battle_def: Dictionary, context: Dictionary = {}) -> Dictionary:
+	if _is_auto_scene_request(battle_def, context):
+		var auto_result: Dictionary = _auto_runner().step_preview(request, battle_def, context)
+		_auto_preview_result = auto_result.duplicate(true)
+		var timeline_frames: Array = auto_result.get("map_effects", {}).get("timeline_frames", [])
+		if not timeline_frames.is_empty():
+			var first_frame_value: Variant = timeline_frames[0]
+			if typeof(first_frame_value) == TYPE_DICTIONARY:
+				var first_frame: Dictionary = first_frame_value
+				_render_state(_auto_frame_to_scene_state(first_frame), String(first_frame.get("headline", "自动战斗初始化")))
+		if bool(context.get("preview_mode", false)):
+			_start_auto_preview_playback(auto_result, context, false)
+		call_deferred("_refresh_layout_after_frame")
+		return auto_result
 	var content_db := get_node_or_null("/root/ContentDB")
 	var state: Dictionary = _sim().initialize_state(request, battle_def, content_db)
 	if state.has("invalid_reason"):
@@ -353,6 +380,9 @@ func execute_battle(request: Dictionary, battle_def: Dictionary, context: Dictio
 
 
 func start_interactive_battle(request: Dictionary, battle_def: Dictionary, context: Dictionary = {}) -> void:
+	if _is_auto_scene_request(battle_def, context):
+		_start_auto_preview_battle(request, battle_def, context)
+		return
 	_reset_render_runtime()
 	_interactive_mode = true
 	_interactive_request = request.duplicate(true)
@@ -378,9 +408,17 @@ func _sim() -> RefCounted:
 	return _simulator
 
 
+func _auto_runner() -> RefCounted:
+	if _auto_preview_runner == null:
+		_auto_preview_runner = AUTO_BATTLE_RUNNER.new()
+	return _auto_preview_runner
+
+
 func _reset_render_runtime() -> void:
 	_timeline.clear()
 	_log_lines.clear()
+	_token_target_positions.clear()
+	_token_render_positions.clear()
 	_last_hp_by_entity.clear()
 	_last_visual_position_by_entity.clear()
 	_feedback_counts = {"hit": 0, "down": 0}
@@ -390,6 +428,10 @@ func _reset_render_runtime() -> void:
 	_selected_target_id = ""
 	_focused_entity_id = ""
 	_resolving_enemy_phase = false
+	_auto_preview_active = false
+	_auto_preview_result = {}
+	_auto_preview_paused = false
+	_auto_preview_speed = 1.0
 	_last_action_signature = ""
 	_drag_in_progress = false
 	_last_drag_payload = {}
@@ -399,6 +441,7 @@ func _reset_render_runtime() -> void:
 	_interactive_context = {}
 	_interactive_state = {}
 	_set_interaction_enabled(false)
+	_set_auto_preview_layout(false)
 
 
 func _decorate_result(result: Dictionary, state: Dictionary) -> Dictionary:
@@ -419,8 +462,10 @@ func _decorate_result(result: Dictionary, state: Dictionary) -> Dictionary:
 
 
 func _render_state(state: Dictionary, headline: String) -> void:
+	_last_state = state.duplicate(true)
 	_ensure_fx_nodes()
 	_layout_arena_regions()
+	_apply_generated_arena_backdrop(state.get("battle_def", {}))
 	var hero_hp: float = float(state.get("hero_hp", 0.0))
 	var combat_focus: Dictionary = _current_combat_focus(state)
 	hero_header.text = "当前交战"
@@ -472,6 +517,9 @@ func _render_state(state: Dictionary, headline: String) -> void:
 
 func _update_interaction_hud(state: Dictionary) -> void:
 	if status_label == null or selected_target_label == null or attack_button == null:
+		return
+	if _auto_preview_active:
+		_update_auto_preview_hud(state)
 		return
 	if not _interactive_mode:
 		status_label.text = "这是自动演示层，用来快速预览战斗表现。"
@@ -614,9 +662,14 @@ func _sync_enemy_tokens(enemy_unit_rows: Array) -> void:
 
 func _sync_arena_tokens(state: Dictionary) -> void:
 	var entities: Array = []
+	var use_world_positions: bool = bool(state.get("use_world_positions", false))
 	var hero_entity: Dictionary = state.get("hero_entity", {})
 	if not hero_entity.is_empty():
 		entities.append(hero_entity)
+	for ally_entity_value in state.get("ally_entities", []):
+		if typeof(ally_entity_value) != TYPE_DICTIONARY:
+			continue
+		entities.append(ally_entity_value)
 	var enemy_entities: Array = state.get("enemy_entities", [])
 	var alive_enemy_entities: Array = []
 	for enemy_entity_value in enemy_entities:
@@ -675,14 +728,18 @@ func _sync_arena_tokens(state: Dictionary) -> void:
 		if token.has_method("configure_token"):
 			token.call("configure_token", entity)
 		if token.has_method("set_battle_scale"):
-			token.call("set_battle_scale", _formation_scale(entity, alive_enemy_entities.size(), battle_arena.size.x))
+			token.call(
+				"set_battle_scale",
+				_world_token_scale(entity) if use_world_positions else _formation_scale(entity, alive_enemy_entities.size(), battle_arena.size.x)
+			)
 		var motion: Dictionary = _build_motion_profile(entity, state)
 		_apply_token_feedback(token, entity_id, entity)
 		var formation_position: Vector2 = _last_visual_position_by_entity.get(entity_id, Vector2.ZERO)
 		if is_alive or String(entity.get("side", "")) == "hero":
-			formation_position = _formation_position(entity, enemy_index_by_id, alive_enemy_entities.size())
+			formation_position = _world_to_arena_position(state, entity, token) if use_world_positions else _formation_position(entity, enemy_index_by_id, alive_enemy_entities.size())
 			_last_visual_position_by_entity[entity_id] = formation_position
-		token.position = formation_position + Vector2(float(motion.get("offset_x", 0.0)), float(motion.get("offset_y", 0.0)))
+		var target_position := formation_position + Vector2(float(motion.get("offset_x", 0.0)), float(motion.get("offset_y", 0.0)))
+		_apply_token_render_position(entity_id, token, target_position, state)
 		if token.has_method("apply_motion_pose"):
 			token.call("apply_motion_pose", motion)
 		var highlighted: bool = (_focused_entity_id == entity_id)
@@ -701,8 +758,58 @@ func _sync_arena_tokens(state: Dictionary) -> void:
 		if token_to_remove != null:
 			token_to_remove.queue_free()
 		_arena_nodes.erase(existing_id)
+		_token_target_positions.erase(existing_id)
+		_token_render_positions.erase(existing_id)
 		_last_hp_by_entity.erase(existing_id)
 		_last_visual_position_by_entity.erase(existing_id)
+
+
+func _apply_token_render_position(entity_id: String, token: Control, target_position: Vector2, state: Dictionary) -> void:
+	_token_target_positions[entity_id] = target_position
+	if not _should_smooth_token_positions(state):
+		_token_render_positions[entity_id] = target_position
+		token.position = target_position
+		return
+	if not _token_render_positions.has(entity_id):
+		_token_render_positions[entity_id] = target_position
+		token.position = target_position
+		return
+	token.position = Vector2(_token_render_positions[entity_id])
+
+
+func _should_smooth_token_positions(state: Dictionary) -> bool:
+	return _auto_preview_active and bool(state.get("use_world_positions", false))
+
+
+func _update_auto_preview_token_motion(delta: float) -> void:
+	if not _auto_preview_active or _token_target_positions.is_empty():
+		return
+	var weight := 1.0 - exp(-AUTO_PREVIEW_POSITION_LERP_SPEED * max(0.0, delta))
+	for entity_id: String in _arena_nodes.keys():
+		if not _token_target_positions.has(entity_id):
+			continue
+		var token: Control = _arena_nodes[entity_id]
+		if token == null:
+			continue
+		var current_position: Vector2 = Vector2(_token_render_positions.get(entity_id, token.position))
+		var target_position: Vector2 = Vector2(_token_target_positions[entity_id])
+		var next_position := current_position.lerp(target_position, weight)
+		if next_position.distance_to(target_position) <= AUTO_PREVIEW_POSITION_SNAP_DISTANCE:
+			next_position = target_position
+		_token_render_positions[entity_id] = next_position
+		token.position = next_position
+
+
+func _snap_all_token_render_positions_to_targets() -> void:
+	for entity_id: String in _arena_nodes.keys():
+		if not _token_target_positions.has(entity_id):
+			continue
+		var token: Control = _arena_nodes[entity_id]
+		if token == null:
+			continue
+		var target_position: Vector2 = Vector2(_token_target_positions[entity_id])
+		_token_render_positions[entity_id] = target_position
+		token.position = target_position
 
 
 func _apply_token_feedback(token: Control, entity_id: String, entity: Dictionary) -> void:
@@ -733,11 +840,19 @@ func _apply_token_feedback(token: Control, entity_id: String, entity: Dictionary
 func _build_motion_profile(entity: Dictionary, state: Dictionary) -> Dictionary:
 	var side: String = String(entity.get("side", "enemy"))
 	var is_alive: bool = bool(entity.get("is_alive", true))
+	var entity_id: String = String(entity.get("entity_id", ""))
+	var attack_actions: Array = _attack_actions_for_state(state)
+	var attack_phase := false
+	for action_value in attack_actions:
+		if typeof(action_value) != TYPE_DICTIONARY:
+			continue
+		if String((action_value as Dictionary).get("actor_id", "")) == entity_id:
+			attack_phase = is_alive
+			break
 	var action: Dictionary = state.get("last_action", {})
-	var attack_phase: bool = is_alive and String(action.get("actor_id", "")) == String(entity.get("entity_id", ""))
 	var stride: float = 14.0 if side == "hero" else -10.0
 	var phase_name: String = String(action.get("phase", ""))
-	var defend_phase: bool = is_alive and phase_name == "defend" and String(action.get("actor_id", "")) == String(entity.get("entity_id", ""))
+	var defend_phase: bool = is_alive and phase_name == "defend" and String(action.get("actor_id", "")) == entity_id
 	var offset_x: float = stride if attack_phase else 0.0
 	var offset_y: float = -3.0 if attack_phase else 0.0
 	if defend_phase:
@@ -764,87 +879,170 @@ func _build_motion_profile(entity: Dictionary, state: Dictionary) -> Dictionary:
 
 func _render_attack_cues(state: Dictionary) -> void:
 	_ensure_fx_nodes()
+	var attack_actions: Array = _attack_actions_for_state(state)
+	var highlighted_ids: Dictionary = {}
+	for action_value in attack_actions:
+		if typeof(action_value) != TYPE_DICTIONARY:
+			continue
+		var attack_action: Dictionary = action_value
+		var actor_id: String = String(attack_action.get("actor_id", ""))
+		var target_id: String = String(attack_action.get("target_id", ""))
+		if not actor_id.is_empty():
+			highlighted_ids[actor_id] = String(attack_action.get("actor_side", "hero"))
+		if not target_id.is_empty():
+			highlighted_ids[target_id] = String(attack_action.get("target_side", "enemy"))
 	for entity_id: String in _arena_nodes.keys():
 		var token: Control = _arena_nodes[entity_id]
 		if token != null and token.has_method("set_targeted"):
 			var side: String = "hero" if entity_id == "hero_1" else "enemy"
 			var keep_selected: bool = (_focused_entity_id == entity_id) or (_interactive_mode and entity_id == _selected_target_id and side == "enemy")
-			token.call("set_targeted", keep_selected, side)
+			var glow_side: String = side
+			if highlighted_ids.has(entity_id):
+				glow_side = String(highlighted_ids[entity_id])
+			token.call("set_targeted", keep_selected or highlighted_ids.has(entity_id), glow_side)
 
-	var action: Dictionary = state.get("last_action", {})
-	var action_seq: int = int(action.get("seq", -1))
-	var action_signature: String = str(action_seq)
-	if action_seq < 0:
-		action_signature = "%s|%s|%s|%s|%s|%s|%s" % [
-			str(action.get("actor_id", "")),
-			str(action.get("target_id", "")),
-			str(action.get("phase", "")),
-			str(action.get("damage", "")),
-			str(state.get("elapsed", 0)),
-			str(state.get("enemy_turn_index", 0)),
-			str(state.get("hero_hp", 0.0)),
-		]
+	var action_signature: String = JSON.stringify(attack_actions)
 	if action_signature == _last_action_signature:
 		return
 	_last_action_signature = action_signature
-	if _attack_line_tween != null:
-		_attack_line_tween.kill()
-	_attack_line_tween = null
-	_hide_attack_line()
-	var source_id: String = String(action.get("actor_id", ""))
-	var target_id: String = String(action.get("target_id", ""))
-	if source_id.is_empty() or target_id.is_empty():
+	if attack_actions.is_empty():
 		return
-	var phase_name: String = String(action.get("phase", ""))
-	if phase_name == "defend":
-		if _arena_nodes.has(source_id):
-			var defend_token: Control = _arena_nodes[source_id]
-			if defend_token != null and defend_token.has_method("play_action_cue"):
-				defend_token.call("play_action_cue", "defend", String(action.get("actor_side", "hero")))
+	var action_delay := 0.0
+	for action_value in attack_actions:
+		if typeof(action_value) != TYPE_DICTIONARY:
+			continue
+		var recent_action: Dictionary = action_value
+		var source_id: String = String(recent_action.get("actor_id", ""))
+		var target_id: String = String(recent_action.get("target_id", ""))
+		var phase_name: String = String(recent_action.get("phase", ""))
+		var action_type: String = String(recent_action.get("type", ""))
+		if source_id.is_empty() or target_id.is_empty():
+			continue
+		if phase_name == "defend":
+			if _arena_nodes.has(source_id):
+				var defend_token: Control = _arena_nodes[source_id]
+				if defend_token != null and defend_token.has_method("play_action_cue"):
+					defend_token.call("play_action_cue", "defend", String(recent_action.get("actor_side", "hero")))
+			continue
+		if action_type != "attack" and not ["player", "enemy"].has(phase_name):
+			continue
+		var recent_actor_id: String = String(recent_action.get("actor_id", ""))
+		var recent_target_id: String = String(recent_action.get("target_id", ""))
+		if _arena_nodes.has(recent_actor_id):
+			var actor_token: Control = _arena_nodes[recent_actor_id]
+			if actor_token != null and actor_token.has_method("play_action_cue"):
+				actor_token.call("play_action_cue", "attack", String(recent_action.get("actor_side", "hero")))
+		if _arena_nodes.has(recent_target_id):
+			var impacted_token: Control = _arena_nodes[recent_target_id]
+			if impacted_token != null and impacted_token.has_method("play_action_cue"):
+				impacted_token.call("play_action_cue", "impact", String(recent_action.get("target_side", "enemy")))
+			# 播放击中粒子效果
+			if impacted_token != null and impacted_token.has_method("play_hit_particles"):
+				impacted_token.call("play_hit_particles")
+		if not _arena_nodes.has(source_id) or not _arena_nodes.has(target_id):
+			continue
+		var source_token: Control = _arena_nodes[source_id]
+		var target_token: Control = _arena_nodes[target_id]
+		if source_token == null or target_token == null:
+			continue
+		var source_point: Vector2 = source_token.position + (source_token.custom_minimum_size * 0.5)
+		var target_point: Vector2 = target_token.position + (target_token.custom_minimum_size * 0.5)
+		var line_color := Color(1.0, 0.92, 0.42, 1.0) if String(recent_action.get("actor_side", "hero")) == "hero" else Color(1.0, 0.42, 0.36, 0.96)
+		_spawn_transient_attack_cue(source_point, target_point, line_color, action_delay)
+		_combat_cue_counts["attack_lines"] = int(_combat_cue_counts.get("attack_lines", 0)) + 1
+		action_delay += 0.05
+
+
+func _attack_actions_for_state(state: Dictionary) -> Array:
+	var actions: Array = []
+	for action_value in state.get("recent_actions", []):
+		if typeof(action_value) != TYPE_DICTIONARY:
+			continue
+		var action: Dictionary = action_value
+		if String(action.get("type", "")) == "attack":
+			actions.append(action)
+	if not actions.is_empty():
+		return actions
+	var fallback: Dictionary = state.get("last_action", {})
+	if String(fallback.get("type", "")) == "attack":
+		return [fallback]
+	return []
+
+
+func _spawn_transient_attack_cue(source_point: Vector2, target_point: Vector2, line_color: Color, delay_seconds: float = 0.0) -> void:
+	if battle_arena == null:
 		return
-	if not ["player", "enemy"].has(phase_name):
-		return
-	if not _arena_nodes.has(source_id) or not _arena_nodes.has(target_id):
-		return
-	var source_token: Control = _arena_nodes[source_id]
-	var target_token: Control = _arena_nodes[target_id]
-	if source_token == null or target_token == null:
-		return
-	var source_point: Vector2 = source_token.position + (source_token.custom_minimum_size * 0.5)
-	var target_point: Vector2 = target_token.position + (target_token.custom_minimum_size * 0.5)
-	var line_color := Color(1.0, 0.92, 0.42, 1.0) if String(action.get("actor_side", "hero")) == "hero" else Color(1.0, 0.42, 0.36, 0.96)
-	_attack_curve_points = _build_attack_curve_points(source_point, target_point)
-	_attack_line.default_color = line_color
-	_attack_line.visible = true
-	_attack_line.modulate.a = 1.0
-	if _attack_arrow != null:
-		_attack_arrow.color = Color(1.0, 0.98, 0.92, 1.0)
-		_attack_arrow.visible = true
-		_attack_arrow.modulate.a = 1.0
-	if _attack_arrow_glow != null:
-		_attack_arrow_glow.color = Color(line_color.r, line_color.g, line_color.b, 0.42)
-		_attack_arrow_glow.visible = true
-		_attack_arrow_glow.modulate.a = 1.0
-	_set_attack_cue_progress(0.0)
-	_combat_cue_counts["attack_lines"] = int(_combat_cue_counts.get("attack_lines", 0)) + 1
-	if source_token.has_method("play_action_cue"):
-		source_token.call("play_action_cue", "attack", String(action.get("actor_side", "hero")))
-	if target_token.has_method("play_action_cue"):
-		target_token.call("play_action_cue", "impact", String(action.get("target_side", "enemy")))
-	_attack_line_tween = create_tween()
-	_attack_line_tween.set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT)
-	_attack_line_tween.tween_method(Callable(self, "_set_attack_cue_progress"), 0.0, 1.0, 0.28)
-	_attack_line_tween.tween_interval(0.10)
-	_attack_line_tween.parallel().tween_property(_attack_line, "modulate:a", 0.0, 0.48)
-	if _attack_arrow != null:
-		_attack_line_tween.parallel().tween_property(_attack_arrow, "modulate:a", 0.0, 0.48)
-	if _attack_arrow_glow != null:
-		_attack_line_tween.parallel().tween_property(_attack_arrow_glow, "modulate:a", 0.0, 0.48)
-	_attack_line_tween.tween_callback(_hide_attack_line)
-	if source_token.has_method("set_targeted"):
-		source_token.call("set_targeted", true, String(action.get("actor_side", "hero")))
-	if target_token.has_method("set_targeted"):
-		target_token.call("set_targeted", true, String(action.get("target_side", "enemy")))
+	var curve_points: PackedVector2Array = _build_attack_curve_points(source_point, target_point)
+	var line := Line2D.new()
+	line.width = 8.0
+	line.z_index = 20
+	line.antialiased = true
+	line.begin_cap_mode = Line2D.LINE_CAP_ROUND
+	line.end_cap_mode = Line2D.LINE_CAP_ROUND
+	line.joint_mode = Line2D.LINE_JOINT_ROUND
+	line.default_color = line_color
+	line.points = curve_points
+	line.modulate.a = 0.0
+	battle_arena.add_child(line)
+
+	var arrow_glow := Polygon2D.new()
+	arrow_glow.polygon = PackedVector2Array([
+		Vector2(12, 0),
+		Vector2(-18, 22),
+		Vector2(-8, 7),
+		Vector2(-58, 0),
+		Vector2(-8, -7),
+		Vector2(-18, -22)
+	])
+	arrow_glow.z_index = 21
+	arrow_glow.color = Color(line_color.r, line_color.g, line_color.b, 0.42)
+	arrow_glow.modulate.a = 0.0
+	battle_arena.add_child(arrow_glow)
+
+	var arrow := Polygon2D.new()
+	arrow.polygon = PackedVector2Array([
+		Vector2(10, 0),
+		Vector2(-10, 16),
+		Vector2(-2, 5),
+		Vector2(-42, 0),
+		Vector2(-2, -5),
+		Vector2(-10, -16)
+	])
+	arrow.z_index = 22
+	arrow.color = Color(1.0, 0.98, 0.92, 1.0)
+	arrow.modulate.a = 0.0
+	battle_arena.add_child(arrow)
+
+	var tip_point: Vector2 = curve_points[curve_points.size() - 1]
+	var tangent: Vector2 = (curve_points[curve_points.size() - 1] - curve_points[curve_points.size() - 2]).normalized()
+	if tangent == Vector2.ZERO:
+		tangent = Vector2.RIGHT
+	arrow.position = tip_point
+	arrow.rotation = tangent.angle()
+	arrow_glow.position = tip_point
+	arrow_glow.rotation = tangent.angle()
+
+	var tween := create_tween()
+	tween.set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT)
+	if delay_seconds > 0.0:
+		tween.tween_interval(delay_seconds)
+
+	# 第一阶段：快速淡入并显示攻击轨迹（描边效果）
+	tween.parallel().tween_property(line, "modulate:a", 1.0, 0.10)
+	tween.parallel().tween_property(arrow, "modulate:a", 1.0, 0.10)
+	tween.parallel().tween_property(arrow_glow, "modulate:a", 0.8, 0.10)
+
+	# 第二阶段：保持显示，让玩家看清攻击方向（延长停留时间）
+	tween.tween_interval(0.50)
+
+	# 第三阶段：淡出
+	tween.parallel().tween_property(line, "modulate:a", 0.0, 0.35)
+	tween.parallel().tween_property(arrow, "modulate:a", 0.0, 0.30)
+	tween.parallel().tween_property(arrow_glow, "modulate:a", 0.0, 0.40)
+
+	tween.tween_callback(line.queue_free)
+	tween.tween_callback(arrow.queue_free)
+	tween.tween_callback(arrow_glow.queue_free)
 
 
 func _ensure_fx_nodes() -> void:
@@ -1081,13 +1279,13 @@ func _formation_position(entity: Dictionary, enemy_index_by_id: Dictionary, enem
 	var enemy_index: int = int(enemy_index_by_id.get(entity_id, 0))
 	var enemy_scale: float = _formation_scale(entity, enemy_count, arena_size.x)
 	var token_width: float = ARENA_TOKEN_BASE_WIDTH * enemy_scale
-	var base_gap: float = clamp(arena_size.x * 0.018, 10.0, 28.0)
+	var base_gap: float = clamp(arena_size.x * 0.024, 14.0, 36.0)
 	var available_start_x: float = 24.0 + hero_lane_width + gap_band_width
 	var available_width: float = max(120.0, arena_size.x - available_start_x - 24.0)
 	var total_width: float = (float(enemy_count) * token_width) + (float(max(0, enemy_count - 1)) * base_gap)
 	var gap: float = base_gap
 	if enemy_count > 1 and total_width > available_width:
-		gap = max(6.0, (available_width - (float(enemy_count) * token_width)) / float(enemy_count - 1))
+		gap = max(10.0, (available_width - (float(enemy_count) * token_width)) / float(enemy_count - 1))
 		total_width = (float(enemy_count) * token_width) + (float(enemy_count - 1) * gap)
 	var start_x: float = available_start_x + max(0.0, (available_width - total_width) * 0.5)
 	start_x = clamp(start_x, available_start_x, max(available_start_x, arena_size.x - total_width - 18.0))
@@ -1096,30 +1294,41 @@ func _formation_position(entity: Dictionary, enemy_index_by_id: Dictionary, enem
 
 func _formation_scale(entity: Dictionary, enemy_count: int, arena_width: float) -> float:
 	if String(entity.get("side", "enemy")) == "hero":
-		var desired_hero_scale := 1.34
+		var desired_hero_scale := 1.28
 		var center_line_x: float = _hero_lane_width(arena_width) + (_gap_band_width(arena_width) * 0.5)
 		var hero_max_width: float = max(ARENA_TOKEN_BASE_WIDTH * 1.02, center_line_x - 12.0 - 42.0)
 		var max_hero_scale: float = hero_max_width / ARENA_TOKEN_BASE_WIDTH
-		return clamp(min(desired_hero_scale, max_hero_scale), 1.02, 1.34)
-	var base_scale := 1.18
+		return clamp(min(desired_hero_scale, max_hero_scale), 1.02, 1.28)
+	var base_scale := 1.12
 	match enemy_count:
 		0, 1:
-			base_scale = 1.30
+			base_scale = 1.22
 		2:
-			base_scale = 1.20
+			base_scale = 1.14
 		3:
-			base_scale = 1.10
+			base_scale = 1.06
 		4:
-			base_scale = 1.02
+			base_scale = 0.98
 		_:
-			base_scale = 0.96
+			base_scale = 0.92
 	var gap_band_width: float = _gap_band_width(arena_width)
 	var hero_lane_width: float = _hero_lane_width(arena_width)
 	var available_width: float = max(120.0, arena_width - hero_lane_width - gap_band_width - 48.0)
-	var preferred_gap: float = clamp(arena_width * 0.018, 10.0, 28.0)
+	var preferred_gap: float = clamp(arena_width * 0.024, 14.0, 36.0)
 	var total_gap: float = float(max(0, enemy_count - 1)) * preferred_gap
 	var max_scale_for_width: float = (available_width - total_gap) / max(ARENA_TOKEN_BASE_WIDTH, float(enemy_count) * ARENA_TOKEN_BASE_WIDTH)
-	return clamp(min(base_scale, max_scale_for_width), 0.92, 1.42)
+	return clamp(min(base_scale, max_scale_for_width), 0.88, 1.32)
+
+
+func _world_token_scale(entity: Dictionary) -> float:
+	var radius: float = float(entity.get("collision_radius", 24.0))
+	var side: String = String(entity.get("side", "enemy"))
+	var base_scale: float = clamp(radius / 24.0, 0.88, 1.12)
+	if side == "hero":
+		base_scale = min(1.18, base_scale + 0.08)
+	elif side == "enemy":
+		base_scale = max(0.86, base_scale - 0.02)
+	return base_scale
 
 
 func _layout_arena_regions() -> void:
@@ -1180,6 +1389,12 @@ func _current_combat_focus(state: Dictionary) -> Dictionary:
 func _entity_display_name(state: Dictionary, entity_id: String) -> String:
 	if entity_id == "hero_1":
 		return String(state.get("hero_entity", {}).get("display_name", "Hero"))
+	for ally_entity_value in state.get("ally_entities", []):
+		if typeof(ally_entity_value) != TYPE_DICTIONARY:
+			continue
+		var ally_entity: Dictionary = ally_entity_value
+		if String(ally_entity.get("entity_id", "")) == entity_id:
+			return String(ally_entity.get("display_name", entity_id))
 	for enemy_entity_value in state.get("enemy_entities", []):
 		if typeof(enemy_entity_value) != TYPE_DICTIONARY:
 			continue
@@ -1230,6 +1445,10 @@ func _format_action_brief(state: Dictionary) -> String:
 			return "%s 以祷焰横扫压制敌方全体（%.1f）" % [actor_name, max(0.0, damage)]
 		"enemy":
 			return "%s 对 %s 造成 %.1f 伤害" % [actor_name, target_name, max(0.0, damage)]
+		"strategy":
+			return "%s 触发策略效果 -> %s" % [actor_name, target_name]
+		"scripted_event":
+			return "%s -> %s" % [actor_name, target_name]
 		"defend":
 			return "%s 进入防御姿态" % actor_name
 		"wait":
@@ -1300,6 +1519,27 @@ func _set_interaction_enabled(enabled: bool) -> void:
 		item_button.visible = enabled
 		item_button.disabled = not enabled
 	if item_popup_panel != null and not enabled:
+		item_popup_panel.hide()
+
+
+func _set_auto_preview_layout(enabled: bool) -> void:
+	if attack_skill_card != null:
+		attack_skill_card.visible = not enabled
+	if defend_skill_card != null:
+		defend_skill_card.visible = not enabled
+	if burst_skill_card != null:
+		burst_skill_card.visible = not enabled
+	if item_card_rack != null:
+		item_card_rack.visible = not enabled
+	if status_label != null:
+		status_label.visible = enabled
+	if selected_target_label != null:
+		selected_target_label.visible = enabled
+	if wait_button != null:
+		wait_button.visible = enabled
+	if item_button != null:
+		item_button.visible = enabled
+	if item_popup_panel != null and enabled:
 		item_popup_panel.hide()
 
 
@@ -1374,6 +1614,10 @@ func _on_burst_pressed() -> void:
 
 
 func _on_wait_pressed() -> void:
+	if _auto_preview_active:
+		_auto_preview_paused = not _auto_preview_paused
+		_update_auto_preview_hud(_last_state)
+		return
 	if not _interactive_mode or _resolving_enemy_phase:
 		return
 	_interactive_state = _sim().apply_player_wait(_interactive_state)
@@ -1382,6 +1626,15 @@ func _on_wait_pressed() -> void:
 
 
 func _on_item_pressed() -> void:
+	if _auto_preview_active:
+		var speed_options := [0.5, 1.0, 2.0]
+		var current_index := speed_options.find(_auto_preview_speed)
+		if current_index < 0:
+			current_index = 1
+		current_index = (current_index + 1) % speed_options.size()
+		_auto_preview_speed = float(speed_options[current_index])
+		_update_auto_preview_hud(_last_state)
+		return
 	if not _interactive_mode or _resolving_enemy_phase:
 		return
 	var battle_items: Array = _interactive_state.get("battle_items", [])
@@ -1451,6 +1704,239 @@ func _finish_interactive_battle(result: Dictionary) -> void:
 	emit_signal("interactive_battle_finished", result)
 
 
+func _is_auto_scene_request(battle_def: Dictionary, context: Dictionary) -> bool:
+	var backend: String = String(context.get("battle_backend", ""))
+	if backend == "auto_scene":
+		return true
+	return (not bool(context.get("interactive_mode", false))) and String(battle_def.get("battle_mode", "legacy_interactive")) == "auto_units"
+
+
+func _start_auto_preview_battle(request: Dictionary, battle_def: Dictionary, context: Dictionary) -> void:
+	_reset_render_runtime()
+	var auto_context: Dictionary = context.duplicate(true)
+	auto_context["battle_backend"] = "auto_scene"
+	_auto_preview_result = _auto_runner().step_preview(request, battle_def, auto_context)
+	_start_auto_preview_playback(_auto_preview_result, auto_context, true)
+	call_deferred("_refresh_layout_after_frame")
+
+
+func _start_auto_preview_playback(result: Dictionary, context: Dictionary, emit_finished_signal: bool) -> void:
+	_auto_preview_active = true
+	_auto_preview_paused = false
+	_auto_preview_speed = max(0.5, float(context.get("preview_speed", 1.0)))
+	_set_interaction_enabled(false)
+	_set_auto_preview_layout(true)
+	_timeline = result.get("map_effects", {}).get("timeline_frames", []).duplicate(true)
+	if _timeline.is_empty():
+		_auto_preview_active = false
+		_set_auto_preview_layout(false)
+		if emit_finished_signal:
+			emit_signal("interactive_battle_finished", result)
+		return
+	_log_lines.clear()
+	_last_hp_by_entity.clear()
+	_last_visual_position_by_entity.clear()
+	var first_frame_value: Variant = _timeline[0]
+	if typeof(first_frame_value) == TYPE_DICTIONARY:
+		var first_frame: Dictionary = first_frame_value
+		_render_state(_auto_frame_to_scene_state(first_frame), String(first_frame.get("headline", "自动战斗初始化")))
+	var nonce: int = _playback_nonce
+	call_deferred("_play_auto_preview_async", nonce, emit_finished_signal)
+
+
+func _play_auto_preview_async(nonce: int, emit_finished_signal: bool) -> void:
+	await get_tree().process_frame
+	for frame_index in range(_timeline.size()):
+		if nonce != _playback_nonce:
+			return
+		var frame_value: Variant = _timeline[frame_index]
+		if typeof(frame_value) != TYPE_DICTIONARY:
+			continue
+		while _auto_preview_paused and nonce == _playback_nonce:
+			await get_tree().create_timer(0.08).timeout
+		if nonce != _playback_nonce:
+			return
+		var frame: Dictionary = frame_value
+		_render_state(_auto_frame_to_scene_state(frame), String(frame.get("headline", "自动战斗推进")))
+		if frame_index >= _timeline.size() - 1:
+			continue
+		await get_tree().create_timer(max(0.01, 0.26 / max(0.5, _auto_preview_speed))).timeout
+	if nonce != _playback_nonce:
+		return
+	_auto_preview_active = false
+	_set_auto_preview_layout(false)
+	_update_interaction_hud(_last_state)
+	if emit_finished_signal:
+		emit_signal("interactive_battle_finished", _auto_preview_result.duplicate(true))
+
+
+func _auto_frame_to_scene_state(frame: Dictionary) -> Dictionary:
+	var entities: Array = frame.get("entities", [])
+	var entity_names: Dictionary = {}
+	var hero_entity: Dictionary = {}
+	var ally_entities: Array = []
+	var enemy_entities: Array = []
+	var enemy_unit_counts: Dictionary = {}
+	var enemy_total_hp := 0.0
+	for entity_value in entities:
+		if typeof(entity_value) != TYPE_DICTIONARY:
+			continue
+		var entity: Dictionary = _normalize_auto_entity(entity_value)
+		var entity_id: String = String(entity.get("entity_id", ""))
+		entity_names[entity_id] = String(entity.get("display_name", entity_id))
+		match String(entity.get("side", "")):
+			"hero":
+				hero_entity = entity
+			"ally":
+				ally_entities.append(entity)
+			"enemy":
+				enemy_entities.append(entity)
+				if bool(entity.get("is_alive", true)):
+					enemy_total_hp += float(entity.get("current_hp", 0.0))
+					var unit_id: String = String(entity.get("unit_id", ""))
+					enemy_unit_counts[unit_id] = int(enemy_unit_counts.get(unit_id, 0)) + 1
+	var enemy_units: Array = []
+	for unit_id: String in enemy_unit_counts.keys():
+		enemy_units.append({"unit_id": unit_id, "count": int(enemy_unit_counts[unit_id])})
+	var scene_state := {
+		"battle_def": frame.get("battle_def", {}).duplicate(true),
+		"battlefield": frame.get("battlefield", {}).duplicate(true),
+		"hero_entity": hero_entity,
+		"ally_entities": ally_entities,
+		"enemy_entities": enemy_entities,
+		"enemy_units": enemy_units,
+		"enemy_total_hp": enemy_total_hp,
+		"hero_hp": float(hero_entity.get("current_hp", 0.0)),
+		"events_triggered": frame.get("triggered_scripted_event_ids", []).duplicate(true),
+		"elapsed": int(frame.get("tick", 0)),
+		"elapsed_ticks": int(frame.get("tick", 0)),
+		"use_world_positions": true,
+		"recent_actions": frame.get("new_actions", []).duplicate(true),
+		"last_action": _auto_frame_action(frame, entity_names),
+		"status_text": _auto_status_text(frame),
+		"preview_strategies": frame.get("strategies", []).duplicate(true),
+		"preview_notifications": frame.get("new_notifications", []).duplicate(true)
+	}
+	return scene_state
+
+
+func _normalize_auto_entity(entity: Dictionary) -> Dictionary:
+	var normalized: Dictionary = entity.duplicate(true)
+	normalized["current_hp"] = float(entity.get("hp", entity.get("current_hp", 0.0)))
+	normalized["is_alive"] = bool(entity.get("alive", entity.get("is_alive", true)))
+	return normalized
+
+
+func _auto_frame_action(frame: Dictionary, entity_names: Dictionary) -> Dictionary:
+	var action: Dictionary = frame.get("last_action", {}).duplicate(true)
+	if action.is_empty():
+		return {}
+	var actor_id: String = String(action.get("actor_id", ""))
+	var target_id: String = String(action.get("target_id", ""))
+	var actor_side: String = String(action.get("actor_side", ""))
+	var target_side: String = String(action.get("target_side", ""))
+	var action_type: String = String(action.get("type", ""))
+	action["actor_name"] = String(entity_names.get(actor_id, actor_id if not actor_id.is_empty() else "策略"))
+	action["target_name"] = String(entity_names.get(target_id, target_id if not target_id.is_empty() else "区域"))
+	if action_type == "attack":
+		action["phase"] = "enemy" if actor_side == "enemy" else "player"
+	elif action_type.begins_with("strategy_"):
+		action["phase"] = "strategy"
+		action["actor_side"] = "hero"
+		action["target_side"] = target_side if not target_side.is_empty() else "enemy"
+	else:
+		action["phase"] = "scripted_event"
+	return action
+
+
+func _auto_status_text(frame: Dictionary) -> String:
+	var new_notifications: Array = frame.get("new_notifications", [])
+	if not new_notifications.is_empty():
+		var latest_notification_value: Variant = new_notifications[new_notifications.size() - 1]
+		if typeof(latest_notification_value) == TYPE_DICTIONARY:
+			var latest_notification: Dictionary = latest_notification_value
+			var stage_text: String = String(latest_notification.get("text", ""))
+			if not stage_text.is_empty():
+				return stage_text
+	var new_event_resolutions: Array = frame.get("new_event_resolutions", [])
+	if not new_event_resolutions.is_empty():
+		var latest_event_value: Variant = new_event_resolutions[new_event_resolutions.size() - 1]
+		if typeof(latest_event_value) == TYPE_DICTIONARY:
+			var latest_event: Dictionary = latest_event_value
+			return "事件 %s 已%s" % [
+				String(latest_event.get("event_id", "")),
+				"打断" if String(latest_event.get("resolution", "")) == "cancelled" else "生效"
+			]
+	var last_action: Dictionary = frame.get("last_action", {})
+	match String(last_action.get("type", "")):
+		"attack":
+			return "单位交战中，战线正在推进。"
+		"strategy_single_target", "strategy_area_damage", "strategy_pulse_damage", "strategy_pulse_heal", "strategy_pulse_shield":
+			return "策略已触发，战场态势发生变化。"
+		_:
+			return "自动战斗观战中。"
+
+
+func _update_auto_preview_hud(state: Dictionary) -> void:
+	var tick_value: int = int(state.get("elapsed_ticks", state.get("elapsed", 0)))
+	var strategy_names: Array[String] = []
+	for strategy_value in state.get("preview_strategies", []):
+		if typeof(strategy_value) != TYPE_DICTIONARY:
+			continue
+		var strategy: Dictionary = strategy_value
+		strategy_names.append(String(strategy.get("name_cn", strategy.get("id", ""))))
+	if status_label != null:
+		status_label.text = "自动观战中  |  Tick %d  |  %s" % [
+			tick_value,
+			"已暂停" if _auto_preview_paused else "播放中"
+		]
+	if selected_target_label != null:
+		selected_target_label.text = "倍率 %.1fx  |  策略 %s" % [
+			_auto_preview_speed,
+			"，".join(strategy_names) if not strategy_names.is_empty() else "无"
+		]
+	if wait_button != null:
+		wait_button.disabled = false
+		wait_button.text = "继续播放" if _auto_preview_paused else "暂停播放"
+		wait_button.tooltip_text = "暂停或继续自动战斗观战。"
+	if item_button != null:
+		item_button.disabled = false
+		item_button.text = "倍率 %.1fx" % _auto_preview_speed
+		item_button.tooltip_text = "在 0.5x / 1x / 2x 之间切换播放速度。"
+
+
+func _world_to_arena_position(state: Dictionary, entity: Dictionary, token: Control) -> Vector2:
+	var battlefield: Dictionary = state.get("battlefield", {})
+	var size: Array = battlefield.get("size", [840, 480])
+	var field_width: float = max(1.0, float(size[0]) if size.size() > 0 else 840.0)
+	var field_height: float = max(1.0, float(size[1]) if size.size() > 1 else 480.0)
+	var arena_size: Vector2 = battle_arena.size
+	if arena_size.x < 10.0:
+		arena_size.x = max(860.0, battle_arena.custom_minimum_size.x)
+	if arena_size.y < 10.0:
+		arena_size.y = max(520.0, battle_arena.custom_minimum_size.y)
+	var world_position := Vector2.ZERO
+	var position_value: Variant = entity.get("position", [0.0, 0.0])
+	if typeof(position_value) == TYPE_ARRAY:
+		var values: Array = position_value
+		if values.size() >= 2:
+			world_position = Vector2(float(values[0]), float(values[1]))
+	var token_size: Vector2 = token.custom_minimum_size
+	if token_size.x <= 1.0 or token_size.y <= 1.0:
+		token_size = Vector2(104.0, 132.0)
+	var scale_value: float = max(0.68, max(token.scale.x, token.scale.y))
+	var scaled_size := token_size * scale_value
+	var arena_position := Vector2(
+		(world_position.x / field_width) * arena_size.x,
+		(world_position.y / field_height) * arena_size.y
+	)
+	var anchor_offset := Vector2(
+		scaled_size.x * TOKEN_WORLD_ANCHOR_RATIO.x,
+		scaled_size.y * TOKEN_WORLD_ANCHOR_RATIO.y
+	)
+	return arena_position - anchor_offset
+
+
 func _queue_enemy_phase_or_finish() -> void:
 	if not _sim().is_battle_active(_interactive_state):
 		_finish_interactive_battle(_decorate_result(_sim().build_result(_interactive_state, _interactive_context, "scene"), _interactive_state))
@@ -1468,6 +1954,8 @@ func _queue_enemy_phase_or_finish() -> void:
 func _on_battle_arena_resized() -> void:
 	_layout_arena_regions()
 	_refresh_arena_entities()
+	if _auto_preview_active:
+		_snap_all_token_render_positions_to_targets()
 	_layout_action_bar()
 
 
@@ -1475,6 +1963,8 @@ func _refresh_layout_after_frame() -> void:
 	await get_tree().process_frame
 	_layout_arena_regions()
 	_refresh_arena_entities()
+	if _auto_preview_active:
+		_snap_all_token_render_positions_to_targets()
 	_layout_action_bar()
 
 
@@ -1993,22 +2483,98 @@ func _apply_generated_art_preview() -> void:
 	_apply_generated_arena_backdrop()
 
 
-func _apply_generated_arena_backdrop() -> void:
+func _apply_generated_arena_backdrop(battle_def: Dictionary = {}) -> void:
 	if battle_arena == null:
 		return
+	var desired_path: String = _battlefield_visual_path(battle_def)
+	var use_procedural_default := _should_use_procedural_default_backdrop(battle_def, desired_path)
 	var backdrop_layer := battle_arena.get_node_or_null("ArenaBackdropArt") as TextureRect
-	if backdrop_layer != null:
-		backdrop_layer.queue_free()
+	var procedural_layer := battle_arena.get_node_or_null("ArenaBackdropProcedural") as Control
+
+	if use_procedural_default:
+		if backdrop_layer != null:
+			backdrop_layer.queue_free()
+		if procedural_layer == null:
+			procedural_layer = AUTO_OBSERVE_DEFAULT_MAP.new()
+			procedural_layer.name = "ArenaBackdropProcedural"
+			procedural_layer.set_anchors_preset(Control.PRESET_FULL_RECT)
+			procedural_layer.mouse_filter = Control.MOUSE_FILTER_IGNORE
+			battle_arena.add_child(procedural_layer)
+			battle_arena.move_child(procedural_layer, 0)
+		else:
+			procedural_layer.queue_redraw()
+		_current_backdrop_path = "__procedural_default__"
+	else:
+		if procedural_layer != null:
+			procedural_layer.queue_free()
+		if backdrop_layer != null and desired_path != _current_backdrop_path:
+			backdrop_layer.queue_free()
+			backdrop_layer = null
+		if backdrop_layer == null and not desired_path.is_empty():
+			backdrop_layer = TextureRect.new()
+			backdrop_layer.name = "ArenaBackdropArt"
+			backdrop_layer.mouse_filter = Control.MOUSE_FILTER_IGNORE
+			backdrop_layer.set_anchors_preset(Control.PRESET_FULL_RECT)
+			backdrop_layer.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+			backdrop_layer.stretch_mode = TextureRect.STRETCH_SCALE
+			battle_arena.add_child(backdrop_layer)
+			battle_arena.move_child(backdrop_layer, 0)
+		if backdrop_layer != null and desired_path != _current_backdrop_path:
+			var texture := _texture_from_path(desired_path)
+			if texture != null:
+				backdrop_layer.texture = texture
+		_current_backdrop_path = desired_path
+
+	var use_tactical_map := (not desired_path.is_empty()) or use_procedural_default
 	if arena_tint != null:
-		arena_tint.color = Color(0.07, 0.10, 0.17, 0.96)
+		arena_tint.color = Color(0.05, 0.08, 0.12, 0.18) if use_tactical_map else Color(0.07, 0.10, 0.17, 0.96)
 	if hero_lane != null:
-		hero_lane.color = Color(0.18, 0.34, 0.54, 0.13)
+		hero_lane.color = Color(0.18, 0.34, 0.54, 0.03) if use_tactical_map else Color(0.18, 0.34, 0.54, 0.13)
 	if enemy_lane != null:
-		enemy_lane.color = Color(0.38, 0.22, 0.30, 0.12)
+		enemy_lane.color = Color(0.38, 0.22, 0.30, 0.03) if use_tactical_map else Color(0.38, 0.22, 0.30, 0.12)
 	if mid_gap != null:
-		mid_gap.color = Color(0.06, 0.10, 0.16, 0.20)
+		mid_gap.color = Color(0.06, 0.10, 0.16, 0.02) if use_tactical_map else Color(0.06, 0.10, 0.16, 0.20)
 	if center_line != null:
-		center_line.color = Color(0.58, 0.84, 1.0, 0.24)
+		center_line.color = Color(0.58, 0.84, 1.0, 0.06) if use_tactical_map else Color(0.58, 0.84, 1.0, 0.24)
+
+
+func _should_use_procedural_default_backdrop(battle_def: Dictionary, resolved_path: String) -> bool:
+	if String(battle_def.get("battle_mode", "legacy_interactive")) != "auto_units":
+		return false
+	return resolved_path.is_empty()
+
+
+func _battlefield_visual_path(battle_def: Dictionary) -> String:
+	if String(battle_def.get("battle_mode", "legacy_interactive")) != "auto_units":
+		return ""
+	var configured_path: String = String(battle_def.get("battlefield_visual_path", "")).strip_edges()
+	if not configured_path.is_empty() and _path_exists(configured_path):
+		return configured_path
+	return ""
+
+
+func _path_exists(path: String) -> bool:
+	if path.is_empty():
+		return false
+	if ResourceLoader.exists(path):
+		return true
+	return FileAccess.file_exists(ProjectSettings.globalize_path(path))
+
+
+func _texture_from_path(path: String) -> Texture2D:
+	if path.is_empty():
+		return null
+	if ResourceLoader.exists(path):
+		var loaded: Resource = load(path)
+		if loaded is Texture2D:
+			return loaded
+	var absolute_path: String = ProjectSettings.globalize_path(path)
+	if not FileAccess.file_exists(absolute_path):
+		return null
+	var image := Image.load_from_file(absolute_path)
+	if image == null or image.is_empty():
+		return null
+	return ImageTexture.create_from_image(image)
 
 
 func _apply_action_card_chrome(panel: PanelContainer, accent: Color, noise_seed: int) -> void:
