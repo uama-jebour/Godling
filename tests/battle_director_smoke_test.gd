@@ -11,6 +11,7 @@ func _run_suite() -> void:
 	_setup_content_db()
 	_test_director_runs_headless_battle()
 	_test_director_runs_scene_battle_backend()
+	_test_director_routes_auto_battle_backends()
 	_print_result_and_exit()
 
 
@@ -149,6 +150,52 @@ func _test_director_runs_scene_battle_backend() -> void:
 	_assert_true(
 		enemy_hp_remaining <= 0.0 or alive_enemy_entities > 0,
 		"只要敌方总生命大于 0，scene 结果里就必须还有可见敌方实体"
+	)
+
+
+func _test_director_routes_auto_battle_backends() -> void:
+	var director: RefCounted = load("res://systems/battle/battle_director.gd").new()
+	var base_request := {
+		"battle_id": "battle_auto_a01_probe",
+		"event_instance_id": "auto_route_1",
+		"map_id": "map_world_a_02_ashen_sanctum",
+		"hero_snapshot": {
+			"hero_id": "hero_pilgrim_a01",
+			"runtime_stats": {
+				"hp": 42.0,
+				"attack_power": 5.0
+			}
+		},
+		"ally_snapshot": [],
+		"equipped_strategy_ids": ["strategy_support_drone", "strategy_demon_eye"],
+		"battle_seed": 101
+	}
+	var auto_headless_result: Dictionary = director.run_battle(base_request, {})
+	_assert_true(
+		String(auto_headless_result.get("map_effects", {}).get("backend", "")) == "auto_headless",
+		"battle_mode=auto_units 时应默认路由到 auto_headless"
+	)
+	_assert_true(
+		String(auto_headless_result.get("map_effects", {}).get("simulation_mode", "")) == "auto_units",
+		"auto headless 结果应标记 simulation_mode=auto_units"
+	)
+	_assert_true(
+		not auto_headless_result.get("map_effects", {}).get("entities", []).is_empty(),
+		"auto headless 结果应包含实体快照"
+	)
+	var auto_scene_result: Dictionary = director.run_battle(
+		base_request,
+		{
+			"battle_backend": "auto_scene"
+		}
+	)
+	_assert_true(
+		String(auto_scene_result.get("map_effects", {}).get("backend", "")) == "auto_scene",
+		"显式指定 auto_scene 时应使用 auto_scene 后端"
+	)
+	_assert_true(
+		int(auto_scene_result.get("map_effects", {}).get("timeline_frame_count", 0)) > 0,
+		"auto_scene 结果应提供最小时间线帧数"
 	)
 
 
