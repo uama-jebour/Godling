@@ -1,0 +1,83 @@
+[
+	{
+		"id": "strategy_demon_eye",
+		"kind": "passive",
+		"trigger_conditions": [],
+		"effect": {
+			"type": "tag_bonus_damage",
+			"tag": "demon",
+			"bonus_damage": 2.0
+		},
+		"cooldown": 0,
+		"charges": -1,
+		"target_rule": {
+			"target_side": "enemy",
+			"target_tags": ["demon"]
+		},
+		"ui": {
+			"name_cn": "恶魔独眼",
+			"description": "对恶魔标签敌人造成额外伤害。"
+		}
+	},
+	{
+		"id": "strategy_support_drone",
+		"kind": "passive",
+		"trigger_conditions": [],
+		"effect": {
+			"type": "pulse_damage",
+			"value": 1.0,
+			"target_side": "enemy"
+		},
+		"cooldown": 4,
+		"charges": -1,
+		"target_rule": {
+			"target_side": "enemy"
+		},
+		"ui": {
+			"name_cn": "小型无人机支援",
+			"description": "周期性对所有敌人造成轻微伤害。"
+		}
+	},
+	{
+		"id": "strategy_field_prayer",
+		"kind": "passive",
+		"trigger_conditions": [],
+		"effect": {
+			"type": "pulse_shield",
+			"value": 2.0,
+			"target_side": "friendly"
+		},
+		"cooldown": 5,
+		"charges": -1,
+		"target_rule": {
+			"target_side": "friendly"
+		},
+		"ui": {
+			"name_cn": "持盾祷告",
+			"description": "周期性为我方单位施加轻量护盾。"
+		}
+	},
+	{
+		"id": "strategy_signal_scrambler",
+		"kind": "active",
+		"trigger_conditions": [],
+		"effect": {
+			"type": "area_damage",
+			"value": 3.0,
+			"radius": 120.0,
+			"target_side": "enemy",
+			"response_keyword": "reinforcement",
+			"response_level": 1
+		},
+		"cooldown": 8,
+		"charges": 1,
+		"target_rule": {
+			"target_side": "enemy",
+			"shape": "circle"
+		},
+		"ui": {
+			"name_cn": "信号屏蔽",
+			"description": "对范围内敌人造成伤害，并可打断增援类事件。"
+		}
+	}
+]

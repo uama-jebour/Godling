@@ -176,6 +176,33 @@
 		"complete_task_id": ""
 	},
 	{
+		"id": "event_a02_battle_auto_probe",
+		"title": "裂隙增援试作战",
+		"spawn_mode": "fixed_line",
+		"resolution_type": "battle",
+		"trigger_mode": "board",
+		"event_kind": "side_battle",
+		"line_id": "line_a02_auto_probe",
+		"map_ids": ["map_world_a_02_ashen_sanctum"],
+		"conditions": ["turn>=2"],
+		"weight": 4,
+		"battle_id": "battle_auto_a01_probe",
+		"equipped_strategy_ids": [
+			"strategy_support_drone",
+			"strategy_demon_eye",
+			"strategy_field_prayer"
+		],
+		"reward_package": {
+			"currencies": [{"id": "currency_lumen_mark", "count": 32}],
+			"items": [{"id": "resource_ash_herb", "count": 1}],
+			"relics": [],
+			"story_flags": ["auto_battle_probe_completed"],
+			"unlock_flags": [],
+			"loot_tables": [{"id": "loot_table_a02_basic_field", "rolls": 1}]
+		},
+		"complete_task_id": ""
+	},
+	{
 		"id": "event_a02_random_ruin_scavenge",
 		"title": "破损祭坛搜寻",
 		"spawn_mode": "random_slot",

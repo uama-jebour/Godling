@@ -6,11 +6,32 @@
 		"move_speed": 10,
 		"move_type": "walk",
 		"size": 4,
-		"hp": 36,
-		"attack": {"type": "melee", "power": 4, "speed": 1.0, "range": 2},
+		"collision_radius": 24,
+		"hp": 80,
+		"attack": {"type": "melee", "power": 4, "speed": 1.0, "range": 3},
 		"movement_ai": "chase",
 		"combat_ai": "melee_attack",
-		"tags": ["hero", "pilgrim"]
+		"tags": ["hero", "pilgrim"],
+		"skills": [],
+		"target_priority": ["enemy", "demon"],
+		"traits": ["frontline", "vowed"]
+	},
+	{
+		"id": "ally_ember_warden",
+		"camp": "ally",
+		"name_cn": "余烬守望者",
+		"move_speed": 9,
+		"move_type": "walk",
+		"size": 3,
+		"collision_radius": 22,
+		"hp": 24,
+		"attack": {"type": "ranged_flat", "power": 3, "speed": 0.9, "range": 6},
+		"movement_ai": "chase",
+		"combat_ai": "ranged_attack",
+		"tags": ["ally", "warden"],
+		"skills": [],
+		"target_priority": ["enemy", "demon"],
+		"traits": ["support", "summoned"]
 	},
 	{
 		"id": "enemy_hollow_deacon",
@@ -19,11 +40,15 @@
 		"move_speed": 8,
 		"move_type": "walk",
 		"size": 3,
+		"collision_radius": 20,
 		"hp": 18,
-		"attack": {"type": "melee", "power": 2, "speed": 1.0, "range": 1},
+		"attack": {"type": "melee", "power": 2, "speed": 1.0, "range": 1.5},
 		"movement_ai": "chase",
 		"combat_ai": "melee_attack",
-		"tags": ["enemy", "clergy"]
+		"tags": ["enemy", "clergy"],
+		"skills": [],
+		"target_priority": ["hero", "ally"],
+		"traits": ["frontline"]
 	},
 	{
 		"id": "enemy_ashen_hunter",
@@ -32,11 +57,15 @@
 		"move_speed": 10,
 		"move_type": "walk",
 		"size": 3,
+		"collision_radius": 20,
 		"hp": 22,
-		"attack": {"type": "ranged_flat", "power": 3, "speed": 0.8, "range": 6},
+		"attack": {"type": "ranged_flat", "power": 3, "speed": 0.8, "range": 5},
 		"movement_ai": "chase",
 		"combat_ai": "ranged_attack",
-		"tags": ["enemy", "hunter"]
+		"tags": ["enemy", "hunter"],
+		"skills": [],
+		"target_priority": ["hero", "ally"],
+		"traits": ["skirmisher"]
 	},
 	{
 		"id": "enemy_demon_stalker",
@@ -45,11 +74,14 @@
 		"move_speed": 12,
 		"move_type": "walk",
 		"size": 4,
+		"collision_radius": 24,
 		"hp": 30,
-		"attack": {"type": "melee", "power": 5, "speed": 1.2, "range": 2},
+		"attack": {"type": "melee", "power": 5, "speed": 1.2, "range": 2.5},
 		"movement_ai": "chase",
 		"combat_ai": "melee_attack",
-		"tags": ["enemy", "demon", "ambush"]
+		"tags": ["enemy", "demon", "ambush"],
+		"skills": [],
+		"target_priority": ["hero", "ally"],
+		"traits": ["elite"]
 	}
 ]
-

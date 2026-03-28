@@ -68,5 +68,96 @@
 			{"unit_id": "enemy_ashen_hunter", "count": 2, "spawn": [650, 260]}
 		],
 		"battle_event_ids": []
+	},
+	{
+		"id": "battle_auto_a00_home_observe_default",
+		"map_id": "map_world_a_02_ashen_sanctum",
+		"battle_mode": "auto_units",
+		"victory_type": "eliminate_all",
+		"victory_rules": {
+			"type": "eliminate_all"
+		},
+		"defeat_rules": {
+			"hero_down": true,
+			"all_friendly_down": true
+		},
+		"battlefield": {
+			"size": [840, 480],
+			"blockers": [
+				{"shape": "rect", "x": 362, "y": 146, "w": 88, "h": 124},
+				{"shape": "rect", "x": 548, "y": 252, "w": 84, "h": 112}
+			],
+			"lanes": [[124, 148], [124, 240], [124, 332]]
+		},
+		"hero_spawn": [112, 240],
+		"ally_groups": [],
+		"enemy_groups": [
+			{"unit_id": "enemy_hollow_deacon", "count_range": [2, 3], "spawn": [620, 176]},
+			{"unit_id": "enemy_ashen_hunter", "count": 1, "spawn": [686, 278]}
+		],
+		"scripted_event_ids": ["battle_event_auto_reinforcement"],
+		"battle_event_ids": []
+	},
+	{
+		"id": "battle_auto_a01_probe",
+		"map_id": "map_world_a_02_ashen_sanctum",
+		"battle_mode": "auto_units",
+		"battlefield_visual_path": "res://output/imagegen/godling-auto-battle-tactical-v2/map-auto-battle-probe-v2.png",
+		"victory_type": "eliminate_all",
+		"victory_rules": {
+			"type": "eliminate_all"
+		},
+		"defeat_rules": {
+			"hero_down": true,
+			"all_friendly_down": true
+		},
+		"battlefield": {
+			"size": [840, 480],
+			"blockers": [
+				{"shape": "rect", "x": 384, "y": 172, "w": 72, "h": 136}
+			],
+			"lanes": [[128, 154], [128, 240], [128, 326]]
+		},
+		"hero_spawn": [120, 240],
+		"ally_groups": [],
+		"enemy_groups": [
+			{"unit_id": "enemy_hollow_deacon", "count_range": [2, 3], "spawn": [622, 176]},
+			{"unit_id": "enemy_ashen_hunter", "count": 1, "spawn": [690, 284]}
+		],
+		"scripted_event_ids": ["battle_event_auto_reinforcement"],
+		"battle_event_ids": []
+	},
+	{
+		"id": "battle_auto_a02_hold_line",
+		"map_id": "map_world_a_02_ashen_sanctum",
+		"battle_mode": "auto_units",
+		"battlefield_visual_path": "res://output/imagegen/godling-auto-battle-tactical-v2/map-auto-battle-hold-line-v2.png",
+		"victory_type": "survive_for_duration",
+		"victory_rules": {
+			"type": "survive_for_duration",
+			"duration": 18
+		},
+		"defeat_rules": {
+			"hero_down": true,
+			"all_friendly_down": true
+		},
+		"battlefield": {
+			"size": [840, 480],
+			"blockers": [
+				{"shape": "rect", "x": 300, "y": 106, "w": 60, "h": 96},
+				{"shape": "rect", "x": 506, "y": 278, "w": 70, "h": 100}
+			],
+			"lanes": [[132, 146], [132, 240], [132, 334]]
+		},
+		"hero_spawn": [116, 240],
+		"ally_groups": [
+			{"unit_id": "ally_ember_warden", "count": 1, "spawn": [162, 290]}
+		],
+		"enemy_groups": [
+			{"unit_id": "enemy_hollow_deacon", "count_range": [3, 4], "spawn": [618, 194]},
+			{"unit_id": "enemy_demon_stalker", "count": 1, "spawn": [702, 272]}
+		],
+		"scripted_event_ids": ["battle_event_auto_reinforcement", "battle_event_auto_enemy_frenzy"],
+		"battle_event_ids": []
 	}
 ]
