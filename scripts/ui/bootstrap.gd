@@ -21,6 +21,8 @@ const ANDROID_PREVIEW_SIZES := [
 ]
 const MAP_HINT_DEFAULT := "点击地图事件点进入处理。战斗事件会直接进入出击战斗。"
 const MAP_HINT_EMPTY := "当前地图上没有可处理事件。"
+const HOME_AUTO_OBSERVE_EVENT_ID := "event_a02_battle_auto_probe"
+const HOME_AUTO_OBSERVE_BATTLE_ID := "battle_auto_a00_home_observe_default"
 
 @onready var summary_label: RichTextLabel = %SummaryLabel
 @onready var map_surface: Control = %MapSurface
@@ -71,6 +73,7 @@ var _home_item_slot_a: OptionButton
 var _home_item_slot_b: OptionButton
 var _home_relic_slot: OptionButton
 var _home_start_button: Button
+var _home_auto_battle_observe_button: Button
 var _home_hint_label: Label
 var _home_panel: PanelContainer
 var _settlement_layer: Control
@@ -84,6 +87,7 @@ var _battle_result_body_label: RichTextLabel
 var _battle_result_continue_button: Button
 var _battle_result_panel: PanelContainer
 var _pending_battle_flow_result: Dictionary = {}
+var _pending_battle_result_mode := "run_event"
 var _content_editor_layer: Control
 var _content_editor_shell: MarginContainer
 var _content_editor_panel: PanelContainer
@@ -153,6 +157,7 @@ var _dispatch_log_panel: PanelContainer
 var _ui_phase := "home"
 var _window_configured := false
 var _android_preview_index := 0
+var _active_battle_source := "none"
 
 
 func _enter_tree() -> void:
@@ -313,6 +318,8 @@ func _apply_responsive_layout() -> void:
 		_return_home_button.add_theme_font_size_override("font_size", action_font_size)
 	if _home_start_button != null:
 		_home_start_button.add_theme_font_size_override("font_size", action_font_size)
+	if _home_auto_battle_observe_button != null:
+		_home_auto_battle_observe_button.add_theme_font_size_override("font_size", action_font_size)
 	if _home_balance_editor_button != null:
 		_home_balance_editor_button.add_theme_font_size_override("font_size", action_font_size)
 	if _home_content_editor_button != null:
@@ -1168,13 +1175,26 @@ func _on_preview_battle_pressed() -> void:
 		_preview_instance.tree_exited.disconnect(_on_preview_tree_exited)
 	_preview_instance.tree_exited.connect(_on_preview_tree_exited)
 
-	if _preview_instance.has_method("execute_battle"):
+	var preview_backend: String = _battle_scene_backend_for_def(battle_def)
+	if preview_backend == "auto_scene":
+		if _preview_instance.has_method("start_interactive_battle"):
+			_preview_instance.call(
+				"start_interactive_battle",
+				preview_request,
+				battle_def,
+				{
+					"battle_backend": "auto_scene",
+					"interactive_mode": false,
+					"preview_mode": true
+				}
+			)
+	elif _preview_instance.has_method("execute_battle"):
 		_preview_instance.call(
 			"execute_battle",
 			preview_request,
 			battle_def,
 			{
-				"battle_backend": "scene",
+				"battle_backend": preview_backend,
 				"success_override": true,
 				"preview_mode": true
 			}
@@ -1207,7 +1227,29 @@ func _launch_interactive_battle(event_def: Dictionary) -> void:
 	if _preview_instance.tree_exited.is_connected(_on_preview_tree_exited):
 		_preview_instance.tree_exited.disconnect(_on_preview_tree_exited)
 	_preview_instance.tree_exited.connect(_on_preview_tree_exited)
+	var scene_backend: String = _battle_scene_backend_for_def(battle_def)
+	if scene_backend == "auto_scene":
+		_active_battle_source = "run_event"
+		if _preview_instance.has_signal("interactive_battle_finished"):
+			var auto_finished_callable := Callable(self, "_on_interactive_battle_finished")
+			if not _preview_instance.is_connected("interactive_battle_finished", auto_finished_callable):
+				_preview_instance.connect("interactive_battle_finished", auto_finished_callable)
+		if _preview_instance.has_method("start_interactive_battle"):
+			_preview_instance.call(
+				"start_interactive_battle",
+				battle_request,
+				battle_def,
+				{
+					"battle_backend": "auto_scene",
+					"interactive_mode": false,
+					"preview_mode": false
+				}
+			)
+		_append_log("已进入自动战斗观战：%s。" % String(event_def.get("title", battle_id)))
+		_refresh_all()
+		return
 	if _preview_instance.has_signal("interactive_battle_finished"):
+		_active_battle_source = "run_event"
 		var finished_callable := Callable(self, "_on_interactive_battle_finished")
 		if not _preview_instance.is_connected("interactive_battle_finished", finished_callable):
 			_preview_instance.connect("interactive_battle_finished", finished_callable)
@@ -1217,12 +1259,18 @@ func _launch_interactive_battle(event_def: Dictionary) -> void:
 			battle_request,
 			battle_def,
 			{
-				"battle_backend": "scene",
+				"battle_backend": scene_backend,
 				"interactive_mode": true
 			}
 		)
 	_append_log("已进入可操作战斗：%s。" % String(event_def.get("title", battle_id)))
 	_refresh_all()
+
+
+func _battle_scene_backend_for_def(battle_def: Dictionary) -> String:
+	if String(battle_def.get("battle_mode", "legacy_interactive")) == "auto_units":
+		return "auto_scene"
+	return "scene"
 
 
 func _open_panel(event_def: Dictionary, mode: String) -> void:
@@ -1464,6 +1512,13 @@ func _build_home_layer() -> void:
 	_home_start_button.text = "确认配置并出发"
 	_home_start_button.pressed.connect(_on_home_start_pressed)
 	home_action_row.add_child(_home_start_button)
+
+	_home_auto_battle_observe_button = Button.new()
+	_home_auto_battle_observe_button.custom_minimum_size = Vector2(0, 56)
+	_home_auto_battle_observe_button.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	_home_auto_battle_observe_button.text = "测试观战"
+	_home_auto_battle_observe_button.pressed.connect(_on_home_auto_observe_pressed)
+	home_action_row.add_child(_home_auto_battle_observe_button)
 
 
 func _build_balance_editor_layer() -> void:
@@ -3547,6 +3602,8 @@ func _apply_overlay_layout(viewport_size: Vector2, mobile_runtime: bool, mobile_
 		_home_hint_label.add_theme_font_size_override("font_size", 17 if mobile_landscape else (13 if mobile_runtime else 15))
 	if _home_start_button != null:
 		_home_start_button.custom_minimum_size = Vector2(0, 64 if mobile_landscape else (48 if mobile_runtime else 56))
+	if _home_auto_battle_observe_button != null:
+		_home_auto_battle_observe_button.custom_minimum_size = Vector2(0, 64 if mobile_landscape else (48 if mobile_runtime else 56))
 	if _settlement_panel != null:
 		if mobile_runtime:
 			_settlement_panel.custom_minimum_size = Vector2(
@@ -4149,6 +4206,9 @@ func _open_battle_result(result: Dictionary) -> void:
 	if _battle_result_layer == null:
 		return
 	_pending_battle_flow_result = result.duplicate(true)
+	_pending_battle_result_mode = String(result.get("_battle_result_mode", "run_event"))
+	if _battle_result_continue_button != null:
+		_battle_result_continue_button.text = "关闭并返回家园" if _pending_battle_result_mode == "home_observer" else "确认并返回作战地图"
 	_render_battle_result_summary(result)
 	_battle_result_layer.visible = true
 
@@ -4156,6 +4216,21 @@ func _open_battle_result(result: Dictionary) -> void:
 func _close_battle_result() -> void:
 	if _battle_result_layer != null:
 		_battle_result_layer.visible = false
+	_pending_battle_result_mode = "run_event"
+
+
+func _home_observer_result_wrapper(battle_result: Dictionary) -> Dictionary:
+	var battle_id: String = String(battle_result.get("map_effects", {}).get("battle_id", HOME_AUTO_OBSERVE_BATTLE_ID))
+	return {
+		"_battle_result_mode": "home_observer",
+		"selected_event": {
+			"id": HOME_AUTO_OBSERVE_EVENT_ID,
+			"title": "家园测试观战 · %s" % battle_id
+		},
+		"dispatch_result": {
+			"battle_result": battle_result.duplicate(true)
+		}
+	}
 
 
 func _open_settlement_from_death() -> void:
@@ -4359,6 +4434,62 @@ func _selected_home_relics() -> Array:
 	return [] if relic_id.is_empty() else [relic_id]
 
 
+func _stack_item_ids(item_ids: Array) -> Array:
+	var counts: Dictionary = {}
+	for item_id_value in item_ids:
+		var item_id: String = String(item_id_value)
+		if item_id.is_empty():
+			continue
+		counts[item_id] = int(counts.get(item_id, 0)) + 1
+	var stacks: Array = []
+	for item_id: String in counts.keys():
+		stacks.append({"id": item_id, "count": int(counts[item_id])})
+	return stacks
+
+
+func _build_home_auto_observe_payload() -> Dictionary:
+	var content_db := _content_db()
+	var event_def: Dictionary = content_db.get_event(HOME_AUTO_OBSERVE_EVENT_ID)
+	if event_def.is_empty():
+		_append_log("测试观战入口失败：缺少默认事件 %s。" % HOME_AUTO_OBSERVE_EVENT_ID)
+		return {}
+	var battle_id: String = HOME_AUTO_OBSERVE_BATTLE_ID
+	if battle_id.is_empty():
+		battle_id = String(event_def.get("battle_id", ""))
+	var battle_def: Dictionary = content_db.get_battle(battle_id)
+	if battle_def.is_empty():
+		_append_log("测试观战入口失败：缺少战斗定义 %s。" % battle_id)
+		return {}
+	var hero_id: String = _selector_metadata(_home_hero_select)
+	if hero_id.is_empty():
+		_append_log("测试观战入口失败：未选择英雄。")
+		return {}
+	var map_def: Dictionary = content_db.get_map(String(battle_def.get("map_id", "")))
+	var selected_items: Array = _selected_home_items()
+	var selected_relics: Array = _selected_home_relics()
+	return {
+		"event_def": event_def,
+		"battle_def": battle_def,
+		"request": {
+			"battle_id": battle_id,
+			"event_id": String(event_def.get("id", HOME_AUTO_OBSERVE_EVENT_ID)),
+			"event_instance_id": "home_observer_%d" % Time.get_unix_time_from_system(),
+			"map_id": String(battle_def.get("map_id", "")),
+			"hero_snapshot": {
+				"hero_id": hero_id,
+				"carried_item_ids": selected_items.duplicate(true),
+				"equipped_relic_ids": selected_relics.duplicate(true),
+				"temporary_inventory": _stack_item_ids(selected_items),
+				"map_stats": map_def.get("base_stats", {}).duplicate(true)
+			},
+			"ally_snapshot": [],
+			"equipped_strategy_ids": event_def.get("equipped_strategy_ids", []).duplicate(true),
+			"configured_reward_package": event_def.get("reward_package", {}).duplicate(true),
+			"battle_seed": int(Time.get_unix_time_from_system())
+		}
+	}
+
+
 func _map_name(map_id: String) -> String:
 	if map_id.is_empty():
 		return "未选择"
@@ -4417,6 +4548,44 @@ func _on_home_start_pressed() -> void:
 	_start_run_from_home_selection(map_id, hero_id, carried_items, equipped_relics)
 
 
+func _on_home_auto_observe_pressed() -> void:
+	if _preview_instance != null and is_instance_valid(_preview_instance):
+		_append_log("当前已有战斗界面打开，请先完成或关闭。")
+		_refresh_all()
+		return
+	var observe_payload: Dictionary = _build_home_auto_observe_payload()
+	if observe_payload.is_empty():
+		_refresh_all()
+		return
+	var event_def: Dictionary = observe_payload.get("event_def", {})
+	var battle_def: Dictionary = observe_payload.get("battle_def", {})
+	var battle_request: Dictionary = observe_payload.get("request", {})
+	_preview_instance = BATTLE_RUNNER_SCENE.instantiate()
+	get_tree().root.add_child(_preview_instance)
+	if _preview_instance.tree_exited.is_connected(_on_preview_tree_exited):
+		_preview_instance.tree_exited.disconnect(_on_preview_tree_exited)
+	_preview_instance.tree_exited.connect(_on_preview_tree_exited)
+	if _preview_instance.has_signal("interactive_battle_finished"):
+		var finished_callable := Callable(self, "_on_interactive_battle_finished")
+		if not _preview_instance.is_connected("interactive_battle_finished", finished_callable):
+			_preview_instance.connect("interactive_battle_finished", finished_callable)
+	_active_battle_source = "home_observer"
+	if _preview_instance.has_method("start_interactive_battle"):
+		_preview_instance.call(
+			"start_interactive_battle",
+			battle_request,
+			battle_def,
+			{
+				"battle_backend": "auto_scene",
+				"interactive_mode": false,
+				"preview_mode": false,
+				"home_observer": true
+			}
+		)
+	_append_log("已从家园打开测试观战：%s。" % String(event_def.get("title", HOME_AUTO_OBSERVE_BATTLE_ID)))
+	_refresh_all()
+
+
 func _on_settlement_return_home_pressed() -> void:
 	_append_log("已返回家园，可重新整备出发。")
 	_set_ui_phase("home")
@@ -4448,6 +4617,10 @@ func _on_map_surface_resized() -> void:
 
 func _on_preview_tree_exited() -> void:
 	_preview_instance = null
+	if not is_inside_tree():
+		return
+	if _content_db() == null or _progression_state() == null or _run_state() == null:
+		return
 	_refresh_all()
 
 
@@ -4459,6 +4632,11 @@ func _on_preview_android_size_pressed() -> void:
 
 
 func _on_interactive_battle_finished(battle_result: Dictionary) -> void:
+	if _active_battle_source == "home_observer":
+		_active_battle_source = "none"
+		_open_battle_result(_home_observer_result_wrapper(battle_result))
+		return
+	_active_battle_source = "none"
 	var result: Dictionary = _run_state().complete_selected_event_with_battle_result(battle_result)
 	if result.is_empty():
 		_finalize_selected_event_result(result)
@@ -4472,8 +4650,14 @@ func _on_interactive_battle_finished(battle_result: Dictionary) -> void:
 
 func _on_battle_result_continue_pressed() -> void:
 	var result: Dictionary = _pending_battle_flow_result.duplicate(true)
+	var result_mode := _pending_battle_result_mode
 	_pending_battle_flow_result = {}
 	_close_battle_result()
+	if result_mode == "home_observer":
+		_append_log("已结束测试观战，返回家园整备。")
+		_set_ui_phase("home")
+		_refresh_all()
+		return
 	_finalize_selected_event_result(result)
 
 
@@ -4775,16 +4959,36 @@ func _is_mobile_landscape(viewport_size: Vector2) -> bool:
 
 
 func _content_db() -> Node:
-	return get_node("/root/ContentDB")
+	if not is_inside_tree():
+		return null
+	var tree := get_tree()
+	if tree == null or tree.root == null:
+		return null
+	return tree.root.get_node_or_null("ContentDB")
 
 
 func _run_state() -> Node:
-	return get_node("/root/RunState")
+	if not is_inside_tree():
+		return null
+	var tree := get_tree()
+	if tree == null or tree.root == null:
+		return null
+	return tree.root.get_node_or_null("RunState")
 
 
 func _progression_state() -> Node:
-	return get_node("/root/ProgressionState")
+	if not is_inside_tree():
+		return null
+	var tree := get_tree()
+	if tree == null or tree.root == null:
+		return null
+	return tree.root.get_node_or_null("ProgressionState")
 
 
 func _balance_state() -> Node:
-	return get_node_or_null("/root/BalanceState")
+	if not is_inside_tree():
+		return null
+	var tree := get_tree()
+	if tree == null or tree.root == null:
+		return null
+	return tree.root.get_node_or_null("BalanceState")
