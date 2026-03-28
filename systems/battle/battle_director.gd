@@ -1,9 +1,11 @@
 extends RefCounted
 
 const HEADLESS_BATTLE_RUNNER := preload("res://systems/battle/headless_battle_runner.gd")
+const AUTO_BATTLE_RUNNER := preload("res://systems/battle/auto_battle_runner.gd")
 const BATTLE_RUNNER_SCENE := preload("res://scenes/battle/battle_runner.tscn")
 
 var _battle_runner: RefCounted
+var _auto_battle_runner: RefCounted
 
 
 func run_battle(request: Dictionary, context: Dictionary = {}) -> Dictionary:
@@ -58,8 +60,18 @@ func _runner() -> RefCounted:
 	return _battle_runner
 
 
+func _auto_runner() -> RefCounted:
+	if _auto_battle_runner == null:
+		_auto_battle_runner = AUTO_BATTLE_RUNNER.new()
+	return _auto_battle_runner
+
+
 func _run_with_backend(request: Dictionary, battle_def: Dictionary, context: Dictionary) -> Dictionary:
-	var backend: String = String(context.get("battle_backend", "headless"))
+	var backend: String = _resolved_backend(battle_def, context)
+	if backend == "auto_headless":
+		return _auto_runner().run(request, battle_def, context)
+	if backend == "auto_scene":
+		return _auto_runner().step_preview(request, battle_def, context)
 	if backend == "scene":
 		var scene_result: Dictionary = _run_scene_backend(request, battle_def, context)
 		if not scene_result.is_empty():
@@ -81,3 +93,12 @@ func _run_scene_backend(request: Dictionary, battle_def: Dictionary, context: Di
 		result = instance.call("execute_battle", request, battle_def, context)
 	instance.queue_free()
 	return result
+
+
+func _resolved_backend(battle_def: Dictionary, context: Dictionary) -> String:
+	var explicit_backend: String = String(context.get("battle_backend", ""))
+	if not explicit_backend.is_empty():
+		return explicit_backend
+	if String(battle_def.get("battle_mode", "legacy_interactive")) == "auto_units":
+		return "auto_headless"
+	return "headless"

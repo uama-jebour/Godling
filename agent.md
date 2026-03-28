@@ -1,5 +1,7 @@
 # Godling 项目总纲
 
+> **Summary**: 2D raid-style extraction shooter (Godot 4.6 + GDScript). Core: task-driven narrative loop (Enter Map → Events → Turn → Extract → Settlement). Not combat-only. JSON config > hardcoded. See [CLAUDE.md](CLAUDE.md) for quick commands.
+
 ## 1. 项目目标
 
 `Godling` 是一个使用 `Godot 4.6 + GDScript` 开发的 2D 单机游戏。
@@ -50,28 +52,21 @@
 
 ## 5. 文档读取规则
 
-开始任何实现前，先读：
+**按需读取，不要默认加载所有文档。**
 
-1. 本文件
-2. [项目记忆.md](项目记忆.md)
-3. [tasks/当前任务卡.md](tasks/当前任务卡.md)
+开始前必读（已加载）：本文件、[项目记忆.md](项目记忆.md)、[tasks/当前任务卡.md](tasks/当前任务卡.md)
 
-然后按任务补充最小上下文，不要默认加载所有文档：
+| 主题 | 文档 |
+|------|------|
+| 玩法规则 | [docs/核心玩法摘要.md](docs/核心玩法摘要.md) |
+| 架构边界 | [docs/技术架构摘要.md](docs/技术架构摘要.md) |
+| 内容管线 | [docs/内容管线说明.md](docs/内容管线说明.md) |
+| 编码规范 | [docs/代码规范.md](docs/代码规范.md) |
+| 美术方向 | [docs/美术方向.md](docs/美术方向.md) |
+| 玩家流程 | [docs/玩家流程样例.md](docs/玩家流程样例.md) |
+| Web 发布 | [docs/Web发布说明.md](docs/Web发布说明.md) |
 
-- 玩法规则： [docs/核心玩法摘要.md](docs/核心玩法摘要.md)
-- 架构边界： [docs/技术架构摘要.md](docs/技术架构摘要.md)
-- 内容流程： [docs/内容管线说明.md](docs/内容管线说明.md)
-- 编码规范： [docs/代码规范.md](docs/代码规范.md)
-- 美术约束： [docs/美术方向.md](docs/美术方向.md)
-- 玩家样例流程： [docs/玩家流程样例.md](docs/玩家流程样例.md)
-- Web 发布： [docs/Web发布说明.md](docs/Web发布说明.md)
-
-功能详细规格只按需读取：
-
-- 世界地图与事件板： [features/世界地图与事件板/规格说明.md](features/世界地图与事件板/规格说明.md)
-- 任务与叙事： [features/任务与叙事/规格说明.md](features/任务与叙事/规格说明.md)
-- 战斗执行器： [features/战斗执行器/规格说明.md](features/战斗执行器/规格说明.md)
-- 背包与进度： [features/背包与进度/规格说明.md](features/背包与进度/规格说明.md)
+功能规格（按需）：世界地图、任务叙事、战斗执行器、背包进度（见 `features/*/规格说明.md`）
 
 ## 6. 实施前固定动作
 

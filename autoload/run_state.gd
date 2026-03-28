@@ -347,6 +347,7 @@ func build_battle_preview_request(event_snapshot: Dictionary = {}) -> Dictionary
 		"map_id": String(active_run.get("map_id", "")),
 		"hero_snapshot": _build_hero_snapshot(),
 		"ally_snapshot": [],
+		"equipped_strategy_ids": source_event.get("equipped_strategy_ids", []).duplicate(true),
 		"equipped_relic_modifiers": active_run.get("equipped_relics_snapshot", []).duplicate(true),
 		"configured_reward_package": source_event.get("reward_package", {}).duplicate(true)
 	}

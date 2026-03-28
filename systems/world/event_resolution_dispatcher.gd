@@ -36,6 +36,7 @@ func _resolve_battle_event(event_def: Dictionary, context: Dictionary) -> Dictio
 		"map_id": String(context.get("map_id", "")),
 		"hero_snapshot": context.get("hero_snapshot", {}).duplicate(true),
 		"ally_snapshot": context.get("ally_snapshot", []).duplicate(true),
+		"equipped_strategy_ids": event_def.get("equipped_strategy_ids", []).duplicate(true),
 		"equipped_relic_modifiers": context.get("equipped_relic_modifiers", []).duplicate(true),
 		"configured_reward_package": result.get("reward_package", {}).duplicate(true)
 	}

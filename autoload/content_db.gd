@@ -6,6 +6,7 @@ const DATA_FILES := {
 	"items": "res://data/items.json",
 	"item_visuals": "res://data/item_visuals.json",
 	"loot_tables": "res://data/loot_tables.json",
+	"strategies": "res://data/strategies.json",
 	"units": "res://data/units.json",
 	"unit_visuals": "res://data/unit_visuals.json",
 	"battle_events": "res://data/battle_events.json",
@@ -15,15 +16,26 @@ const DATA_FILES := {
 	"progression_defaults": "res://data/progression_defaults.json"
 }
 
-const ARRAY_DATA_KEYS := ["maps", "items", "loot_tables", "units", "battle_events", "battles", "events", "tasks"]
+const ARRAY_DATA_KEYS := ["maps", "items", "loot_tables", "strategies", "units", "battle_events", "battles", "events", "tasks"]
 const DICT_DATA_KEYS := ["glossary", "progression_defaults", "unit_visuals", "item_visuals"]
+const DEFAULT_AUTO_BATTLEFIELD_VISUAL_PATH := "res://output/imagegen/godling-auto-battle-tactical-v2/map-auto-battle-generic-v2.png"
 const VALID_SPAWN_MODES := {"random_slot": true, "fixed_line": true}
 const VALID_RESOLUTION_TYPES := {"battle": true, "random": true, "narrative": true}
 const VALID_TRIGGER_MODES := {"board": true, "forced_non_turn": true}
+const VALID_BATTLE_MODES := {"legacy_interactive": true, "auto_units": true}
+const VALID_STRATEGY_KINDS := {"passive": true, "active": true}
+const VALID_AUTO_TRIGGER_CONDITION_TYPES := {
+	"elapsed_gte": true,
+	"side_hp_ratio_lte": true,
+	"unit_alive_count_lte": true,
+	"unit_present": true,
+	"event_triggered": true
+}
 const REQUIRED_FIELDS_BY_GROUP := {
 	"maps": ["id", "world_id", "name_cn", "random_slot_count_range", "random_slot_anchors", "base_stats"],
 	"items": ["id", "name_cn", "type"],
 	"loot_tables": ["id", "name_cn", "mode", "entries"],
+	"strategies": ["id", "kind", "trigger_conditions", "effect", "cooldown", "charges", "target_rule", "ui"],
 	"units": ["id", "camp", "name_cn", "hp", "attack"],
 	"battle_events": ["id", "event_type", "trigger", "payload"],
 	"battles": ["id", "map_id", "victory_type", "enemy_groups"],
@@ -200,6 +212,19 @@ func get_item(item_id: String) -> Dictionary:
 	return _apply_balance_overrides("items", item_id, _deep_copy_dict(by_id.get("items", {}).get(item_id, {})))
 
 
+func get_strategy(strategy_id: String) -> Dictionary:
+	return _deep_copy_dict(by_id.get("strategies", {}).get(strategy_id, {}))
+
+
+func list_strategies() -> Array:
+	var selected: Array = []
+	for strategy_value in data.get("strategies", []):
+		if typeof(strategy_value) != TYPE_DICTIONARY:
+			continue
+		selected.append(_deep_copy_dict(strategy_value))
+	return selected
+
+
 func get_item_visual(item_id: String) -> Dictionary:
 	return _deep_copy_dict(data.get("item_visuals", {}).get(item_id, {}))
 
@@ -351,8 +376,10 @@ func _validate_data_contracts() -> Array:
 	var maps_index: Dictionary = by_id.get("maps", {})
 	var items_index: Dictionary = by_id.get("items", {})
 	var loot_index: Dictionary = by_id.get("loot_tables", {})
+	var strategies_index: Dictionary = by_id.get("strategies", {})
 	var units_index: Dictionary = by_id.get("units", {})
 	var battles_index: Dictionary = by_id.get("battles", {})
+	var battle_events_index: Dictionary = by_id.get("battle_events", {})
 	var events_index: Dictionary = by_id.get("events", {})
 
 	for map_id: String in maps_index.keys():
@@ -370,6 +397,17 @@ func _validate_data_contracts() -> Array:
 			if String(entry.get("kind", "")) == "item" and not items_index.has(String(entry.get("id", ""))):
 				errors.append("Loot table %s references missing item %s." % [loot_id, String(entry.get("id", ""))])
 
+	for strategy_id: String in strategies_index.keys():
+		var strategy_def: Dictionary = strategies_index[strategy_id]
+		var strategy_kind: String = String(strategy_def.get("kind", ""))
+		if not VALID_STRATEGY_KINDS.has(strategy_kind):
+			errors.append("Strategy %s has invalid kind %s." % [strategy_id, strategy_kind])
+		if typeof(strategy_def.get("trigger_conditions", [])) != TYPE_ARRAY:
+			errors.append("Strategy %s trigger_conditions must be an array." % strategy_id)
+		var effect: Dictionary = strategy_def.get("effect", {})
+		if typeof(effect) != TYPE_DICTIONARY or String(effect.get("type", "")).is_empty():
+			errors.append("Strategy %s is missing effect.type." % strategy_id)
+
 	for battle_id: String in battles_index.keys():
 		var battle_def: Dictionary = battles_index[battle_id]
 		var map_id: String = String(battle_def.get("map_id", ""))
@@ -379,6 +417,50 @@ func _validate_data_contracts() -> Array:
 			var unit_id: String = String(group.get("unit_id", ""))
 			if not units_index.has(unit_id):
 				errors.append("Battle %s references missing unit %s." % [battle_id, unit_id])
+		var battle_mode: String = String(battle_def.get("battle_mode", "legacy_interactive"))
+		if not VALID_BATTLE_MODES.has(battle_mode):
+			errors.append("Battle %s has invalid battle_mode %s." % [battle_id, battle_mode])
+		if battle_mode == "auto_units":
+			if typeof(battle_def.get("battlefield", {})) != TYPE_DICTIONARY:
+				errors.append("Battle %s auto_units battlefield must be an object." % battle_id)
+			else:
+				var battlefield: Dictionary = battle_def.get("battlefield", {})
+				var field_size: Array = battlefield.get("size", [])
+				if field_size.size() != 2:
+					errors.append("Battle %s battlefield.size must contain 2 numbers." % battle_id)
+			if typeof(battle_def.get("victory_rules", {})) != TYPE_DICTIONARY:
+				errors.append("Battle %s auto_units victory_rules must be an object." % battle_id)
+			if typeof(battle_def.get("defeat_rules", {})) != TYPE_DICTIONARY:
+				errors.append("Battle %s auto_units defeat_rules must be an object." % battle_id)
+			var battlefield_visual_path: String = String(battle_def.get("battlefield_visual_path", "")).strip_edges()
+			if (not battlefield_visual_path.is_empty()) and (not _resource_path_exists(battlefield_visual_path)):
+				errors.append("Battle %s battlefield_visual_path is missing: %s." % [battle_id, battlefield_visual_path])
+			var hero_spawn: Array = battle_def.get("hero_spawn", [])
+			if hero_spawn.size() != 2:
+				errors.append("Battle %s auto_units hero_spawn must contain 2 numbers." % battle_id)
+			for ally_group_value in battle_def.get("ally_groups", []):
+				if typeof(ally_group_value) != TYPE_DICTIONARY:
+					continue
+				var ally_group: Dictionary = ally_group_value
+				var ally_unit_id: String = String(ally_group.get("unit_id", ""))
+				if not units_index.has(ally_unit_id):
+					errors.append("Battle %s references missing ally unit %s." % [battle_id, ally_unit_id])
+			for event_id_value in battle_def.get("scripted_event_ids", []):
+				var scripted_event_id: String = String(event_id_value)
+				if not battle_events_index.has(scripted_event_id):
+					errors.append("Battle %s references missing scripted event %s." % [battle_id, scripted_event_id])
+
+	for battle_event_id: String in battle_events_index.keys():
+		var battle_event: Dictionary = battle_events_index[battle_event_id]
+		var trigger_conditions: Array = battle_event.get("trigger_conditions", [])
+		for condition_value in trigger_conditions:
+			if typeof(condition_value) != TYPE_DICTIONARY:
+				errors.append("Battle event %s has non-object trigger condition." % battle_event_id)
+				continue
+			var condition: Dictionary = condition_value
+			var condition_type: String = String(condition.get("type", ""))
+			if not VALID_AUTO_TRIGGER_CONDITION_TYPES.has(condition_type):
+				errors.append("Battle event %s has invalid trigger condition %s." % [battle_event_id, condition_type])
 
 	for event_id: String in events_index.keys():
 		var event_def: Dictionary = events_index[event_id]
@@ -725,13 +807,25 @@ func _default_unit_visual(unit_def: Dictionary) -> Dictionary:
 		portrait_path = "res://assets/battle/placeholders/hero_pilgrim_a01.svg"
 	return {
 		"portrait_path": portrait_path,
+		"token_path": portrait_path,
 		"icon_path": "res://icon.svg",
 		"portrait_scale": 1.0,
+		"token_scale": 1.0,
 		"x_offset": 0.0,
 		"y_offset": 0.0,
+		"token_x_offset": 0.0,
+		"token_y_offset": 0.0,
 		"origin": "runtime_created",
 		"notes": "Runtime-created unit uses fallback portrait."
 	}
+
+
+func _resource_path_exists(path: String) -> bool:
+	if path.is_empty():
+		return false
+	if ResourceLoader.exists(path):
+		return true
+	return FileAccess.file_exists(ProjectSettings.globalize_path(path))
 
 
 func _data_array_has_id(group_name: String, entry_id: String) -> bool:

@@ -1,0 +1,50 @@
+# Dependencies and build artifacts
+node_modules/
+dist/
+build/
+coverage/
+*.min.js
+*.map
+
+# Godot specific
+.import/
+.godot/
+export.cfg
+export_presets.cfg
+
+# Generated assets and output
+output/
+output/imagegen/
+output/imagegen/*/
+*.tmp
+
+# Large files/resources
+*.png
+*.jpg
+*.jpeg
+*.gif
+*.webp
+*.mp4
+*.mov
+*.zip
+*.7z
+*.tar.gz
+*.tar
+*.rar
+
+# Logs and cache
+*.log
+.cache/
+tmp/
+temp/
+*.cache
+
+# Git
+.git/
+
+# Claude worktrees
+.claude/worktrees/
+
+# OS files
+.DS_Store
+Thumbs.db

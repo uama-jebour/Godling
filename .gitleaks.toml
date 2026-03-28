@@ -1,0 +1,24 @@
+title = "Godling gitleaks config"
+
+[extend]
+useDefault = true
+
+[[allowlists]]
+description = "Allow Azure placeholder examples in the home setup guide"
+condition = "AND"
+paths = ['''^在家工作设置指南\.md$''']
+regexTarget = "line"
+regexes = [
+  '''^export AZURE_OPENAI_API_KEY="你的API密钥"$''',
+  '''^export AZURE_OPENAI_ENDPOINT="https://你的资源名\.openai\.azure\.com"$''',
+]
+
+[[allowlists]]
+description = "Allow Azure placeholder examples in the Azure imagegen setup reference"
+condition = "AND"
+paths = ['''^codex-configs/skills/azure-imagegen/references/azure-openai-setup\.md$''']
+regexTarget = "line"
+regexes = [
+  '''^export AZURE_OPENAI_API_KEY="\.\.\."$''',
+  '''^export AZURE_OPENAI_ENDPOINT="https://YOUR_RESOURCE_NAME\.openai\.azure\.com"$''',
+]
