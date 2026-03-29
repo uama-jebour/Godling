@@ -2,8 +2,10 @@
 .import/
 build/
 dist/
+.vscode/
+tmp/
 *.exe
 *.zip
 *.pck
 .DS_Store
-
+output/imagegen/godling-auto-battle-tactical-v2/azure-smoke-test.png*
