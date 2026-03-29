@@ -1,0 +1,47 @@
+{
+  "version": "v1",
+  "description": "平面圆形棋子样式战斗单元 - 线条式表达",
+  "style": "clean line art, flat design, top-down view, circular token",
+  "tokens": [
+    {
+      "id": "token-hero-pilgrim-circular",
+      "filename": "token-hero-pilgrim-circular.png",
+      "unit_id": "hero_pilgrim_a01",
+      "side": "hero",
+      "description": "带兜帽的朝圣者英雄，持杖，俯视视角圆形棋子"
+    },
+    {
+      "id": "token-ally-ember-circular",
+      "filename": "token-ally-ember-circular.png",
+      "unit_id": "ally_ember_warden",
+      "side": "ally",
+      "description": "余烬守护者盟友，持盾和锤，俯视视角圆形棋子"
+    },
+    {
+      "id": "token-enemy-hollow-deacon-circular",
+      "filename": "token-enemy-hollow-deacon-circular.png",
+      "unit_id": "enemy_hollow_deacon",
+      "side": "enemy",
+      "description": "空洞执事敌人，持香炉的腐化神职人员，俯视视角圆形棋子"
+    },
+    {
+      "id": "token-enemy-ashen-hunter-circular",
+      "filename": "token-enemy-ashen-hunter-circular.png",
+      "unit_id": "enemy_ashen_hunter",
+      "side": "enemy",
+      "description": "灰烬猎人敌人，持弓的潜行者，俯视视角圆形棋子"
+    },
+    {
+      "id": "token-enemy-demon-stalker-circular",
+      "filename": "token-enemy-demon-stalker-circular.png",
+      "unit_id": "enemy_demon_stalker",
+      "side": "enemy",
+      "description": "恶魔潜行者敌人，带角和爪的恶魔，俯视视角圆形棋子"
+    }
+  ],
+  "usage": {
+    "token_scale": 0.85,
+    "collision_radius": 22,
+    "recommended_layout": "circular tokens overlap less than portrait cards"
+  }
+}
