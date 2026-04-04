@@ -9,3 +9,10 @@ tmp/
 *.pck
 .DS_Store
 output/imagegen/godling-auto-battle-tactical-v2/azure-smoke-test.png*
+
+# Local secrets
+.env
+.env.*
+!.env.example
+!.env.server.example
+.runtime/
